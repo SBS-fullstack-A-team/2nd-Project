@@ -1,4 +1,7 @@
-# 프로젝트 규칙 (프로젝트명 미정)
+# 프로젝트 규칙 (simsim-arcade · 심심오락실)
+
+예능식 퀴즈 게임(초성 퀴즈 등)과 추억의 플래시 스타일 게임을 웹에서 운영하는 사이트.
+게임은 하나씩 추가하며 확장한다. **Cloudflare 하나로 전부 구성** (Pages + Workers + D1).
 
 > 브랜치 전략: **GitHub Flow** (`main` + `feature/*`, 배포는 태그로 표시)
 
@@ -7,44 +10,52 @@
 PR 자동 생성 기능을 쓰려면 GitHub CLI(`gh`)가 설치되어 있어야 합니다.
 
 **설치 확인**
+
 ```bash
 gh --version
 ```
+
 → 버전이 뜨면 설치되어 있는 것, 안 뜨면 아래 설치 진행
 
 **설치 방법**
 
 Windows (PowerShell, 관리자 권한):
+
 ```powershell
 winget install --id GitHub.cli
 ```
 
 Mac:
+
 ```bash
 brew install gh
 ```
 
 **로그인**
+
 ```bash
 gh auth login
 ```
+
 - `GitHub.com` 선택 → `HTTPS` 선택 → `Login with a web browser` 선택
 - 코드가 나오면 복사 → 브라우저 열리면 붙여넣고 로그인/승인
 
 **로그인 확인**
+
 ```bash
 gh auth status
 ```
+
 → `Logged in to github.com as 본인아이디` 뜨면 완료
 
 ## 팀원 & Git 계정 정보
 
-| 이름 | GitHub 아이디 | 역할 | 담당 브랜치 접두사 |
-|---|---|---|---|
-| Heo (팀장) | heo-hyuk | 프론트엔드 | feature/fe-* |
-| 신영 | syyu21b | 백엔드 | feature/be-* |
-| 경수 | HurKyungsoo | 프론트엔드 | feature/fe-* |
-| 동한 | Kim-dong-han | 백엔드 | feature/be-* |
+| 이름       | GitHub 아이디 | 역할       | 담당 브랜치 접두사 |
+| ---------- | ------------- | ---------- | ------------------ |
+| Heo (팀장) | heo-hyuk      | 프론트엔드 | feature/fe-*       |
+| 신영       | syyu21b       | 백엔드     | feature/be-*       |
+| 경수       | HurKyungsoo   | 프론트엔드 | feature/fe-*       |
+| 동한       | Kim-dong-han  | 백엔드     | feature/be-*       |
 
 ## 커밋 규칙
 
@@ -56,32 +67,108 @@ gh auth status
   ```
 - 커밋 메시지는 아래 컨벤션을 따를 것 (단, wip 커밋은 "작업 중단/재개 규칙" 참고)
 
-| 태그 | 의미 |
-|---|---|
-| `feat:` | 새로운 기능 추가 |
-| `fix:` | 버그 수정 |
-| `refactor:` | 코드 리팩토링 |
-| `style:` | 코드 포맷팅, 세미콜론 등 |
-| `docs:` | 문서 수정 |
-| `chore:` | 빌드/설정 파일 수정 |
-| `wip:` | 미완성 작업 중간 저장 (아래 규칙 참고) |
+| 태그        | 의미                                   |
+| ----------- | -------------------------------------- |
+| `feat:`     | 새로운 기능 추가                       |
+| `fix:`      | 버그 수정                              |
+| `refactor:` | 코드 리팩토링                          |
+| `style:`    | 코드 포맷팅, 세미콜론 등               |
+| `docs:`     | 문서 수정                              |
+| `chore:`    | 빌드/설정 파일 수정                    |
+| `wip:`      | 미완성 작업 중간 저장 (아래 규칙 참고) |
 
 예시: `feat: 로그인 API 연동`, `fix: 회원가입 유효성 검사 오류 수정`
 
-## 저장소 구조 (모노레포)
+## 스택
 
-> ⚠️ 기술 스택 / 배포 환경 미정 — 확정되면 이 섹션 업데이트할 것
+| 영역              | 기술                                     | 배포                |
+| ----------------- | ---------------------------------------- | ------------------- |
+| 모노레포          | pnpm workspace                           | —                   |
+| `apps/web`        | React + TypeScript + Vite + React Router | Cloudflare Pages    |
+| `apps/api`        | Cloudflare Workers + Hono + TypeScript   | Cloudflare Workers  |
+| DB                | Cloudflare D1 + Drizzle ORM              | D1                  |
+| `packages/shared` | API 요청/응답 타입, 게임 공통 타입       | (web·api 가 import) |
+
+- 나중에 추가 예정 — **지금은 만들지 말 것**: Durable Objects(파티 모드), R2, KV, Turnstile
+
+## 저장소 구조 & 담당
 
 ```
-backend/    # API 서버. 백엔드 담당(신영, 동한). 기술 스택/배포 미정
-frontend/   # 웹 앱. 프론트 담당(Heo, 경수). 기술 스택/배포 미정
-docs/       # API / ERD 문서 (공용)
-.github/    # CODEOWNERS, 워크플로우 (공용, 팀장 관리)
-CLAUDE.md   # 이 파일 (공용)
+apps/web/src/          # 프론트 (Heo, 경수)
+  games/               #   게임별 독립 폴더 + registry.ts
+  components/          #   공통 UI: Timer, ResultModal, RankingList, GameCard ...
+  pages/               #   HomePage(메인), GamePage(/games/:gameId), NotFoundPage
+  lib/                 #   api 클라이언트, useFetch
+apps/api/              # 백엔드 (신영, 동한)
+  src/routes/games.ts  #   gameId 기반 범용 API
+  src/db/schema.ts     #   Drizzle 스키마
+  migrations/          #   drizzle-kit 생성 SQL (커밋 대상)
+  seeds/               #   시드 SQL
+packages/shared/src/   # 공용 타입 — 변경 시 프론트·백엔드 양쪽 리뷰 받을 것
 ```
 
-- 백엔드 작업은 `backend/` 안에서만, 프론트 작업은 `frontend/` 안에서만 한다.
-- IDE 설정 / 빌드·실행 방법은 기술 스택 확정 후 추가한다.
+- 프론트 작업은 `apps/web/` 안에서만, 백엔드 작업은 `apps/api/` 안에서만 한다.
+- 요청/응답 타입은 **`packages/shared` 에만** 정의한다. web·api 에 같은 타입을 따로 만들지 말 것.
+
+## 게임 설계 원칙 (게임 추가가 쉬워야 함)
+
+### 프론트
+
+1. 게임은 `apps/web/src/games/<게임id>/` **폴더 하나로 완결**한다. (컴포넌트, 규칙 config, 스타일, 썸네일)
+   - 게임 폴더 밖의 공통 코드(`components/`, `pages/`)를 게임 전용으로 수정하지 않는다.
+2. 모든 게임 컴포넌트는 `default export` 이고 공통 Props `GameProps` (`{ onFinish: (score: number) => void }`) 를 따른다.
+   - 게임은 **점수 계산까지만** 책임진다. 점수 등록·결과창·랭킹은 `GamePage` 가 공통 처리한다.
+   - `onFinish` 는 한 판에 한 번만 호출한다. 다시 하기는 GamePage 가 게임을 새로 마운트해서 처리한다.
+3. `games/registry.ts` 에 메타(id, name, description, thumbnail, category, lazy 컴포넌트)를 등록한다.
+   - 메인 카드 목록과 `/games/:gameId` 라우트는 registry 로 자동 생성된다. **게임별 라우트를 따로 만들지 말 것.**
+   - 컴포넌트는 반드시 `React.lazy(() => import('./<게임id>'))` 로 등록한다 (게임별 코드 분리).
+
+### 백엔드
+
+4. API 는 **게임별로 만들지 않고 gameId 기반 범용**으로 만든다.
+   - `POST /api/games/:gameId/scores` — `{ nickname, score }` 등록
+   - `GET  /api/games/:gameId/ranking?limit=N` — 상위 N개 (기간 필터는 나중에)
+   - `GET  /api/games/:gameId/questions?limit=N` — 퀴즈류 문제 랜덤 N개
+   - 에러는 공통 형식 `{ error: { code, message } }` 로 응답한다.
+5. DB 스키마: `game(id, name, category, created_at)`, `score(id, game_id, nickname, score, created_at)`, `quiz_item(id, game_id, question, answer, meta JSON, created_at)`
+   - 게임마다 달라지는 데이터는 **새 테이블/컬럼 대신 `quiz_item.meta`(JSON)** 에 담고, meta 타입은 `packages/shared` 에 정의한다.
+   - 스키마 변경 시 `pnpm db:generate` 로 마이그레이션을 만들고 **생성된 SQL 을 함께 커밋**한다. 이미 머지된 마이그레이션 파일은 수정하지 말 것.
+
+### 게임 ID 규칙
+
+- 소문자·숫자·하이픈 (예: `chosung-quiz`). 아래 4곳의 ID 가 반드시 같아야 한다:
+  1. 게임 폴더명 `apps/web/src/games/<id>/`
+  2. `registry.ts` 의 `id`
+  3. DB `game.id` (시드 SQL)
+  4. `packages/shared` 의 `MAX_SCORE_BY_GAME` 키 (서버 점수 상한 검증)
+
+## 새 게임 추가 체크리스트
+
+1. `apps/web/src/games/<id>/` 폴더 생성 — `index.tsx`(default export, `GameProps`), `config.ts`, 스타일, `thumbnail.svg`
+2. `apps/web/src/games/registry.ts` 에 메타 등록 (`lazy(() => import('./<id>'))`)
+3. `packages/shared/src/game.ts` — `MAX_SCORE_BY_GAME` 에 최고 점수 추가, 퀴즈류면 meta 타입 추가
+4. `apps/api/seeds/` 에 `game` 행 INSERT (+ 퀴즈류면 `quiz_item` 문제) → `pnpm db:seed:local`
+5. `pnpm typecheck && pnpm lint && pnpm build` 통과 확인 후 PR
+
+## 개발 명령어 (루트에서 실행)
+
+```bash
+pnpm install              # 의존성 설치
+pnpm db:setup:local       # 로컬 D1 마이그레이션 + 시드 (최초 1회, 스키마/시드 변경 시)
+pnpm dev                  # web(5173) + api(8787) 동시 실행, web → api 프록시
+pnpm typecheck            # 전체 타입 체크
+pnpm lint / pnpm format   # ESLint / Prettier
+pnpm build                # web 빌드 + api 번들 확인(dry-run, 실제 배포 아님)
+pnpm db:generate          # 스키마 변경 후 마이그레이션 SQL 생성
+```
+
+## 코드 작성 규칙
+
+- 코드 주석과 README 는 **한국어**로 작성한다.
+- `apps/api` 는 Workers 런타임에서 동작하는 라이브러리만 사용한다. **Node 전용 API(`fs`, `path`, `process` 등) 금지.**
+- 비밀값(API 토큰, 계정 ID 등)은 코드·레포에 넣지 않는다. 로컬은 `apps/api/.dev.vars`(gitignore), 배포는 `wrangler secret` / 환경변수 사용.
+- **실제 배포(`wrangler deploy`)와 원격 D1 마이그레이션(`--remote`)은 Claude 가 실행하지 않는다.** 필요한 명령어는 README 에만 정리한다.
+- 방송 프로그램 이름·로고·실제 방송 문제는 사용하지 않는다. 문제는 직접 만든 것만 쓴다.
 
 ## 브랜치 전략 (GitHub Flow)
 

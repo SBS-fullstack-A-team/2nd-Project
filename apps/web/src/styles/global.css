@@ -1,0 +1,73 @@
+:root {
+  --bg: #fff8e7;
+  --surface: #ffffff;
+  --surface-strong: #2d2a4a;
+  --on-strong: #ffffff;
+  --text: #2d2a4a;
+  --text-muted: #6b6785;
+  --border: #e4dfd2;
+  --accent: #e8386d;
+  --yellow: #ffe36e;
+  --success: #1f9d6b;
+  --danger: #d93636;
+  --radius: 16px;
+  --radius-sm: 10px;
+
+  font-family:
+    'Pretendard',
+    'Apple SD Gothic Neo',
+    'Malgun Gothic',
+    system-ui,
+    -apple-system,
+    sans-serif;
+  color: var(--text);
+  background: var(--bg);
+  -webkit-font-smoothing: antialiased;
+}
+
+*,
+*::before,
+*::after {
+  box-sizing: border-box;
+}
+
+body {
+  margin: 0;
+  background: var(--bg);
+}
+
+/* 공통 버튼 */
+.btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  font: inherit;
+  font-weight: 700;
+  padding: 10px 18px;
+  border: 2px solid var(--text);
+  border-radius: var(--radius-sm);
+  background: var(--surface);
+  color: var(--text);
+  text-decoration: none;
+  cursor: pointer;
+  white-space: nowrap;
+}
+.btn:hover {
+  background: var(--bg);
+}
+.btn:disabled {
+  opacity: 0.5;
+  cursor: default;
+}
+.btn-primary {
+  background: var(--accent);
+  border-color: var(--accent);
+  color: #fff;
+}
+.btn-primary:hover {
+  background: #c92a5b;
+}
+:focus-visible {
+  outline: 3px solid var(--yellow);
+  outline-offset: 2px;
+}

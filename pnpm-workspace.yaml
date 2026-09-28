@@ -1,0 +1,14 @@
+packages:
+  - apps/*
+  - packages/*
+
+# 설치 스크립트 실행을 허용할 의존성 (Vite/Wrangler 동작에 필요한 네이티브 바이너리)
+allowBuilds:
+  esbuild: true
+  workerd: true
+
+# 출시 직후 버전 설치 제한(minimumReleaseAge)에서 예외로 둘 패키지
+minimumReleaseAgeExclude:
+  - '@cloudflare/workers-types@5.20260927.1'
+  - miniflare@5.20260926.0-alpha
+  - wrangler@4.142.0
