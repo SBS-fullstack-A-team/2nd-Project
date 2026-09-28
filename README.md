@@ -44,6 +44,9 @@ pnpm install              # 의존성 설치
 pnpm db:setup:local       # 로컬 D1 에 마이그레이션 + 시드 적용
 ```
 
+> 로컬 D1 데이터는 `wrangler.toml` 의 `database_id` 별로 저장됩니다. `database_id` 가 바뀐 뒤
+> API 가 `서버 오류`(500)를 내면 `pnpm db:setup:local` 을 다시 실행하세요.
+
 ### 개발 서버
 
 ```bash
