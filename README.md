@@ -167,8 +167,8 @@ pnpm dev
 
 ```bash
 cd apps/api
-pnpm exec wrangler d1 create simsim-arcade-db
-# → 출력된 database_id 를 wrangler.toml 의 database_id 에 붙여넣고 커밋
+# (완료) 2026-09-28 생성, database_id 는 wrangler.toml 에 반영됨 — 다시 실행하지 말 것
+# pnpm exec wrangler d1 create simsim-arcade-db
 
 pnpm exec wrangler d1 migrations apply simsim-arcade-db --remote
 # 게임별 시드 파일마다 실행 (예: 초성 퀴즈)
