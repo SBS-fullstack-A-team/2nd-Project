@@ -147,6 +147,15 @@ pnpm dev
 - [ ] **5. 확인** — `pnpm typecheck && pnpm lint && pnpm build` 통과, `pnpm dev` 로 한 판 끝까지 플레이 → 점수 등록 → 랭킹 확인
 - [ ] **6. PR** — 새 테이블이나 API 는 필요 없습니다. 필요해 보이면 먼저 팀과 상의하세요.
 
+## CI (GitHub Actions)
+
+`main` 대상 PR 과 `main` push 마다 `.github/workflows/ci.yml` 이 자동으로 실행됩니다.
+
+- 순서: `pnpm install --frozen-lockfile` → `typecheck` → `lint` → `format:check` → `build`
+- 실제 배포는 하지 않습니다 (api 빌드는 `--dry-run`).
+- PR 화면의 체크가 ❌ 이면 머지하지 말고 고친 뒤 다시 push 합니다.
+- 포맷 오류는 로컬에서 `pnpm format` 으로 바로 고칠 수 있습니다.
+
 ## 배포 (참고용 — 명령어 정리만, 아직 실행하지 않음)
 
 > 비밀값은 레포에 넣지 않습니다. `wrangler login` 으로 로그인하거나, CI 에서는 환경변수

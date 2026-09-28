@@ -1,0 +1,46 @@
+# CI — PR 과 main push 마다 타입 체크 / 린트 / 포맷 / 빌드를 확인한다.
+# 실제 배포는 하지 않는다 (api 빌드는 wrangler --dry-run 이라 Cloudflare 계정 정보가 필요 없음).
+name: CI
+
+on:
+  pull_request:
+    branches: [main]
+  push:
+    branches: [main]
+
+# 같은 브랜치에 새 커밋이 올라오면 이전 실행은 취소한다
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+
+      # pnpm 버전은 루트 package.json 의 packageManager 를 따른다
+      - uses: pnpm/action-setup@v4
+
+      - uses: actions/setup-node@v5
+        with:
+          node-version-file: .nvmrc
+          cache: pnpm
+
+      - name: 의존성 설치
+        run: pnpm install --frozen-lockfile
+
+      - name: 타입 체크
+        run: pnpm typecheck
+
+      - name: 린트
+        run: pnpm lint
+
+      - name: 포맷 확인
+        run: pnpm format:check
+
+      - name: 빌드 (web 빌드 + api dry-run)
+        run: pnpm build
