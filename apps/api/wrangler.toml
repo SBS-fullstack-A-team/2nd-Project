@@ -1,0 +1,21 @@
+# Cloudflare Workers 설정 (API 서버)
+# 비밀값(API 토큰, 계정 ID)은 여기에 넣지 말 것 — 로컬은 .dev.vars, 배포는 환경변수 사용
+name = "simsim-arcade-api"
+main = "src/index.ts"
+compatibility_date = "2026-09-01"
+
+[vars]
+# CORS 허용 출처 (쉼표 구분). 로컬은 Vite 프록시를 쓰므로 비워둬도 된다.
+# 배포 시 Pages 주소로 설정: 예) "https://simsim-arcade.pages.dev"
+ALLOWED_ORIGINS = ""
+
+[[d1_databases]]
+binding = "DB"
+database_name = "simsim-arcade-db"
+# `wrangler d1 create simsim-arcade-db` 로 원격 DB 생성 후 출력된 ID로 교체한다.
+# 로컬 개발(--local)은 이 값과 무관하게 동작한다.
+database_id = "00000000-0000-0000-0000-000000000000"
+migrations_dir = "migrations"
+
+[dev]
+port = 8787

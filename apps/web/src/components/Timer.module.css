@@ -1,0 +1,30 @@
+.timer {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+.track {
+  flex: 1;
+  height: 12px;
+  background: var(--border);
+  border-radius: 999px;
+  overflow: hidden;
+}
+.bar {
+  height: 100%;
+  background: var(--success);
+  transform-origin: left;
+  transition: transform 0.1s linear;
+}
+.label {
+  min-width: 3.5em;
+  text-align: right;
+  font-weight: 800;
+  font-variant-numeric: tabular-nums;
+}
+.urgent .bar {
+  background: var(--danger);
+}
+.urgent .label {
+  color: var(--danger);
+}

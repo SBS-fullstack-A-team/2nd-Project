@@ -1,0 +1,28 @@
+{
+  "name": "@simsim/api",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "dev": "wrangler dev",
+    "build": "wrangler deploy --dry-run --outdir dist",
+    "typecheck": "tsc --noEmit",
+    "db:generate": "drizzle-kit generate",
+    "db:migrate:local": "wrangler d1 migrations apply simsim-arcade-db --local",
+    "db:seed:local": "wrangler d1 execute simsim-arcade-db --local --file=seeds/seed.sql",
+    "db:setup:local": "pnpm db:migrate:local && pnpm db:seed:local"
+  },
+  "dependencies": {
+    "@hono/zod-validator": "^0.9.1",
+    "@simsim/shared": "workspace:*",
+    "drizzle-orm": "^0.45.3",
+    "hono": "^4.13.9",
+    "zod": "^4.6.5"
+  },
+  "devDependencies": {
+    "@cloudflare/workers-types": "^5.20260927.1",
+    "drizzle-kit": "^0.31.11",
+    "typescript": "~6.0.3",
+    "wrangler": "^4.142.0"
+  }
+}

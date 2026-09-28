@@ -1,0 +1,47 @@
+/**
+ * 게임 공통 타입 — web(게임 컴포넌트)과 api(점수 검증)가 함께 사용한다.
+ */
+
+/** 게임 분류. 새 분류가 필요하면 여기에 추가한다. */
+export type GameCategory = 'quiz' | 'arcade';
+
+/**
+ * 모든 게임 컴포넌트가 따르는 공통 Props.
+ * 게임은 점수 계산까지만 책임지고, 점수 등록/랭킹 표시는 공통 페이지가 처리한다.
+ */
+export interface GameProps {
+  /** 게임이 끝났을 때 최종 점수를 전달한다. 한 판에 한 번만 호출해야 한다. */
+  onFinish: (score: number) => void;
+}
+
+/** 퀴즈류 게임의 문제 1개. meta 구조는 게임마다 다르다. */
+export interface QuizItem<TMeta = Record<string, unknown>> {
+  id: number;
+  question: string;
+  answer: string;
+  meta: TMeta;
+}
+
+/** 초성 퀴즈 문제의 meta */
+export interface ChosungQuizMeta {
+  /** 정답 분류 (예: 과일, 동물) — 화면에 항상 보여준다 */
+  category: string;
+  /** 추가 힌트 (선택) */
+  hint?: string;
+  /** 정답으로 함께 인정할 단어 (선택) */
+  aliases?: string[];
+}
+
+/**
+ * 게임별 점수 상한 — 서버가 비정상 점수를 거르는 데 사용한다.
+ * 새 게임을 추가하면 반드시 여기에 등록할 것 (미등록 시 DEFAULT_MAX_SCORE 적용).
+ */
+export const MAX_SCORE_BY_GAME: Record<string, number> = {
+  'chosung-quiz': 100,
+};
+
+export const DEFAULT_MAX_SCORE = 1_000_000;
+
+export function getMaxScore(gameId: string): number {
+  return MAX_SCORE_BY_GAME[gameId] ?? DEFAULT_MAX_SCORE;
+}

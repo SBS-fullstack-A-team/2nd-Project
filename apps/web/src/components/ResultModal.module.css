@@ -1,0 +1,78 @@
+.backdrop {
+  position: fixed;
+  inset: 0;
+  background: rgb(20 18 40 / 0.6);
+  display: grid;
+  place-items: center;
+  padding: 16px;
+  z-index: 10;
+}
+.modal {
+  width: 100%;
+  max-width: 420px;
+  max-height: calc(100vh - 32px);
+  overflow-y: auto;
+  background: var(--surface);
+  border-radius: var(--radius);
+  padding: 24px;
+  text-align: center;
+  box-shadow: 0 12px 40px rgb(0 0 0 / 0.25);
+}
+.gameName {
+  margin: 0;
+  color: var(--text-muted);
+  font-size: 0.9rem;
+}
+.title {
+  margin: 4px 0 0;
+  font-size: 1.6rem;
+}
+.score {
+  margin: 8px 0 16px;
+  font-size: 1.2rem;
+}
+.score strong {
+  font-size: 3rem;
+  color: var(--accent);
+}
+.form {
+  display: flex;
+  gap: 8px;
+}
+.input {
+  flex: 1;
+  min-width: 0;
+  font: inherit;
+  padding: 10px 12px;
+  border: 2px solid var(--border);
+  border-radius: var(--radius-sm);
+  background: var(--surface);
+  color: var(--text);
+}
+.input:focus {
+  outline: none;
+  border-color: var(--accent);
+}
+.registered {
+  font-weight: 800;
+  margin: 0;
+}
+.error {
+  color: var(--danger);
+  margin: 8px 0 0;
+  font-size: 0.9rem;
+}
+.rankingTitle {
+  margin: 20px 0 8px;
+  font-size: 1rem;
+  text-align: left;
+}
+.ranking {
+  text-align: left;
+}
+.actions {
+  display: flex;
+  gap: 8px;
+  justify-content: center;
+  margin-top: 20px;
+}
