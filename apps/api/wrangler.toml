@@ -12,9 +12,9 @@ ALLOWED_ORIGINS = ""
 [[d1_databases]]
 binding = "DB"
 database_name = "simsim-arcade-db"
-# `wrangler d1 create simsim-arcade-db` 로 원격 DB 생성 후 출력된 ID로 교체한다.
+# 원격 DB ID (`wrangler d1 create simsim-arcade-db` 로 생성, 2026-09-28). 비밀값 아님.
 # 로컬 개발(--local)은 이 값과 무관하게 동작한다.
-database_id = "00000000-0000-0000-0000-000000000000"
+database_id = "767eb971-9e78-4730-8eec-b30e33115a61"
 migrations_dir = "migrations"
 
 [dev]
