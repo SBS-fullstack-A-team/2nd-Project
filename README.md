@@ -23,7 +23,7 @@ apps/api/
   src/routes/       gameId 기반 범용 API
   src/db/           Drizzle 스키마
   migrations/       마이그레이션 SQL (drizzle-kit 생성, 커밋 대상)
-  seeds/            시드 SQL (초성 퀴즈 샘플 20문제)
+  seeds/            게임별 시드 SQL (<게임id>.sql, 초성 퀴즈 샘플 20문제)
 packages/shared/src/  API 요청/응답 타입, 게임 공통 타입
 ```
 
@@ -59,17 +59,17 @@ pnpm dev
 
 ### 자주 쓰는 명령어 (루트에서 실행)
 
-| 명령어                  | 설명                                                           |
-| ----------------------- | -------------------------------------------------------------- |
-| `pnpm dev`              | web + api 동시 실행                                            |
-| `pnpm typecheck`        | 전체 타입 체크                                                 |
-| `pnpm lint`             | ESLint                                                         |
-| `pnpm format`           | Prettier 로 코드 정리                                          |
-| `pnpm build`            | web 빌드 + api 번들 확인 (`--dry-run`, 실제 배포 아님)         |
-| `pnpm db:generate`      | 스키마 변경 후 마이그레이션 SQL 생성                           |
-| `pnpm db:migrate:local` | 로컬 D1 에 마이그레이션 적용                                   |
-| `pnpm db:seed:local`    | 로컬 D1 에 시드 적용 (여러 번 실행해도 안전, 점수 기록은 유지) |
-| `pnpm db:setup:local`   | 위 두 개를 한 번에                                             |
+| 명령어                  | 설명                                                                         |
+| ----------------------- | ---------------------------------------------------------------------------- |
+| `pnpm dev`              | web + api 동시 실행                                                          |
+| `pnpm typecheck`        | 전체 타입 체크                                                               |
+| `pnpm lint`             | ESLint                                                                       |
+| `pnpm format`           | Prettier 로 코드 정리                                                        |
+| `pnpm build`            | web 빌드 + api 번들 확인 (`--dry-run`, 실제 배포 아님)                       |
+| `pnpm db:generate`      | 스키마 변경 후 마이그레이션 SQL 생성                                         |
+| `pnpm db:migrate:local` | 로컬 D1 에 마이그레이션 적용                                                 |
+| `pnpm db:seed:local`    | 로컬 D1 에 `seeds/*.sql` 전체 적용 (여러 번 실행해도 안전, 점수 기록은 유지) |
+| `pnpm db:setup:local`   | 위 두 개를 한 번에                                                           |
 
 ## DB 마이그레이션 / 시드
 
@@ -80,7 +80,8 @@ pnpm dev
 4. 생성된 `migrations/*.sql` 과 `migrations/meta/*` 를 **함께 커밋**
 
 - 이미 main 에 머지된 마이그레이션 파일은 수정하지 말고, 새 마이그레이션을 추가하세요.
-- 시드는 `apps/api/seeds/seed.sql` 에 있습니다. 로컬 DB 를 SQL 로 직접 조회하려면:
+- 시드는 게임별 파일 `apps/api/seeds/<게임id>.sql` 로 나뉘어 있고, `pnpm db:seed:local` 이 파일명 순서대로 전부 적용합니다.
+- 로컬 DB 를 SQL 로 직접 조회하려면:
   ```bash
   cd apps/api
   pnpm exec wrangler d1 execute simsim-arcade-db --local --command "SELECT * FROM score"
@@ -102,6 +103,10 @@ pnpm dev
 
 ## 새 게임 추가 방법 (체크리스트)
 
+게임은 **카드 담당자 1명이 프론트·백 구분 없이** 만듭니다 (담당 카드는 [CLAUDE.md](./CLAUDE.md#게임-카드-담당-1인-1게임) 참고).
+브랜치는 최신 main 에서 `feature/game-<게임ID>` 로 만들고, **새 파일 추가 + 등록 한 줄**만 합니다.
+공통 코드(components, pages, API, 스키마) 수정이 필요하면 게임 PR 과 분리해서 역할 담당자에게 요청하세요.
+
 게임 ID 는 소문자·숫자·하이픈으로 정하고(예: `word-chain`), 아래 모든 곳에서 **같은 ID** 를 사용합니다.
 
 - [ ] **1. 게임 폴더 만들기** — `apps/web/src/games/<게임ID>/`
@@ -117,7 +122,7 @@ pnpm dev
   - `config.ts`(규칙 상수), `*.module.css`, `thumbnail.svg`(16:9) 도 이 폴더에 둡니다.
   - 점수 등록·결과창·랭킹은 공통 페이지가 처리하므로 게임에서 만들지 않습니다.
   - 공통 UI 가 필요하면 `components/` 의 `Timer` 등을 가져다 씁니다.
-- [ ] **2. registry 등록** — `apps/web/src/games/registry.ts` 의 `GAMES` 에 추가
+- [ ] **2. registry 등록** — `apps/web/src/games/registry.ts` 의 `GAMES` 에 **내 카드 번호 위치**에 추가
   ```ts
   {
     id: 'word-chain',
@@ -132,11 +137,12 @@ pnpm dev
 - [ ] **3. 공용 타입** — `packages/shared/src/game.ts`
   - `MAX_SCORE_BY_GAME` 에 최고 점수 추가 (서버가 이보다 큰 점수를 거부)
   - 퀴즈류라면 `quiz_item.meta` 에 들어갈 타입 추가 (예: `ChosungQuizMeta`)
-- [ ] **4. DB 등록** — `apps/api/seeds/` 의 시드 SQL 에 추가 후 `pnpm db:seed:local`
+- [ ] **4. DB 등록** — 새 파일 `apps/api/seeds/<게임ID>.sql` 작성 후 `pnpm db:seed:local`
   ```sql
   INSERT OR IGNORE INTO game (id, name, category) VALUES ('word-chain', '끝말잇기', 'quiz');
   ```
   - 퀴즈류라면 `quiz_item` 에 문제도 넣습니다 (게임마다 다른 데이터는 `meta` JSON 에).
+  - 여러 번 실행해도 되도록 내 게임 문제만 `DELETE` 후 다시 넣습니다 (`chosung-quiz.sql` 참고).
   - 문제는 직접 만든 것만 사용합니다 (방송 프로그램 이름·로고·실제 방송 문제 금지).
 - [ ] **5. 확인** — `pnpm typecheck && pnpm lint && pnpm build` 통과, `pnpm dev` 로 한 판 끝까지 플레이 → 점수 등록 → 랭킹 확인
 - [ ] **6. PR** — 새 테이블이나 API 는 필요 없습니다. 필요해 보이면 먼저 팀과 상의하세요.
@@ -156,7 +162,8 @@ pnpm exec wrangler d1 create simsim-arcade-db
 # → 출력된 database_id 를 wrangler.toml 의 database_id 에 붙여넣고 커밋
 
 pnpm exec wrangler d1 migrations apply simsim-arcade-db --remote
-pnpm exec wrangler d1 execute simsim-arcade-db --remote --file=seeds/seed.sql
+# 게임별 시드 파일마다 실행 (예: 초성 퀴즈)
+pnpm exec wrangler d1 execute simsim-arcade-db --remote --file=seeds/chosung-quiz.sql
 ```
 
 스키마가 바뀐 PR 이 머지되면 배포 전에 `migrations apply ... --remote` 를 다시 실행합니다.

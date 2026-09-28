@@ -57,6 +57,9 @@ gh auth status
 | 경수       | HurKyungsoo   | 프론트엔드 | feature/fe-*       |
 | 동한       | Kim-dong-han  | 백엔드     | feature/be-*       |
 
+> 위 역할(프론트/백엔드)은 **웹 공통 구성** 작업에만 적용된다.
+> **게임 카드**는 역할과 상관없이 1인 1게임으로 담당자가 프론트·백 구분 없이 혼자 만든다. → 아래 "작업 구분" 참고
+
 ## 커밋 규칙
 
 - 커밋 전, 현재 로컬 git config의 user.name / user.email이 위 표의 본인 GitHub 계정과 일치하는지 확인할 것
@@ -91,6 +94,41 @@ gh auth status
 
 - 나중에 추가 예정 — **지금은 만들지 말 것**: Durable Objects(파티 모드), R2, KV, Turnstile
 
+## 작업 구분: 웹 공통 구성 vs 게임 카드
+
+| 구분             | 범위                                                                                 | 담당                                         | 브랜치                          |
+| ---------------- | ------------------------------------------------------------------------------------ | -------------------------------------------- | ------------------------------- |
+| **웹 공통 구성** | 레이아웃, 공통 컴포넌트, 페이지, API, DB 스키마·마이그레이션, shared 공통 타입, 설정 | 프론트/백엔드 역할대로 분리                  | `feature/fe-*` / `feature/be-*` |
+| **게임 카드**    | 게임 1개 (게임 폴더 + registry 등록 + 시드 + 점수 상한/meta 타입)                    | 카드 담당자 1명이 전부 (프론트·백 구분 없음) | `feature/game-<게임id>`         |
+
+### 게임 카드 담당 (1인 1게임)
+
+| 카드 | 담당     | 게임 (id) | 브랜치                  |
+| ---- | -------- | --------- | ----------------------- |
+| 1    | 혁 (Heo) | 미정      | `feature/game-<게임id>` |
+| 2    | 경수     | 미정      | `feature/game-<게임id>` |
+| 3    | 신영     | 미정      | `feature/game-<게임id>` |
+| 4    | 동한     | 미정      | `feature/game-<게임id>` |
+
+- 게임이 정해지면 이 표의 "게임 (id)" 칸을 채운다.
+- 메인 화면 카드 순서 = 위 카드 번호 순서. `registry.ts` 의 `GAMES` 배열도 이 순서대로 둔다.
+- 샘플 게임 `chosung-quiz`(초성 퀴즈)는 구조 참고용이다. 계속 둘지는 팀에서 정한다.
+
+### 게임 카드 작업 규칙 — "추가만 한다"
+
+게임 카드 작업은 **새 파일 추가 + 등록 한 줄**만 한다. 다른 사람 게임이나 공통 코드는 건드리지 않는다.
+
+| 파일                             | 허용되는 변경                                                    |
+| -------------------------------- | ---------------------------------------------------------------- |
+| `apps/web/src/games/<게임id>/`   | 새 폴더 — 자유롭게 작성 (내 게임 전용)                           |
+| `apps/web/src/games/registry.ts` | 내 카드 번호 위치에 **항목 1개 추가**, 썸네일 import 1줄         |
+| `packages/shared/src/game.ts`    | `MAX_SCORE_BY_GAME` 에 **1줄 추가**, 퀴즈류면 meta 타입 **추가** |
+| `apps/api/seeds/<게임id>.sql`    | 새 파일 — 내 게임의 `game` 행 + `quiz_item` 문제                 |
+
+- 금지: 공통 `components/`, `pages/`, `lib/`, API 라우트, DB 스키마, 다른 사람의 게임 폴더·시드 수정
+- 공통 부분 변경이 필요하면 (예: 공통 컴포넌트에 기능 추가, 새 API) 게임 PR 에 섞지 말고 해당 역할 담당자에게 요청해서 `feature/fe-*` / `feature/be-*` PR 로 따로 진행한다.
+- 게임 PR 리뷰는 팀원 누구든 1명 이상 승인이면 된다.
+
 ## 저장소 구조 & 담당
 
 ```
@@ -103,11 +141,12 @@ apps/api/              # 백엔드 (신영, 동한)
   src/routes/games.ts  #   gameId 기반 범용 API
   src/db/schema.ts     #   Drizzle 스키마
   migrations/          #   drizzle-kit 생성 SQL (커밋 대상)
-  seeds/               #   시드 SQL
+  seeds/<게임id>.sql   #   게임별 시드 SQL (파일명 순서대로 전부 적용)
 packages/shared/src/   # 공용 타입 — 변경 시 프론트·백엔드 양쪽 리뷰 받을 것
 ```
 
-- 프론트 작업은 `apps/web/` 안에서만, 백엔드 작업은 `apps/api/` 안에서만 한다.
+- (웹 공통 구성) 프론트 작업은 `apps/web/` 안에서만, 백엔드 작업은 `apps/api/` 안에서만 한다.
+- (게임 카드) 위 "게임 카드 작업 규칙"의 파일만 추가/수정한다.
 - 요청/응답 타입은 **`packages/shared` 에만** 정의한다. web·api 에 같은 타입을 따로 만들지 말 것.
 
 ## 게임 설계 원칙 (게임 추가가 쉬워야 함)
@@ -139,16 +178,18 @@ packages/shared/src/   # 공용 타입 — 변경 시 프론트·백엔드 양�
 - 소문자·숫자·하이픈 (예: `chosung-quiz`). 아래 4곳의 ID 가 반드시 같아야 한다:
   1. 게임 폴더명 `apps/web/src/games/<id>/`
   2. `registry.ts` 의 `id`
-  3. DB `game.id` (시드 SQL)
+  3. DB `game.id` (시드 파일 `apps/api/seeds/<id>.sql`)
   4. `packages/shared` 의 `MAX_SCORE_BY_GAME` 키 (서버 점수 상한 검증)
 
-## 새 게임 추가 체크리스트
+## 새 게임 추가 체크리스트 (게임 카드 담당자)
 
+0. 최신 main 에서 `feature/game-<id>` 브랜치 생성
 1. `apps/web/src/games/<id>/` 폴더 생성 — `index.tsx`(default export, `GameProps`), `config.ts`, 스타일, `thumbnail.svg`
 2. `apps/web/src/games/registry.ts` 에 메타 등록 (`lazy(() => import('./<id>'))`)
 3. `packages/shared/src/game.ts` — `MAX_SCORE_BY_GAME` 에 최고 점수 추가, 퀴즈류면 meta 타입 추가
-4. `apps/api/seeds/` 에 `game` 행 INSERT (+ 퀴즈류면 `quiz_item` 문제) → `pnpm db:seed:local`
-5. `pnpm typecheck && pnpm lint && pnpm build` 통과 확인 후 PR
+4. `apps/api/seeds/<id>.sql` 새 파일에 `game` 행 INSERT (+ 퀴즈류면 `quiz_item` 문제) → `pnpm db:seed:local`
+   - 여러 번 실행해도 되게 작성 (`INSERT OR IGNORE`, 내 게임 문제만 `DELETE` 후 재삽입 — `chosung-quiz.sql` 참고)
+5. `pnpm typecheck && pnpm lint && pnpm build` 통과, `pnpm dev` 로 한 판 → 점수 등록 → 랭킹까지 확인 후 PR
 
 ## 개발 명령어 (루트에서 실행)
 
@@ -177,12 +218,13 @@ main        # 통합 + 배포 브랜치. 항상 배포 가능한 상태 유지, 
 feature/*   # 개별 기능 작업 브랜치. main에서 분기 → main으로 PR
 ```
 
-- 프론트 담당자(Heo, 경수): `feature/fe-기능명`
-- 백엔드 담당자(신영, 동한): `feature/be-기능명`
-- 각자 본인 role에 맞는 브랜치명만 생성할 것
+- 웹 공통 구성 — 프론트 담당자(Heo, 경수): `feature/fe-기능명`
+- 웹 공통 구성 — 백엔드 담당자(신영, 동한): `feature/be-기능명`
+- 게임 카드 — 담당자 누구나 (역할 무관): `feature/game-게임id`
+- 공통 구성은 본인 role에 맞는 브랜치명만, 게임 카드는 본인 담당 게임의 브랜치만 생성할 것
 - `develop` 브랜치는 사용하지 않음
 
-예시: `feature/fe-login`, `feature/be-login-api`, `feature/fe-mypage`, `feature/be-board-crud`
+예시: `feature/fe-ranking-ui`, `feature/be-ranking-period`, `feature/game-word-chain`
 
 ## 작업 흐름
 
@@ -191,9 +233,10 @@ feature/*   # 개별 기능 작업 브랜치. main에서 분기 → main으로 P
    git checkout main
    git pull origin main
    ```
-2. 본인 role에 맞는 브랜치 생성
+2. 작업 종류에 맞는 브랜치 생성
    ```bash
-   git checkout -b feature/역할-기능명
+   git checkout -b feature/역할-기능명     # 웹 공통 구성 (fe / be)
+   git checkout -b feature/game-게임id     # 게임 카드
    ```
 3. 작업 후 커밋 & push
    ```bash
@@ -242,7 +285,8 @@ feature/*   # 개별 기능 작업 브랜치. main에서 분기 → main으로 P
 - ✅ `main`은 항상 배포 가능한 상태로 유지 (깨진 코드 머지 금지)
 - ✅ 작업 시작 전 `main`을 최신 상태로 pull 받고 시작하기
 - ✅ PR 올리기 전 최소 1명 이상 코드 리뷰 승인받기
-- ✅ 본인 역할(프론트/백엔드)에 맞는 브랜치 접두사만 사용
+- ✅ 웹 공통 구성은 본인 역할(프론트/백엔드)에 맞는 접두사, 게임 카드는 `feature/game-*` 사용
+- ✅ 게임 카드 PR 에는 내 게임 파일 추가 + 등록 줄만 포함 (공통 코드 수정은 별도 PR)
 
 ## PR 생성 규칙
 
@@ -263,7 +307,10 @@ feature/*   # 개별 기능 작업 브랜치. main에서 분기 → main으로 P
 
 ## CLI 응답 규칙
 
-- "이번 역할이 뭐야" 질문을 받으면 위 표에서 현재 git config user.name/email에 매칭되는 사람의 역할을 찾아 답할 것
+- "이번 역할이 뭐야" 질문을 받으면 위 표에서 현재 git config user.name/email에 매칭되는 사람의 역할(웹 공통 구성)과 담당 게임 카드 번호·게임을 함께 답할 것
 - "오늘 뭐 했어" 질문을 받으면 `git log --since="today"`로 오늘 커밋 내역을 조회해 요약하고, 아직 커밋하지 않은 변경사항(`git status`, `git diff`)도 함께 안내할 것
-- 브랜치를 새로 만들 때는 항상 위 표의 역할에 맞는 접두사(feature/fe-* 또는 feature/be-*)를 사용할 것
+- 브랜치를 새로 만들 때는 작업 종류를 먼저 판단할 것:
+  - 게임 카드 작업(게임 추가/수정) → `feature/game-<게임id>` (역할 무관)
+  - 그 외 웹 공통 구성 → 역할에 맞는 `feature/fe-*` 또는 `feature/be-*`
+- 게임 카드 작업 중 "게임 카드 작업 규칙"에서 허용하지 않은 파일(공통 코드, 다른 사람 게임)을 수정해야 하면 바로 수정하지 말고 사용자에게 먼저 알릴 것
 - 새 브랜치는 항상 최신 `main`에서 분기할 것

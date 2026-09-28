@@ -4,6 +4,7 @@ import chosungQuizThumbnail from './chosung-quiz/thumbnail.svg';
 
 /**
  * 게임 등록부 — 메인 화면 카드와 /games/:gameId 라우트가 이 목록으로 자동 생성된다.
+ * 배열 순서 = 메인 화면 카드 순서 (CLAUDE.md 의 "게임 카드 담당" 번호 순서대로 둔다).
  * 새 게임 추가 시 여기에 한 줄 등록하면 된다. (README 의 "새 게임 추가 체크리스트" 참고)
  */
 export interface GameMeta {

@@ -1,6 +1,6 @@
 -- 초성 퀴즈 시드 데이터 (직접 만든 샘플 문제 20개)
 -- 여러 번 실행해도 결과가 같도록 기존 문제를 지우고 다시 넣는다. (점수 기록은 유지)
--- 적용: pnpm db:seed:local
+-- 적용: pnpm db:seed:local (seeds/*.sql 전체가 파일명 순서대로 적용됨)
 
 INSERT OR IGNORE INTO game (id, name, category) VALUES ('chosung-quiz', '초성 퀴즈', 'quiz');
 
