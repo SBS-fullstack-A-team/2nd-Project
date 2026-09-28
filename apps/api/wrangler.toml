@@ -6,14 +6,14 @@ compatibility_date = "2026-09-01"
 
 [vars]
 # CORS 허용 출처 (쉼표 구분). 로컬은 Vite 프록시를 쓰므로 비워둬도 된다.
-# 배포 시 Pages 주소로 설정: 예) "https://simsim-arcade.pages.dev"
-ALLOWED_ORIGINS = ""
+# 배포된 Pages 주소. 로컬(wrangler dev)에도 적용되지만 Vite 프록시라 영향 없음.
+ALLOWED_ORIGINS = "https://simsim-arcade.pages.dev"
 
 [[d1_databases]]
 binding = "DB"
 database_name = "simsim-arcade-db"
 # 원격 DB ID (`wrangler d1 create simsim-arcade-db` 로 생성, 2026-09-28). 비밀값 아님.
-# 로컬 개발(--local)은 이 값과 무관하게 동작한다.
+# 로컬 D1 데이터(.wrangler/)는 이 ID 별로 따로 저장된다 → ID 가 바뀌면 `pnpm db:setup:local` 을 다시 실행할 것.
 database_id = "767eb971-9e78-4730-8eec-b30e33115a61"
 migrations_dir = "migrations"
 
