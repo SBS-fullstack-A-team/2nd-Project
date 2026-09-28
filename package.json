@@ -16,7 +16,7 @@
     "db:generate": "pnpm --filter @simsim/api db:generate",
     "db:migrate:local": "pnpm --filter @simsim/api db:migrate:local",
     "db:seed:local": "pnpm --filter @simsim/api db:seed:local",
-    "db:reset:local": "pnpm --filter @simsim/api db:reset:local"
+    "db:setup:local": "pnpm --filter @simsim/api db:setup:local"
   },
   "devDependencies": {
     "@eslint/js": "^10.0.1",
