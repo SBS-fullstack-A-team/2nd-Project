@@ -24,9 +24,9 @@ export default tseslint.config(
       'react-refresh/only-export-components': ['warn', { allowConstantExport: true }],
     },
   },
-  // 설정 파일 (Node 환경에서 실행)
+  // 설정 파일 · 개발용 스크립트 (Node 환경에서 실행)
   {
-    files: ['*.js', '**/*.config.{js,ts}'],
+    files: ['*.js', '**/*.config.{js,ts}', '**/scripts/**/*.mjs'],
     languageOptions: { globals: globals.node },
   },
 );
