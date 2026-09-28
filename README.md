@@ -3,7 +3,19 @@
 예능식 퀴즈 게임(초성 퀴즈 등)과 추억의 플래시 스타일 게임을 웹에서 즐기는 사이트입니다.
 게임을 하나씩 추가하며 확장하고, 모든 인프라는 Cloudflare(Pages + Workers + D1)로 구성합니다.
 
+[![CI](https://github.com/SBS-fullstack-A-team/simsim-arcade/actions/workflows/ci.yml/badge.svg)](https://github.com/SBS-fullstack-A-team/simsim-arcade/actions/workflows/ci.yml)
+[![Deploy](https://github.com/SBS-fullstack-A-team/simsim-arcade/actions/workflows/deploy.yml/badge.svg)](https://github.com/SBS-fullstack-A-team/simsim-arcade/actions/workflows/deploy.yml)
+
 🌐 **https://simsim-arcade.pages.dev**
+
+| 링크                                                                                   | 설명                                   |
+| -------------------------------------------------------------------------------------- | -------------------------------------- |
+| [사이트](https://simsim-arcade.pages.dev)                                              | 운영 웹 (Cloudflare Pages)             |
+| [API 상태 확인](https://simsim-arcade-api.sbstacarematch1.workers.dev/api/health)      | `{"ok":true}` 가 나오면 정상 (Workers) |
+| [Actions](https://github.com/SBS-fullstack-A-team/simsim-arcade/actions)               | CI · 자동 배포 진행 상황과 로그        |
+| [Pull requests](https://github.com/SBS-fullstack-A-team/simsim-arcade/pulls)           | 리뷰 대기 중인 PR                      |
+| [main 보호 규칙](https://github.com/SBS-fullstack-A-team/simsim-arcade/rules/24088644) | Ruleset (관리자만 수정 가능)           |
+| [릴리스 태그](https://github.com/SBS-fullstack-A-team/simsim-arcade/tags)              | 배포 시점 기록                         |
 
 > 팀 규칙(브랜치, 커밋, PR)과 게임 설계 원칙은 [CLAUDE.md](./CLAUDE.md) 를 참고하세요.
 
@@ -161,7 +173,27 @@ pnpm dev
 - PR 화면의 체크가 ❌ 이면 머지하지 말고 고친 뒤 다시 push 합니다.
 - 포맷 오류는 로컬에서 `pnpm format` 으로 바로 고칠 수 있습니다.
 
+## 저장소 설정 (main 보호 규칙 · 팀원 권한)
+
+`main` 은 Ruleset 으로 보호되어 있어서, 아래 조건을 만족해야만 머지됩니다.
+
+| 규칙             | 설정                                          |
+| ---------------- | --------------------------------------------- |
+| PR 필수          | `main` 직접 push 불가                         |
+| 리뷰 승인        | 1명 이상                                      |
+| 필수 체크        | CI `check` 통과 (typecheck·lint·format·build) |
+| 머지 방식        | Squash and merge 만 허용                      |
+| 강제 push / 삭제 | 금지                                          |
+
+- 머지된 브랜치는 원격에서 자동 삭제됩니다.
+- 팀원은 저장소 **Write** 권한으로 초대합니다 (Settings → Collaborators and teams → Add people).
+  - 초대 메일을 **7일 안에 수락**해야 합니다. 메일이 없으면 https://github.com/SBS-fullstack-A-team/simsim-arcade/invitations 에서 수락합니다.
+  - Write 로 브랜치 push·PR·리뷰 승인·머지·태그 push 까지 모두 가능합니다.
+  - 저장소 설정, 보호 규칙, Actions Secrets 변경은 관리자(팀장)만 합니다.
+
 ## 배포
+
+운영 중입니다. 마지막 확인(2026-09-29): 웹 정상, API `/api/health` 정상, 원격 D1 에 초성 퀴즈 문제 적용됨.
 
 | 대상          | 주소                                                  | 배포 방식                                         |
 | ------------- | ----------------------------------------------------- | ------------------------------------------------- |
