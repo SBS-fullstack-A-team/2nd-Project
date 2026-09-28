@@ -163,31 +163,51 @@ pnpm dev
 
 ## 배포
 
-| 대상          | 주소                                                  | 배포 방식                          |
-| ------------- | ----------------------------------------------------- | ---------------------------------- |
-| 웹 (Pages)    | https://simsim-arcade.pages.dev                       | `main` 머지 시 **자동** (Git 연동) |
-| API (Workers) | https://simsim-arcade-api.sbstacarematch1.workers.dev | **수동** `wrangler deploy`         |
-| DB (D1)       | `simsim-arcade-db` (APAC)                             | **수동** 원격 마이그레이션·시드    |
+| 대상          | 주소                                                  | 배포 방식                                         |
+| ------------- | ----------------------------------------------------- | ------------------------------------------------- |
+| 웹 (Pages)    | https://simsim-arcade.pages.dev                       | `main` 머지 시 **자동** (Cloudflare Git 연동)     |
+| API (Workers) | https://simsim-arcade-api.sbstacarematch1.workers.dev | `main` 머지 시 **자동** (GitHub Actions `Deploy`) |
+| DB (D1)       | `simsim-arcade-db` (APAC)                             | `main` 머지 시 **자동** (GitHub Actions `Deploy`) |
 
-> 비밀값은 레포에 넣지 않습니다. 배포 명령은 팀 Cloudflare 계정으로 `wrangler login` 한 사람이 실행합니다.
+> 비밀값은 레포에 넣지 않습니다. 자동 배포는 GitHub Secrets 의 Cloudflare 토큰을 사용합니다.
 > API 에 비밀값이 필요해지면 로컬은 `apps/api/.dev.vars`(`.dev.vars.example` 복사),
 > 배포는 `wrangler secret put 이름` 으로 등록합니다.
 
-### 언제 무엇을 실행하나
+### 자동 배포 (`.github/workflows/deploy.yml`)
 
-모든 명령은 최신 `main` 에서, `apps/api` 폴더 기준입니다 (`cd apps/api`).
+`apps/api/**`, `packages/shared/**`, `pnpm-lock.yaml` 이 바뀐 PR 이 `main` 에 머지되면 자동으로 실행됩니다.
+(`apps/web` 만 바뀐 PR 은 Pages 가 처리하므로 실행되지 않습니다.)
 
-| 머지된 변경                     | 해야 할 일                                                                                                        |
-| ------------------------------- | ----------------------------------------------------------------------------------------------------------------- |
-| `apps/web` 만 변경              | 없음 — Pages 가 자동 배포                                                                                         |
-| `apps/api` 코드·`wrangler.toml` | `pnpm exec wrangler deploy`                                                                                       |
-| 마이그레이션 추가 (스키마 변경) | `pnpm exec wrangler d1 migrations apply simsim-arcade-db --remote` → `wrangler deploy`                            |
-| 새 게임 / 시드 변경             | 시드 적용 `pnpm exec wrangler d1 execute simsim-arcade-db --remote --file=seeds/<게임id>.sql` → `wrangler deploy` |
-| `packages/shared` 변경          | `wrangler deploy` (점수 상한 등 API 에도 쓰임, 웹은 자동)                                                         |
+1. 타입 체크
+2. 원격 D1 마이그레이션 — 아직 적용되지 않은 마이그레이션만
+3. 원격 D1 시드 — `seeds/*.sql` 전체를 파일명 순서대로 (새 게임의 `game` 행·문제가 여기서 들어감)
+4. `wrangler deploy` — API 배포 (새 게임 점수 상한 `MAX_SCORE_BY_GAME` 반영)
+5. `/api/health` 확인
 
-- 새 게임 PR 은 머지 즉시 웹이 자동 배포되므로, **머지 직후 바로** 시드 적용 + `wrangler deploy` 를 실행합니다.
-  시드가 없으면 점수 등록이 `GAME_NOT_FOUND`, API 미배포면 새 점수 상한(`MAX_SCORE_BY_GAME`)이 적용되지 않습니다.
-- 배포 후 확인: `curl https://simsim-arcade-api.sbstacarematch1.workers.dev/api/health` → `{"ok":true}`
+- 진행 상황과 실패 로그는 GitHub **Actions** 탭 → `Deploy` 에서 봅니다. 실패하면 운영은 이전 버전 그대로입니다.
+- 다시 배포해야 할 때는 Actions 탭 → `Deploy` → **Run workflow** 로 수동 실행합니다.
+- 시드는 매번 전부 다시 적용되므로, 시드 파일은 **여러 번 실행해도 결과가 같게** 작성해야 합니다 (`chosung-quiz.sql` 참고).
+- 마이그레이션도 머지되면 바로 운영 DB 에 적용됩니다. **스키마 PR 은 리뷰를 꼼꼼히** 하고, 이미 머지된 마이그레이션 파일은 수정하지 않습니다.
+
+#### 최초 설정 (관리자 1회)
+
+1. Cloudflare 대시보드 → My Profile → API Tokens → **Create Token** → Custom token
+   - 권한: `Account` / `D1` / `Edit`, `Account` / `Workers Scripts` / `Edit`
+   - Account Resources: 팀 계정만 선택
+2. GitHub 저장소 → Settings → Secrets and variables → Actions → **New repository secret**
+   - `CLOUDFLARE_API_TOKEN` — 위에서 만든 토큰
+   - `CLOUDFLARE_ACCOUNT_ID` — Cloudflare 대시보드 오른쪽의 Account ID
+3. (선택) Settings → Environments → `production` 에 승인자를 지정하면, 배포 전에 사람이 승인해야 실행됩니다.
+
+### 수동 배포 (비상용)
+
+자동 배포를 쓸 수 없을 때만, 팀 Cloudflare 계정으로 `wrangler login` 한 뒤 `apps/api` 에서 실행합니다.
+
+```bash
+pnpm exec wrangler d1 migrations apply simsim-arcade-db --remote
+pnpm exec wrangler d1 execute simsim-arcade-db --remote --file=seeds/<게임id>.sql
+pnpm exec wrangler deploy
+```
 
 ### 설정값 (최초 1회, 완료)
 

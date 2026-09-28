@@ -208,7 +208,7 @@ pnpm db:generate          # 스키마 변경 후 마이그레이션 SQL 생성
 - 코드 주석과 README 는 **한국어**로 작성한다.
 - `apps/api` 는 Workers 런타임에서 동작하는 라이브러리만 사용한다. **Node 전용 API(`fs`, `path`, `process` 등) 금지.**
 - 비밀값(API 토큰, 계정 ID 등)은 코드·레포에 넣지 않는다. 로컬은 `apps/api/.dev.vars`(gitignore), 배포는 `wrangler secret` / 환경변수 사용.
-- **실제 배포(`wrangler deploy`)와 원격 D1 마이그레이션(`--remote`)은 Claude 가 실행하지 않는다.** 필요한 명령어는 README 에만 정리한다.
+- **실제 배포(`wrangler deploy`)와 원격 D1 마이그레이션·시드(`--remote`)는 Claude 가 실행하지 않는다.** 운영 배포는 `main` 머지 시 자동 배포(Pages Git 연동 + GitHub Actions `Deploy`)로만 한다. 수동 명령은 README 에만 정리한다.
 - 방송 프로그램 이름·로고·실제 방송 문제는 사용하지 않는다. 문제는 직접 만든 것만 쓴다.
 
 ## 브랜치 전략 (GitHub Flow)
@@ -271,6 +271,8 @@ feature/*   # 개별 기능 작업 브랜치. main에서 분기 → main으로 P
 
 ## 배포 / 릴리스
 
+- `main`에 머지되면 자동 배포된다: 웹은 Cloudflare Pages, API·D1(마이그레이션+시드)은 GitHub Actions `Deploy` (README "배포" 참고)
+  - 그래서 마이그레이션·시드가 들어간 PR 은 머지 = 운영 반영이다. 리뷰를 꼼꼼히 할 것
 - 배포 시점은 `main`에 **git 태그**로 표시 (별도 브랜치 만들지 않음)
   ```bash
   git checkout main && git pull origin main
