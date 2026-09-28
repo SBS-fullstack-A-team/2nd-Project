@@ -3,6 +3,8 @@
 예능식 퀴즈 게임(초성 퀴즈 등)과 추억의 플래시 스타일 게임을 웹에서 즐기는 사이트입니다.
 게임을 하나씩 추가하며 확장하고, 모든 인프라는 Cloudflare(Pages + Workers + D1)로 구성합니다.
 
+🌐 **https://simsim-arcade.pages.dev**
+
 > 팀 규칙(브랜치, 커밋, PR)과 게임 설계 원칙은 [CLAUDE.md](./CLAUDE.md) 를 참고하세요.
 
 ## 구성
@@ -159,50 +161,52 @@ pnpm dev
 - PR 화면의 체크가 ❌ 이면 머지하지 말고 고친 뒤 다시 push 합니다.
 - 포맷 오류는 로컬에서 `pnpm format` 으로 바로 고칠 수 있습니다.
 
-## 배포 (참고용 — 명령어 정리만, 아직 실행하지 않음)
+## 배포
 
-> 비밀값은 레포에 넣지 않습니다. `wrangler login` 으로 로그인하거나, CI 에서는 환경변수
-> `CLOUDFLARE_API_TOKEN`, `CLOUDFLARE_ACCOUNT_ID` 를 사용합니다.
+| 대상          | 주소                                                  | 배포 방식                          |
+| ------------- | ----------------------------------------------------- | ---------------------------------- |
+| 웹 (Pages)    | https://simsim-arcade.pages.dev                       | `main` 머지 시 **자동** (Git 연동) |
+| API (Workers) | https://simsim-arcade-api.sbstacarematch1.workers.dev | **수동** `wrangler deploy`         |
+| DB (D1)       | `simsim-arcade-db` (APAC)                             | **수동** 원격 마이그레이션·시드    |
+
+> 비밀값은 레포에 넣지 않습니다. 배포 명령은 팀 Cloudflare 계정으로 `wrangler login` 한 사람이 실행합니다.
 > API 에 비밀값이 필요해지면 로컬은 `apps/api/.dev.vars`(`.dev.vars.example` 복사),
 > 배포는 `wrangler secret put 이름` 으로 등록합니다.
 
-### 1. D1 데이터베이스 (최초 1회)
+### 언제 무엇을 실행하나
 
-```bash
-cd apps/api
-# (완료) 2026-09-28 생성, database_id 는 wrangler.toml 에 반영됨 — 다시 실행하지 말 것
-# pnpm exec wrangler d1 create simsim-arcade-db
+모든 명령은 최신 `main` 에서, `apps/api` 폴더 기준입니다 (`cd apps/api`).
 
-pnpm exec wrangler d1 migrations apply simsim-arcade-db --remote
-# 게임별 시드 파일마다 실행 (예: 초성 퀴즈)
-pnpm exec wrangler d1 execute simsim-arcade-db --remote --file=seeds/chosung-quiz.sql
-```
+| 머지된 변경                     | 해야 할 일                                                                                                        |
+| ------------------------------- | ----------------------------------------------------------------------------------------------------------------- |
+| `apps/web` 만 변경              | 없음 — Pages 가 자동 배포                                                                                         |
+| `apps/api` 코드·`wrangler.toml` | `pnpm exec wrangler deploy`                                                                                       |
+| 마이그레이션 추가 (스키마 변경) | `pnpm exec wrangler d1 migrations apply simsim-arcade-db --remote` → `wrangler deploy`                            |
+| 새 게임 / 시드 변경             | 시드 적용 `pnpm exec wrangler d1 execute simsim-arcade-db --remote --file=seeds/<게임id>.sql` → `wrangler deploy` |
+| `packages/shared` 변경          | `wrangler deploy` (점수 상한 등 API 에도 쓰임, 웹은 자동)                                                         |
 
-스키마가 바뀐 PR 이 머지되면 배포 전에 `migrations apply ... --remote` 를 다시 실행합니다.
+- 새 게임 PR 은 머지 즉시 웹이 자동 배포되므로, **머지 직후 바로** 시드 적용 + `wrangler deploy` 를 실행합니다.
+  시드가 없으면 점수 등록이 `GAME_NOT_FOUND`, API 미배포면 새 점수 상한(`MAX_SCORE_BY_GAME`)이 적용되지 않습니다.
+- 배포 후 확인: `curl https://simsim-arcade-api.sbstacarematch1.workers.dev/api/health` → `{"ok":true}`
 
-### 2. API (Workers)
+### 설정값 (최초 1회, 완료)
 
-```bash
-cd apps/api
-# wrangler.toml 의 [vars] ALLOWED_ORIGINS 에 프론트 주소 설정 (예: https://simsim-arcade.pages.dev)
-pnpm exec wrangler deploy
-```
-
-### 3. 웹 (Pages)
-
-```bash
-# API 주소를 넣어서 빌드
-VITE_API_BASE_URL=https://simsim-arcade-api.<계정 서브도메인>.workers.dev pnpm --filter @simsim/web build
-pnpm --filter @simsim/api exec wrangler pages deploy ../web/dist --project-name simsim-arcade
-```
-
-- Pages 대시보드에서 Git 연동을 쓸 경우: 빌드 명령 `pnpm --filter @simsim/web build`,
-  출력 폴더 `apps/web/dist`, 환경변수 `VITE_API_BASE_URL` 설정
+- D1 생성 (2026-09-28): `database_id` 는 `wrangler.toml` 에 반영됨 — `d1 create` 다시 실행하지 말 것
+- Workers: `wrangler.toml` 의 `[vars] ALLOWED_ORIGINS = "https://simsim-arcade.pages.dev"` (CORS 허용 출처)
+- Pages 프로젝트 `simsim-arcade` (Git 연동, production 브랜치 `main`)
+  - 빌드 명령 `pnpm --filter @simsim/web build`, 출력 폴더 `apps/web/dist`
+  - 환경변수 `NODE_VERSION=22`, `VITE_API_BASE_URL=https://simsim-arcade-api.sbstacarematch1.workers.dev`
+  - `VITE_*` 값은 빌드할 때 코드에 들어가므로, 바꾸면 **Pages 를 재배포**해야 적용됩니다.
 - Pages 는 `404.html` 이 없으면 SPA 로 동작하므로 `/games/:gameId` 새로고침도 정상 동작합니다.
 
-### 4. 릴리스 태그
+### PR 미리보기 주소 주의
 
-배포한 시점은 CLAUDE.md 규칙대로 `main` 에 `v1.0.0` 형식 태그로 남깁니다.
+PR 마다 생기는 미리보기 주소(`xxxx.simsim-arcade.pages.dev`)는 `ALLOWED_ORIGINS` 에 없어서 **API 호출이 CORS 로 막힙니다.**
+화면 확인까지만 가능하고, 플레이·랭킹 확인은 로컬(`pnpm dev`)에서 합니다.
+
+### 릴리스 태그
+
+배포한 시점은 CLAUDE.md 규칙대로 `main` 에 `v메이저.마이너.패치` 형식 태그로 남깁니다. (첫 배포: `v0.1.0`)
 
 ## 알려진 한계 (다음 단계에서 개선)
 
