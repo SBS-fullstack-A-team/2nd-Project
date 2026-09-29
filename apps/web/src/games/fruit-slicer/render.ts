@@ -33,6 +33,7 @@ const TEXTURE: Record<FruitKind, { x: number; y: number; a: number }[]> = (() =>
     orange: make(14, 22),
     coconut: make(15, 26),
     kiwi: make(16, 30),
+    strawberry: make(17, 0),
   };
 })();
 
@@ -188,8 +189,59 @@ export function drawFruitBody(ctx: CanvasRenderingContext2D, type: FruitType, r:
       highlight(ctx, -r * 0.45, -r * 0.32, r * 0.14, r * 0.22);
       break;
     }
+    case 'strawberry': {
+      // 위는 둥글고 아래로 뾰족한 딸기 모양
+      ctx.fillStyle = skinGradient(ctx, r, type);
+      ctx.beginPath();
+      ctx.moveTo(0, r * 1.05);
+      ctx.bezierCurveTo(-r * 0.55, r * 0.75, -r * 1.05, r * 0.1, -r * 0.95, -r * 0.35);
+      ctx.bezierCurveTo(-r * 0.9, -r * 0.85, -r * 0.3, -r * 0.85, 0, -r * 0.7);
+      ctx.bezierCurveTo(r * 0.3, -r * 0.85, r * 0.9, -r * 0.85, r * 0.95, -r * 0.35);
+      ctx.bezierCurveTo(r * 1.05, r * 0.1, r * 0.55, r * 0.75, 0, r * 1.05);
+      ctx.fill();
+      // 씨
+      ctx.fillStyle = '#ffe98a';
+      for (const s of STRAWBERRY_SEEDS) {
+        ctx.beginPath();
+        ctx.ellipse(s.x * r, s.y * r, r * 0.045, r * 0.07, s.x * 0.6, 0, TAU);
+        ctx.fill();
+      }
+      // 꼭지 잎 5장
+      ctx.fillStyle = '#2f9e3a';
+      for (let i = 0; i < 5; i++) {
+        const a = -Math.PI / 2 + ((i - 2) / 2) * 1.25;
+        ctx.save();
+        ctx.translate(0, -r * 0.68);
+        ctx.rotate(a + Math.PI / 2);
+        ctx.beginPath();
+        ctx.ellipse(0, r * 0.22, r * 0.12, r * 0.3, 0, 0, TAU);
+        ctx.fill();
+        ctx.restore();
+      }
+      ctx.strokeStyle = '#2f7a2a';
+      ctx.lineWidth = r * 0.1;
+      ctx.lineCap = 'round';
+      ctx.beginPath();
+      ctx.moveTo(0, -r * 0.7);
+      ctx.lineTo(r * 0.05, -r * 1.02);
+      ctx.stroke();
+      highlight(ctx, -r * 0.45, -r * 0.2, r * 0.12, r * 0.24);
+      break;
+    }
   }
 }
+
+/** 딸기 씨 위치 (반지름 1 기준) — 아래로 갈수록 폭이 좁아지는 줄에 엇갈리게 배치 */
+const STRAWBERRY_SEEDS: { x: number; y: number }[] = (() => {
+  const seeds: { x: number; y: number }[] = [];
+  let row = 0;
+  for (let y = -0.4; y <= 0.8; y += 0.24, row++) {
+    const halfWidth = y < -0.1 ? 0.8 : 0.8 * (1 - (y + 0.1) / 1.05);
+    const offset = row % 2 === 0 ? 0 : 0.15;
+    for (let x = -halfWidth + offset; x <= halfWidth; x += 0.3) seeds.push({ x, y });
+  }
+  return seeds;
+})();
 
 /**
  * 잘린 단면 — 절단선이 x 축이 되도록 회전된 좌표계에서 호출한다.
@@ -247,6 +299,21 @@ export function drawCutFace(ctx: CanvasRenderingContext2D, type: FruitType, r: n
       for (const x of [-0.12, 0.12]) {
         ctx.beginPath();
         ctx.ellipse(x * r, 0, r * 0.05, r * 0.03, 0, 0, TAU);
+        ctx.fill();
+      }
+      break;
+    }
+    case 'strawberry': {
+      // 하얀 속심 + 가장자리 씨
+      ctx.fillStyle = '#fff0f2';
+      ctx.beginPath();
+      ctx.ellipse(0, 0, rx * 0.45, ry * 0.4, 0, 0, TAU);
+      ctx.fill();
+      ctx.fillStyle = '#ffe98a';
+      for (let i = 0; i < 10; i++) {
+        const a = (i / 10) * TAU;
+        ctx.beginPath();
+        ctx.arc(Math.cos(a) * rx * 0.82, Math.sin(a) * ry * 0.75, r * 0.03, 0, TAU);
         ctx.fill();
       }
       break;

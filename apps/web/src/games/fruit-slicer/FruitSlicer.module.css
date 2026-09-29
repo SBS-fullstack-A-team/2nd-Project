@@ -176,6 +176,48 @@
   flex-shrink: 0;
   box-shadow: 0 0 10px rgba(0, 0, 0, 0.15);
 }
+/* 전설 등급 검 — 금빛 테두리 + 미리보기에 빛이 훑고 지나감 */
+.bladeLegend {
+  border-color: #e6b422;
+  background: linear-gradient(135deg, #fffaf0, #fff4d6);
+}
+.bladeLegend.bladeSelected {
+  border-color: var(--accent);
+}
+.legendBadge {
+  display: inline-block;
+  margin-left: 6px;
+  padding: 1px 6px;
+  font-size: 0.68rem;
+  font-weight: 900;
+  color: #fff;
+  vertical-align: 2px;
+  background: linear-gradient(90deg, #ff9a3c, #e6b422, #ff5ec8);
+  border-radius: 999px;
+}
+.swatchShine {
+  position: relative;
+  overflow: hidden;
+}
+.swatchShine::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(
+    100deg,
+    transparent 30%,
+    rgba(255, 255, 255, 0.85) 50%,
+    transparent 70%
+  );
+  transform: translateX(-100%);
+  animation: shine 2.2s ease-in-out infinite;
+}
+@keyframes shine {
+  60%,
+  100% {
+    transform: translateX(100%);
+  }
+}
 .bladeInfo {
   display: flex;
   flex-direction: column;
@@ -402,7 +444,8 @@
 @media (prefers-reduced-motion: reduce) {
   .overlay,
   .panel,
-  .toast {
+  .toast,
+  .swatchShine::after {
     animation: none;
   }
 }

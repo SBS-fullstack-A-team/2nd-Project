@@ -4,6 +4,10 @@ import {
   COMBO_BONUS_PER_FRUIT,
   COMBO_MIN,
   COMBO_WINDOW_SEC,
+  FEVER_BOMB_POINTS,
+  FEVER_COMBO_GOAL,
+  FEVER_DURATION_SEC,
+  FEVER_SCORE_MULTIPLIER,
   FRUIT_TYPES,
   GRAVITY,
   MAX_SCORE,
@@ -38,8 +42,8 @@ class ScoreManager {
   private lastX = 0;
   private lastY = 0;
 
-  addSlice(time: number, x: number, y: number) {
-    this.add(POINTS_PER_FRUIT);
+  addSlice(time: number, x: number, y: number, points: number) {
+    this.add(points);
     // 직전 슬라이스로부터 COMBO_WINDOW_SEC 안이면 연속으로 친다
     this.chain = time - this.lastSliceAt <= COMBO_WINDOW_SEC ? this.chain + 1 : 1;
     this.lastSliceAt = time;
@@ -119,6 +123,11 @@ export class FruitSlicerEngine {
   private lastPointer: { x: number; y: number } | null = null;
   private swipeCount = 0;
 
+  /** 피버 게이지 — 이번 판에서 달성한 콤보 수 (FEVER_COMBO_GOAL 이 되면 피버 발동 후 0) */
+  private feverGauge = 0;
+  /** 피버 타임 남은 시간(초). 0 보다 크면 피버 중 */
+  private feverTime = 0;
+
   constructor(
     private readonly canvas: HTMLCanvasElement,
     private readonly quests: QuestManager,
@@ -162,6 +171,8 @@ export class FruitSlicerEngine {
     this.timeScale = 1;
     this.flash = 0;
     this.shakeTime = 0;
+    this.feverGauge = 0;
+    this.stopFever();
     this.state = 'playing';
   }
 
@@ -170,6 +181,11 @@ export class FruitSlicerEngine {
     this.state = 'idle';
     this.timeScale = 1;
     this.pending = [];
+    this.stopFever();
+  }
+
+  private get fever() {
+    return this.feverTime > 0;
   }
 
   setBlade(id: BladeId) {
@@ -255,6 +271,8 @@ export class FruitSlicerEngine {
     const dx = b.x - a.x;
     const dy = b.y - a.y;
     const len2 = dx * dx + dy * dy;
+    // 피버 중엔 칼날 판정이 넓어진다
+    const reach = this.fever ? 1.35 : 0.95;
     for (const fruit of [...this.fruits]) {
       if (this.state !== 'playing') return;
       // 선분과 과일 중심 사이 최단 거리
@@ -262,14 +280,16 @@ export class FruitSlicerEngine {
       const cx = a.x + dx * t;
       const cy = a.y + dy * t;
       const dist2 = (fruit.x - cx) ** 2 + (fruit.y - cy) ** 2;
-      if (dist2 <= (fruit.r * 0.95) ** 2) this.slice(fruit, Math.atan2(dy, dx), dx, dy);
+      if (dist2 <= (fruit.r * reach) ** 2) this.slice(fruit, Math.atan2(dy, dx), dx, dy);
     }
   }
 
   private slice(fruit: Fruit, angle: number, dx: number, dy: number) {
     this.fruits = this.fruits.filter((f) => f !== fruit);
     if (!fruit.type) {
-      this.explode(fruit);
+      // 피버 중엔 폭탄도 안전하게 벨 수 있다
+      if (this.fever) this.defuse(fruit);
+      else this.explode(fruit);
       return;
     }
     const type = fruit.type;
@@ -319,11 +339,94 @@ export class FruitSlicerEngine {
     this.splats.push(new Splat(fruit.x, fruit.y, type.juice, fruit.r * 0.8));
     this.blade.emitSlice(this.particles, fruit.x, fruit.y);
 
-    this.scoreBoard.addSlice(this.time, fruit.x, fruit.y);
+    const points = POINTS_PER_FRUIT * (this.fever ? FEVER_SCORE_MULTIPLIER : 1);
+    this.scoreBoard.addSlice(this.time, fruit.x, fruit.y, points);
     this.swipeCount += 1;
     this.unlock(this.quests.recordSlice());
     this.unlock(this.quests.recordSwipe(this.swipeCount));
     this.unlock(this.quests.recordScore(this.scoreBoard.score));
+  }
+
+  /** 피버 중 벤 폭탄 — 터지지 않고 불꽃만 튀며 점수를 준다 */
+  private defuse(bomb: Fruit) {
+    const { x, y } = bomb;
+    for (let i = 0; i < 24; i++) {
+      const a = rand(0, TAU);
+      const s = rand(120, 420);
+      this.particles.push(
+        new Particle({
+          x,
+          y,
+          vx: Math.cos(a) * s,
+          vy: Math.sin(a) * s,
+          life: rand(0.3, 0.6),
+          size: rand(2, 3),
+          color: pick(['#ffe36e', '#ffffff', '#ff9a3c']),
+          kind: 'spark',
+          gravity: 0.3,
+          drag: 2,
+        }),
+      );
+    }
+    this.particles.push(
+      new Particle({
+        x,
+        y,
+        vx: 0,
+        vy: 0,
+        life: 0.45,
+        size: 80,
+        color: '#ffe36e',
+        kind: 'ring',
+        gravity: 0,
+      }),
+    );
+    this.blade.emitSlice(this.particles, x, y);
+    this.popups.push(new Popup(`+${FEVER_BOMB_POINTS}`, '', x, y - 10, '#ffe36e', 28, 0.8));
+    this.scoreBoard.addSlice(this.time, x, y, FEVER_BOMB_POINTS);
+    this.swipeCount += 1;
+    this.unlock(this.quests.recordSwipe(this.swipeCount));
+    this.unlock(this.quests.recordScore(this.scoreBoard.score));
+  }
+
+  // ---------------- 피버 타임 ----------------
+
+  private startFever() {
+    this.feverTime = FEVER_DURATION_SEC;
+    this.feverGauge = 0;
+    this.blade.fever = true;
+    // 지금 대기 중인 웨이브를 비우고 바로 과일 러시 시작
+    this.pending = [];
+    this.spawnTimer = 0.3;
+    this.shakeFor(0.35, 6);
+    const cx = this.width / 2;
+    const cy = this.height * 0.42;
+    this.popups.push(new Popup('FEVER TIME!', '무엇이든 벨 수 있다!', cx, cy, '#ff5ec8', 52, 1.8));
+    for (const [color, size] of [
+      ['#ffe36e', 260],
+      ['#ff5ec8', 200],
+      ['#7dd8ff', 140],
+    ] as const) {
+      this.particles.push(
+        new Particle({
+          x: cx,
+          y: cy,
+          vx: 0,
+          vy: 0,
+          life: 0.8,
+          size,
+          color,
+          kind: 'ring',
+          gravity: 0,
+        }),
+      );
+    }
+    this.unlock(this.quests.recordFever());
+  }
+
+  private stopFever() {
+    this.feverTime = 0;
+    this.blade.fever = false;
   }
 
   /** 폭탄 — 화면 흔들림 + 붉은 플래시 + 폭발 입자, 곧바로 게임 오버 */
@@ -404,6 +507,7 @@ export class FruitSlicerEngine {
   private endGame(delay: number, timeScale: number) {
     if (this.state !== 'playing') return;
     this.state = 'ending';
+    this.stopFever();
     this.endTimer = delay;
     this.timeScale = timeScale;
     this.pending = [];
@@ -421,6 +525,15 @@ export class FruitSlicerEngine {
   }
 
   private scheduleWave() {
+    if (this.fever) {
+      // 피버 러시: 과일(가끔 폭탄)이 쉴 새 없이 쏟아진다
+      const size = 3 + Math.floor(Math.random() * 3);
+      for (let i = 0; i < size; i++) {
+        this.pending.push({ delay: i * rand(0.05, 0.12), bomb: Math.random() < 0.15 });
+      }
+      this.spawnTimer = rand(0.45, 0.65);
+      return;
+    }
     const d = this.difficulty();
     const maxWave = 1 + Math.round(d * (MAX_WAVE_SIZE - 1));
     const size = 1 + Math.floor(Math.random() * maxWave);
@@ -509,6 +622,16 @@ export class FruitSlicerEngine {
     this.popups = this.popups.filter((p) => p.alive);
     this.blade.update(this.time);
 
+    if (this.state === 'playing' && this.fever) {
+      this.feverTime = Math.max(0, this.feverTime - realDt);
+      if (this.feverTime === 0) {
+        this.stopFever();
+        this.popups.push(
+          new Popup('FEVER 종료', '', this.width / 2, this.height * 0.4, '#ffffff', 34, 1),
+        );
+      }
+    }
+
     if (this.state === 'playing') {
       const combo = this.scoreBoard.update(this.time);
       if (combo) {
@@ -522,8 +645,13 @@ export class FruitSlicerEngine {
             40,
           ),
         );
-        this.unlock(this.quests.recordCombo());
+        this.unlock(this.quests.recordCombo(combo.count));
         this.unlock(this.quests.recordScore(this.scoreBoard.score));
+        // 피버 중 콤보는 게이지에 넣지 않는다 (피버가 끝없이 이어지지 않게)
+        if (!this.fever) {
+          this.feverGauge += 1;
+          if (this.feverGauge >= FEVER_COMBO_GOAL) this.startFever();
+        }
       }
     }
 
@@ -543,7 +671,8 @@ export class FruitSlicerEngine {
   }
 
   private miss(fruit: Fruit) {
-    if (this.state !== 'playing') return;
+    // 피버 중엔 놓쳐도 목숨이 줄지 않는다
+    if (this.state !== 'playing' || this.fever) return;
     this.scoreBoard.lives -= 1;
     this.shakeFor(0.25, 5);
     this.popups.push(
@@ -585,6 +714,8 @@ export class FruitSlicerEngine {
     ctx.drawImage(this.bg, 0, 0);
     ctx.setTransform(this.scale, 0, 0, this.scale, 0, 0);
 
+    if (this.fever) this.drawFeverBackdrop(ctx);
+
     // 화면 흔들림
     ctx.save();
     if (this.shakeTime > 0) {
@@ -608,7 +739,53 @@ export class FruitSlicerEngine {
       ctx.fillRect(0, 0, W, H);
     }
 
+    if (this.fever) this.drawFeverFrame(ctx);
     if (this.state === 'playing' || this.state === 'ending') this.drawHud(ctx);
+  }
+
+  /** 피버 배경 — 색이 도는 은은한 빛 + 중앙에서 뻗는 빛줄기 */
+  private drawFeverBackdrop(ctx: CanvasRenderingContext2D) {
+    const W = this.width;
+    const H = this.height;
+    const hue = (this.time * 90) % 360;
+    ctx.save();
+    ctx.globalCompositeOperation = 'lighter';
+    const g = ctx.createRadialGradient(W / 2, H / 2, 0, W / 2, H / 2, Math.max(W, H) * 0.7);
+    g.addColorStop(0, `hsla(${hue}, 100%, 60%, 0.22)`);
+    g.addColorStop(1, `hsla(${(hue + 120) % 360}, 100%, 50%, 0.05)`);
+    ctx.fillStyle = g;
+    ctx.fillRect(0, 0, W, H);
+    // 천천히 도는 빛줄기 12갈래
+    ctx.translate(W / 2, H / 2);
+    ctx.rotate(this.time * 0.4);
+    const len = Math.max(W, H);
+    for (let i = 0; i < 12; i++) {
+      ctx.rotate(TAU / 12);
+      ctx.fillStyle = `hsla(${(hue + i * 30) % 360}, 100%, 70%, 0.05)`;
+      ctx.beginPath();
+      ctx.moveTo(0, 0);
+      ctx.lineTo(len, -len * 0.09);
+      ctx.lineTo(len, len * 0.09);
+      ctx.closePath();
+      ctx.fill();
+    }
+    ctx.restore();
+  }
+
+  /** 피버 테두리 — 맥동하는 무지개 틀 */
+  private drawFeverFrame(ctx: CanvasRenderingContext2D) {
+    const W = this.width;
+    const H = this.height;
+    const hue = (this.time * 200) % 360;
+    const g = ctx.createLinearGradient(0, 0, W, H);
+    for (let i = 0; i <= 6; i++) g.addColorStop(i / 6, `hsl(${(hue + i * 60) % 360}, 100%, 60%)`);
+    ctx.save();
+    ctx.globalCompositeOperation = 'lighter';
+    ctx.globalAlpha = 0.55 + 0.35 * Math.sin(this.time * 12);
+    ctx.strokeStyle = g;
+    ctx.lineWidth = 10;
+    ctx.strokeRect(5, 5, W - 10, H - 10);
+    ctx.restore();
   }
 
   private drawHud(ctx: CanvasRenderingContext2D) {
@@ -632,6 +809,8 @@ export class FruitSlicerEngine {
     ctx.fillStyle = '#ffffff';
     ctx.fillText(best, 22, 60);
 
+    this.drawFeverGauge(ctx, font);
+
     // 목숨: 오른쪽 위 X 3개 — 잃은 만큼 빨갛게
     const lost = START_LIVES - Math.max(0, this.scoreBoard.lives);
     for (let i = 0; i < START_LIVES; i++) {
@@ -647,6 +826,49 @@ export class FruitSlicerEngine {
       ctx.lineWidth = isLost ? 6 : 4;
       this.cross(ctx, cx, cy, m);
     }
+  }
+
+  /** 가운데 위 피버 게이지 — 평소엔 콤보 진행도, 피버 중엔 남은 시간 */
+  private drawFeverGauge(ctx: CanvasRenderingContext2D, font: string) {
+    const w = Math.min(220, this.width * 0.38);
+    const h = 12;
+    const x = (this.width - w) / 2;
+    const y = 22;
+    const ratio = this.fever
+      ? this.feverTime / FEVER_DURATION_SEC
+      : Math.min(1, this.feverGauge / FEVER_COMBO_GOAL);
+
+    ctx.fillStyle = 'rgba(0,0,0,0.55)';
+    ctx.beginPath();
+    ctx.roundRect(x - 3, y - 3, w + 6, h + 6, 9);
+    ctx.fill();
+    if (ratio > 0) {
+      const g = ctx.createLinearGradient(x, 0, x + w, 0);
+      if (this.fever) {
+        const hue = (this.time * 200) % 360;
+        for (let i = 0; i <= 4; i++)
+          g.addColorStop(i / 4, `hsl(${(hue + i * 70) % 360}, 100%, 60%)`);
+      } else {
+        g.addColorStop(0, '#ff9a3c');
+        g.addColorStop(1, '#ff5ec8');
+      }
+      ctx.fillStyle = g;
+      ctx.beginPath();
+      ctx.roundRect(x, y, w * ratio, h, 6);
+      ctx.fill();
+    }
+
+    ctx.textAlign = 'center';
+    ctx.font = `900 13px ${font}`;
+    ctx.lineWidth = 4;
+    ctx.strokeStyle = '#1a0f08';
+    const label = this.fever
+      ? `FEVER TIME ${this.feverTime.toFixed(1)}s`
+      : `FEVER  콤보 ${this.feverGauge} / ${FEVER_COMBO_GOAL}`;
+    ctx.strokeText(label, this.width / 2, y + h + 6);
+    ctx.fillStyle = this.fever ? '#ffe36e' : '#ffffff';
+    ctx.fillText(label, this.width / 2, y + h + 6);
+    ctx.textAlign = 'left';
   }
 
   private cross(ctx: CanvasRenderingContext2D, x: number, y: number, m: number) {
