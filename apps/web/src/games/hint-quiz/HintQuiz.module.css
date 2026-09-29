@@ -255,3 +255,45 @@
     animation: none;
   }
 }
+
+/* 문항 수 선택 */
+.counts {
+  display: flex;
+  justify-content: center;
+  gap: 8px;
+  margin-bottom: 20px;
+}
+.countButton {
+  min-width: 80px;
+  padding: 8px 14px;
+  border: 2px solid var(--border);
+  border-radius: 999px;
+  background: var(--surface);
+  color: var(--text);
+  font: inherit;
+  font-weight: 700;
+  cursor: pointer;
+}
+.countButton:hover {
+  border-color: var(--accent);
+}
+.countSelected {
+  border-color: var(--accent);
+  background: var(--accent);
+  color: #fff;
+}
+.countSelected:hover {
+  border-color: var(--accent);
+}
+
+/* 경과 시간 · 안내 */
+.elapsed {
+  font-variant-numeric: tabular-nums;
+  color: var(--text-muted);
+}
+.notice {
+  margin: -6px 0 0;
+  text-align: center;
+  font-size: 0.85rem;
+  color: var(--text-muted);
+}
