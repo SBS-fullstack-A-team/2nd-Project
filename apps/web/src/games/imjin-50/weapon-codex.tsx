@@ -3,6 +3,8 @@ import {
   BUILDS,
   BUILD_ORDER,
   MAX_LEVEL,
+  skillLabel,
+  SKILLS,
   towerChain,
   towerDamage,
   towerDps,
@@ -52,35 +54,33 @@ function num(value: number): string {
 }
 
 function statLines(kind: BuildKind, level: number): string[] {
+  const lines: string[] = [];
   if (kind === 'wall') {
     const thorn = wallThorn(level);
     const slow = wallSlow(level);
-    if (thorn === 0) return ['길만 막음'];
-    return [
-      `옆 적 초당 체력 ${(thorn * 100).toFixed(1)}%`,
-      ...(slow > 0 ? [`둔화 ${Math.round(slow * 100)}%`] : []),
-    ];
+    if (thorn === 0) lines.push('길만 막음');
+    else {
+      lines.push(`옆 적 초당 체력 ${(thorn * 100).toFixed(1)}%`);
+      if (slow > 0) lines.push(`둔화 ${Math.round(slow * 100)}%`);
+    }
+  } else if (kind === 'caltrop') {
+    lines.push(`범위 안 모두 초당 ${num(towerDamage(kind, level))}`);
+    lines.push(`둔화 ${Math.round(towerSlow(kind, level) * 100)}%`);
+    lines.push(`사거리 ${towerRange(kind, level).toFixed(2)}칸`);
+  } else {
+    lines.push(`초당 피해 ${num(towerDps(kind, level))}`);
+    lines.push(`${num(towerDamage(kind, level))} × ${towerRate(kind, level).toFixed(1)}발`);
+    lines.push(`사거리 ${towerRange(kind, level).toFixed(2)}칸`);
+    if (kind === 'cannon') lines.push(`폭발 ${towerSplash(kind, level).toFixed(2)}칸`);
+    if (kind === 'hwacha') lines.push(`불길 ${towerChain(kind, level)}명`);
   }
-  if (kind === 'caltrop') {
-    return [
-      `범위 안 모두 초당 ${num(towerDamage(kind, level))}`,
-      `둔화 ${Math.round(towerSlow(kind, level) * 100)}%`,
-      `사거리 ${towerRange(kind, level).toFixed(2)}칸`,
-    ];
-  }
-  const lines = [
-    `초당 피해 ${num(towerDps(kind, level))}`,
-    `${num(towerDamage(kind, level))} × ${towerRate(kind, level).toFixed(1)}발`,
-    `사거리 ${towerRange(kind, level).toFixed(2)}칸`,
-  ];
-  if (kind === 'cannon') lines.push(`폭발 ${towerSplash(kind, level).toFixed(2)}칸`);
-  if (kind === 'hwacha') lines.push(`불길 ${towerChain(kind, level)}명`);
+  if (level >= MAX_LEVEL) lines.push('스킬 강화 +' + SKILLS[kind].cost + ' · ' + skillLabel(kind));
   return lines;
 }
 
 function tagsOf(kind: BuildKind): string[] {
   const def = BUILDS[kind];
-  if (kind === 'wall') return ['녹채는 갑옷 무시', '왜장은 절반만'];
+  if (kind === 'wall') return ['갑옷 무시', '왜장은 절반만'];
   const tags: string[] = [];
   if (def.pierceArmor) tags.push('갑옷 무시');
   tags.push(def.hitsScout ? '척후병 공격' : '척후병 못 맞힘');
@@ -101,7 +101,7 @@ export function WeaponCodex() {
               <span style={{ color: BUILD_COLOR[kind] }}>
                 <BuildGlyph kind={kind} size={20} />
               </span>
-              <p className={styles.codexName}>{kind === 'wall' ? '목책 · 녹채' : def.name}</p>
+              <p className={styles.codexName}>{def.name}</p>
             </div>
             <p className={styles.codexBlurb}>{def.blurb}</p>
             <div className={styles.codexTags}>

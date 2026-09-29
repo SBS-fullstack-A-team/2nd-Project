@@ -10,6 +10,11 @@
 /* 무대 폭에 따라 배치를 바꾸기 위한 컨테이너 (넓으면 무기줄이 판 옆, 좁으면 판 아래) */
 .shell {
   container-type: inline-size;
+  /* 한글은 공백이 없어도 아무 글자 사이에서나 줄이 넘어갈 수 있어(예: "아시가루"가
+     "아시가"+"루"로 잘림), 브라우저 기본값 대신 뒤어쓰기에서만 줄을 넘기게 한다.
+     상속되는 속성이라 여기 한 번만 둬도 게임 안 모든 글자에 적용된다. */
+  word-break: keep-all;
+  overflow-wrap: break-word;
 }
 
 .root {
@@ -64,9 +69,11 @@
   background: var(--ij-ground);
   padding: 8px 14px 9px;
 }
+/* 다섯 칸을 똑같은 폭으로 나누면 점수(최대 "9,999,999")나 경과("1:23:45")가
+   목책 값들을 잘라 버렸다. 실제로 나올 수 있는 최대 글자 수에 맞춰 칸 폭을 다르게 준다. */
 .hudGrid {
   display: grid;
-  grid-template-columns: repeat(5, minmax(0, 1fr));
+  grid-template-columns: 0.7fr 1fr 0.9fr 1.6fr 1.1fr;
   gap: 10px;
 }
 .chip {
@@ -86,11 +93,11 @@
 .chipValue {
   composes: digits;
   margin: 2px 0 0;
-  font-size: 1.05rem;
-  line-height: 1.1;
+  /* 칸 폭을 나눠도 화면이 아주 좁아지면 여전히 모자랄 수 있어, 그럴 때는
+     글자를 줄여서라도 다 보이게 한다 — 말줄임표로 잘라내지 않는다. */
+  font-size: clamp(0.78rem, 3cqi, 1.05rem);
+  line-height: 1.15;
   white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
 }
 .tonePaper {
   color: var(--ij-paper);
@@ -225,7 +232,8 @@
 .buildBtn:active:not(:disabled),
 .upgradeBtn:active:not(:disabled),
 .sellBtn:active,
-.closeBtn:active {
+.closeBtn:active,
+.skillBtn:active:not(:disabled) {
   transform: translateY(1px);
 }
 .callWaveButton {
@@ -250,6 +258,100 @@
   color: var(--ij-dim);
 }
 
+/* ---- 다음 공세 예고 ---- */
+.roster {
+  flex-shrink: 0;
+}
+.rosterLabel {
+  composes: eyebrow;
+  margin: 0 0 4px;
+  color: var(--ij-dim);
+}
+.rosterRow {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+.rosterBadge {
+  position: relative;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 6px;
+  background: var(--ij-ground);
+  padding: 3px;
+}
+.enemyIcon {
+  display: block;
+}
+.rosterCount {
+  composes: digits;
+  position: absolute;
+  right: -4px;
+  bottom: -4px;
+  border-radius: 999px;
+  background: var(--ij-panel);
+  padding: 0 4px;
+  font-size: 0.62rem;
+  line-height: 1.4;
+  color: var(--ij-paper);
+  box-shadow: 0 0 0 1px var(--ij-line);
+}
+
+/* 무기·적 정보 패널이 함께 쓰는 " · "로 이은 능력치 줄. 한글은 공백이 없어도
+   글자 사이에서 줄이 넘어갈 수 있어(예: "사거리" 가 중간에서 잘림), 구절마다
+   따로 줄바꿈 없는 조각으로 두고 조각 사이에서만 줄을 넘기게 한다. */
+.statRow {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0 8px;
+  margin: 0;
+  font-size: 0.76rem;
+  line-height: 1.45;
+  color: var(--ij-muted);
+}
+.statRow span {
+  white-space: nowrap;
+}
+.statRow span:not(:last-child)::after {
+  content: '·';
+  margin-left: 8px;
+  color: var(--ij-dim);
+}
+
+.enemyNote {
+  margin: 8px 0 0;
+  font-size: 0.76rem;
+  line-height: 1.5;
+  color: var(--ij-muted);
+}
+
+.counterRow {
+  margin-top: 10px;
+  border-top: 1px solid var(--ij-line);
+  padding-top: 8px;
+}
+.counterLabel {
+  composes: eyebrow;
+  margin: 0 0 5px;
+  color: var(--ij-dim);
+}
+.counterList {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 5px;
+}
+.counterItem {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  border-radius: 999px;
+  background: var(--ij-panel);
+  padding: 3px 9px 3px 7px;
+  font-size: 0.74rem;
+  font-weight: 700;
+}
+
 .dockContent {
   display: flex;
   flex: 1;
@@ -258,10 +360,39 @@
   overflow-y: auto;
 }
 
+.buildPane {
+  display: flex;
+  flex: 1;
+  flex-direction: column;
+  min-height: 0;
+}
 .buildGrid {
   display: grid;
   grid-template-columns: 1fr;
   gap: 6px;
+}
+/* 무기줄 아래 남는 자리에 이 브라우저의 최고 기록을 붙인다 (서버 랭킹과는 별개). */
+.bestRecord {
+  margin-top: auto;
+  padding-top: 10px;
+  border-top: 1px solid var(--ij-line);
+}
+.bestRecordLabel {
+  composes: eyebrow;
+  margin: 0 0 4px;
+  color: var(--ij-dim);
+}
+.bestRecordRow {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  font-size: 0.78rem;
+  color: var(--ij-muted);
+}
+.bestRecordEmpty {
+  margin: 0;
+  font-size: 0.76rem;
+  color: var(--ij-dim);
 }
 .buildBtn {
   display: flex;
@@ -343,19 +474,20 @@
   font-size: 0.72rem;
   color: var(--ij-muted);
 }
-.selectionStats {
-  margin: 0;
-  font-size: 0.76rem;
-  line-height: 1.45;
-  color: var(--ij-muted);
-}
 .closeBtn {
-  composes: eyebrow;
   flex-shrink: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 24px;
+  height: 24px;
   border: 1px solid var(--ij-line);
   border-radius: 6px;
   background: transparent;
-  padding: 4px 7px;
+  padding: 0;
+  font-family: var(--ij-font-body);
+  font-size: 1.05rem;
+  line-height: 1;
   color: var(--ij-muted);
   cursor: pointer;
 }
@@ -388,6 +520,45 @@
   cursor: pointer;
 }
 
+/* 스킬 버튼: 3단계를 채운 시설에서만 뜨는 금박 마감 — 다른 버튼보다 한 급 위라는
+   느낌을 준다. 값은 render.ts 의 3단계 금박(gildLit/gildMid/gildDark)과 맞췄다. */
+.skillBtn {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 1px;
+  border: 1px solid #a9822f;
+  border-radius: 6px;
+  background: linear-gradient(180deg, #fff4c6, #e9c05e 60%, #cda14c);
+  padding: 6px 0 7px;
+  color: #40300f;
+  cursor: pointer;
+  box-shadow: 0 1px 0 rgba(255, 255, 255, 0.5) inset;
+}
+.skillBtn:hover:not(:disabled) {
+  background: linear-gradient(180deg, #fffae0, #f2cd72 60%, #d9af5c);
+}
+.skillBtn:disabled {
+  border-color: var(--ij-line);
+  background: linear-gradient(180deg, #4a4432, #3a3524 60%, #2c2819);
+  color: var(--ij-muted);
+  cursor: default;
+  box-shadow: none;
+}
+.skillBtnName {
+  composes: eyebrow;
+  line-height: 1.15;
+}
+.skillBtnCost {
+  composes: digits;
+  font-size: 0.72rem;
+  line-height: 1.1;
+  color: #5a431a;
+}
+.skillBtn:disabled .skillBtnCost {
+  color: var(--ij-dim);
+}
+
 /* 폭이 좁으면(폰) 무기줄을 판 아래로 내리고 무기 버튼을 한 줄에 늘어놓는다 */
 @container (max-width: 440px) {
   .root {
@@ -403,9 +574,6 @@
   }
   .chip {
     padding-left: 6px;
-  }
-  .chipValue {
-    font-size: 0.92rem;
   }
   .body {
     grid-template-columns: minmax(0, 1fr);

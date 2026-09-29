@@ -39,6 +39,7 @@ export type SimSound =
   | 'chain'
   | 'kill'
   | 'killBoss'
+  | 'skill'
   | 'leak'
   | 'waveStart'
   | 'waveStartBoss'
@@ -227,6 +228,12 @@ export class SoundEngine {
         this.noise(0.3, { gain: 0.28, filterFreq: 180 });
         this.tone(90, 0.4, 'sine', { gain: 0.2, glideTo: 40 });
         vibrate(50);
+        return;
+      case 'skill':
+        this.tone(520, 0.05, 'square', { gain: 0.16 });
+        this.tone(780, 0.06, 'square', { gain: 0.15, delay: 0.05 });
+        this.tone(1040, 0.09, 'triangle', { gain: 0.14, delay: 0.1 });
+        vibrate(15);
         return;
       case 'leak':
         this.tone(200, 0.09, 'square', { gain: 0.2, glideTo: 120 });

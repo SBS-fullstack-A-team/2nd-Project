@@ -2,6 +2,7 @@ import {
   BUILDS,
   CHECKPOINTS,
   COLS,
+  comboMultiplier,
   ENTRY,
   EXIT,
   PALETTE,
@@ -11,7 +12,7 @@ import {
 } from './config';
 import type { Beam, Build, Engine, Enemy, Particle, Scorch, Shot } from './engine';
 import { ENEMIES } from './config';
-import type { BuildKind } from './config';
+import type { BuildKind, EnemyKind } from './config';
 import { colOf, isBuildable, rowOf } from './maze';
 
 export interface View {
@@ -40,6 +41,11 @@ export function cellFromPoint(view: View, px: number, py: number): { col: number
     col: Math.floor((px - view.ox) / view.tile),
     row: Math.floor((py - view.oy) / view.tile),
   };
+}
+
+/** 칸이 아니라 판 위의 실수 좌표(타일 단위) — 계속 움직이는 적을 짚을 때 쓴다. */
+export function pointFromEvent(view: View, px: number, py: number): { x: number; y: number } {
+  return { x: (px - view.ox) / view.tile, y: (py - view.oy) / view.tile };
 }
 
 function roundRect(
@@ -1163,6 +1169,57 @@ function drawEnemy(ctx: CanvasRenderingContext2D, enemy: Enemy, time: number): v
   }
 }
 
+/**
+ * 판에 그려지는 것과 같은 그림으로 적 한 종류의 모습만 작은 배지로 그린다.
+ * drawBuildPreview 와 같은 방식 — drawEnemy 는 좌표만 있으면 되는 순수 함수라
+ * 판을 굴리지 않고도 가짜 Enemy 하나로 같은 그림을 그릴 수 있다.
+ */
+export function drawEnemyPreview(
+  ctx: CanvasRenderingContext2D,
+  kind: EnemyKind,
+  size: number,
+  dpr = 1,
+): void {
+  const def = ENEMIES[kind];
+  const px = size * dpr;
+  ctx.setTransform(1, 0, 0, 1, 0, 0);
+  ctx.clearRect(0, 0, px, px);
+  ctx.save();
+  ctx.scale(px, px);
+  ctx.translate(0.5, 0.56);
+  const scale = kind === 'boss' ? 0.56 : 0.86;
+  ctx.scale(scale, scale);
+  const enemy: Enemy = {
+    id: 0,
+    kind,
+    hp: 1,
+    maxHp: 1,
+    baseSpeed: def.speed,
+    armor: def.armor,
+    reward: def.reward,
+    leak: def.leak,
+    ignoresWalls: def.ignoresWalls,
+    slowResist: def.slowResist,
+    radius: def.radius,
+    x: 0,
+    y: 0,
+    angle: -Math.PI / 2,
+    leg: 0,
+    nodes: [],
+    node: 0,
+    travelled: 0,
+    slow: 0,
+    hitFlash: 0,
+    burn: 0,
+    burnDelay: 0,
+    kickX: 0,
+    kickY: 0,
+    dead: false,
+  };
+  drawEnemy(ctx, enemy, 0);
+  ctx.restore();
+}
+
 // 배치 전 미리보기용 실루엣. drawBuild 내부가 자기 alpha 를 직접 정하는 부분이
 // 많아 바깥에서 globalAlpha 를 씌워도 먹히지 않으므로, 오프스크린 캔버스에 한
 // 번 그려 두고 그 결과 이미지를 옅게 겹쳐 찍는다 — 레벨 1 렌더는 시간에 따라
@@ -1583,6 +1640,8 @@ export function drawBuildPreview(
       level,
       invested: 0,
       cooldown: 0,
+      skillUnlocked: false,
+      skillCooldown: 0,
       // drawBuild turns by angle + PI/2, so this points the piece up the page.
       angle: -Math.PI / 2,
       pulse: 0,
@@ -1725,6 +1784,88 @@ export function drawGame(
       oy + shakeY + (cell.row + 0.31 + checkpointWave(time, i) * 0.5) * tile,
     );
   });
+
+  // 연속 격파 숫자: 왜군이 상륙하는 배 옆에 띄워, 적이 쏟아지는 자리와 붙여
+  // 보여준다. 늘어날 땐 즉시 커지고, 끊기면 "콤보 끊김" 같은 문구 없이
+  // comboEcho 가 스스로 옅어지며 줄어드는 동안 함께 흐려지다 사라진다.
+  if (engine.comboEcho > 1.5) {
+    const mul = comboMultiplier(Math.round(engine.comboEcho));
+    const alpha = Math.min(1, engine.comboEcho / 3);
+    const tier = mul >= 3.5 ? PALETTE.boss : mul >= 2 ? PALETTE.ochre : PALETTE.celadon;
+    const pulse = 1 + engine.comboPulse * 0.34;
+    const label = String(Math.round(engine.comboEcho));
+
+    ctx.save();
+    ctx.translate(ox + shakeX + (ENTRY.col + 2.75) * tile, oy + shakeY + (ENTRY.row + 0.85) * tile);
+
+    // 격파할 때마다 한 번씩 퍼지는 충격 고리
+    if (engine.comboPulse > 0.02) {
+      ctx.globalAlpha = engine.comboPulse * alpha * 0.6;
+      ctx.strokeStyle = tier;
+      ctx.lineWidth = tile * 0.022;
+      ctx.beginPath();
+      ctx.arc(0, 0, tile * (0.36 + (1 - engine.comboPulse) * 0.55), 0, Math.PI * 2);
+      ctx.stroke();
+    }
+
+    // 숫자 뒤로 은은히 번지는 빛무리
+    const halo = ctx.createRadialGradient(0, 0, 0, 0, 0, tile * 0.85);
+    halo.addColorStop(0, tier + 'a0');
+    halo.addColorStop(0.55, tier + '30');
+    halo.addColorStop(1, tier + '00');
+    ctx.globalAlpha = alpha;
+    ctx.fillStyle = halo;
+    ctx.beginPath();
+    ctx.arc(0, 0, tile * 0.85, 0, Math.PI * 2);
+    ctx.fill();
+
+    // 최고 배율이면 사방으로 빛살이 돈다
+    if (mul >= 3.5) {
+      ctx.save();
+      ctx.rotate(time * 1.4);
+      ctx.strokeStyle = tier;
+      ctx.lineCap = 'round';
+      ctx.globalAlpha = alpha * 0.55;
+      ctx.lineWidth = tile * 0.02;
+      for (let i = 0; i < 8; i += 1) {
+        const a = (i / 8) * Math.PI * 2;
+        ctx.beginPath();
+        ctx.moveTo(Math.cos(a) * tile * 0.5, Math.sin(a) * tile * 0.5);
+        ctx.lineTo(Math.cos(a) * tile * 0.8, Math.sin(a) * tile * 0.8);
+        ctx.stroke();
+      }
+      ctx.restore();
+    }
+
+    ctx.scale(pulse, pulse);
+    ctx.lineJoin = 'round';
+    ctx.globalAlpha = alpha;
+    ctx.font = '800 ' + Math.round(tile * 0.72) + "px 'Song Myung', 'Batang', serif";
+    ctx.lineWidth = tile * 0.05;
+    ctx.strokeStyle = 'rgba(18,14,9,0.85)';
+    ctx.strokeText(label, 0, 0);
+    ctx.fillStyle = tier;
+    ctx.fillText(label, 0, 0);
+
+    ctx.font = '700 ' + Math.round(tile * 0.19) + "px 'Gowun Batang', 'Batang', serif";
+    ctx.lineWidth = tile * 0.026;
+    ctx.strokeText('연속 격파', 0, tile * 0.44);
+    ctx.fillStyle = PALETTE.paper;
+    ctx.globalAlpha = alpha * 0.9;
+    ctx.fillText('연속 격파', 0, tile * 0.44);
+    ctx.restore();
+  }
+
+  ctx.font = '700 ' + Math.round(tile * 0.22) + "px 'Gowun Batang', 'Batang', serif";
+  ctx.fillStyle = PALETTE.boss;
+  for (const enemy of engine.enemies) {
+    if (enemy.kind !== 'boss' || enemy.dead) continue;
+    ctx.fillText(
+      ENEMIES.boss.name,
+      ox + shakeX + (enemy.x + enemy.kickX) * tile,
+      oy + shakeY + (enemy.y + enemy.kickY - enemy.radius - 0.4) * tile,
+    );
+  }
 
   for (const note of engine.notes) {
     ctx.globalAlpha = Math.min(1, note.life * 1.6);

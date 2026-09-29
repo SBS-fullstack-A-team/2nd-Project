@@ -1,9 +1,13 @@
-import { useCallback, useEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import type { GameProps } from '@simsim/shared';
 
 import {
   BUILDS,
   MAX_LEVEL,
+  previewWave,
+  skillDps,
+  SKILLS,
+  TOTAL_WAVES,
   towerChain,
   towerDps,
   towerRange,
@@ -13,17 +17,20 @@ import {
   wallSlow,
   wallThorn,
   type BuildKind,
+  type EnemyKind,
 } from './engine/config';
 import {
   Engine,
   REFUSAL_TEXT,
+  type Enemy,
   type RunResult,
   type SimEvent,
   type Snapshot,
 } from './engine/engine';
 import { colOf, index, isBuildable, rowOf } from './engine/maze';
-import { cellFromPoint, drawGame, layout, type View } from './engine/render';
+import { cellFromPoint, drawGame, layout, pointFromEvent, type View } from './engine/render';
 import { SoundEngine, mapSimEvent } from './engine/audio';
+import { loadBest, updateBest, type Best } from './best';
 
 import { GameDock, type DockSelection } from './game-dock';
 import { GameHud } from './game-hud';
@@ -50,6 +57,9 @@ function playSimEvents(sound: SoundEngine, events: SimEvent[]): void {
       case 'kill':
         sound.sim(mapSimEvent(event.kind), { kind: event.kind });
         break;
+      case 'skill':
+        sound.sim('skill');
+        break;
       case 'leak':
         sound.sim('leak');
         break;
@@ -72,23 +82,27 @@ function playSimEvents(sound: SoundEngine, events: SimEvent[]): void {
   }
 }
 
-/** 그 시설만의 고유 능력치 — 업그레이드가 데미지·사거리 말고 무엇을 사는지 보여준다. */
-function traitOf(kind: BuildKind, level: number): string | null {
+/** 그 시설만의 고유 능력치 — 업그레이드가 데미지·사거리 말고 무엇을 사는지 보여준다.
+ *  statRow 가 구절마다 줄바꿈 없이 감싸도록 조각째 반환한다(하나로 이어 붙이면
+ *  좁은 선택 패널에서 통째로 넘쳐흐른다). 스킬 이름은 스킬 버튼이 이미 보여주므로
+ *  여기서는 다루지 않는다. */
+function traitOf(kind: BuildKind, level: number): string[] | null {
+  const parts: string[] = [];
   if (kind === 'wall') {
     const thorn = wallThorn(level);
-    if (thorn === 0) return null;
-    const slow = wallSlow(level);
-    return (
-      '옆 적에게 초당 체력 ' +
-      (thorn * 100).toFixed(1) +
-      '%' +
-      (slow > 0 ? ' · 둔화 ' + Math.round(slow * 100) + '%' : '')
-    );
+    if (thorn > 0) {
+      const slow = wallSlow(level);
+      parts.push('옆 적에게 초당 체력 ' + (thorn * 100).toFixed(1) + '%');
+      if (slow > 0) parts.push('둔화 ' + Math.round(slow * 100) + '%');
+    }
+  } else if (kind === 'hwacha') {
+    parts.push('불길 ' + towerChain(kind, level) + '명');
+  } else if (kind === 'cannon') {
+    parts.push('폭발 ' + towerSplash(kind, level).toFixed(2) + '칸');
+  } else if (kind === 'caltrop') {
+    parts.push('둔화 ' + Math.round(towerSlow(kind, level) * 100) + '%');
   }
-  if (kind === 'hwacha') return '불길 ' + towerChain(kind, level) + '명';
-  if (kind === 'cannon') return '폭발 ' + towerSplash(kind, level).toFixed(2) + '칸';
-  if (kind === 'caltrop') return '둔화 ' + Math.round(towerSlow(kind, level) * 100) + '%';
-  return null;
+  return parts.length > 0 ? parts : null;
 }
 
 /**
@@ -125,6 +139,17 @@ export default function Imjin50({ onFinish }: GameProps) {
   const [result, setResult] = useState<RunResult | null>(null);
   // 결과창으로 넘긴 뒤에는 결말 장면을 걷어서 두 화면이 겹치지 않게 한다
   const [recorded, setRecorded] = useState(false);
+  // 판에서 짚은 적의 종류 — 정보 카드로 보여준다
+  const [inspected, setInspected] = useState<EnemyKind | null>(null);
+  // 이 브라우저에서 지금까지의 최고 점수·최고 도달 공세 (서버 랭킹과는 별개)
+  const [best, setBest] = useState<Best | null>(() => loadBest());
+
+  // 공세 구성은 웨이브 번호로만 정해지는 순수 계산이라, 정비 시간에 미리 보여줘도
+  // 공정성이 깨지지 않는다.
+  const nextWave = useMemo(
+    () => (stats.phase === 'break' ? previewWave(stats.wave) : null),
+    [stats.phase, stats.wave],
+  );
 
   const modeRef = useRef(mode);
   const pausedRef = useRef(paused);
@@ -183,21 +208,28 @@ export default function Imjin50({ onFinish }: GameProps) {
         trait: null,
         nextCost: null,
         refund: 0,
+        skillUnlocked: false,
+        skillCost: null,
       });
       return;
     }
     const def = BUILDS[build.kind];
+    const maxed = def.upgradable && build.level >= MAX_LEVEL;
     setSelection({
       col,
       row,
       kind: build.kind,
       level: build.level,
-      dps: towerDps(build.kind, build.level),
+      dps:
+        towerDps(build.kind, build.level) +
+        (build.skillUnlocked ? skillDps(build.kind, build.level) : 0),
       range: towerRange(build.kind, build.level),
       trait: traitOf(build.kind, build.level),
       nextCost:
         def.upgradable && build.level < MAX_LEVEL ? upgradeCost(build.kind, build.level) : null,
       refund: Math.floor(build.invested * 0.6),
+      skillUnlocked: build.skillUnlocked,
+      skillCost: maxed && !build.skillUnlocked ? SKILLS[build.kind].cost : null,
     });
   }, [engine]);
 
@@ -253,6 +285,9 @@ export default function Imjin50({ onFinish }: GameProps) {
         engine.update(dt * speedRef.current);
         const events = engine.drainEvents();
         if (events.length) playSimEvents(sound, events);
+        for (const event of events) {
+          if (event.type === 'waveStart' && event.boss) flash('왜장 출현! 성문 방비를 굳히십시오.');
+        }
       } else if (modeRef.current === 'finished') {
         // 끝난 뒤에도 연기·불길 같은 효과는 가라앉을 때까지 흘려보낸다 (시뮬레이션은 멈춰 있다)
         engine.update(dt);
@@ -271,7 +306,10 @@ export default function Imjin50({ onFinish }: GameProps) {
         else sound.stopHeartbeat();
         if (engine.finished && modeRef.current === 'playing') {
           sound.stopHeartbeat();
-          setResult(engine.result());
+          const runResult = engine.result();
+          setResult(runResult);
+          const held = runResult.victory ? TOTAL_WAVES : Math.max(0, runResult.wave - 1);
+          setBest(updateBest(runResult.score, held));
           setMode('finished');
         }
       }
@@ -285,7 +323,7 @@ export default function Imjin50({ onFinish }: GameProps) {
       observer.disconnect();
       sound.stopHeartbeat();
     };
-  }, [engine, sound]);
+  }, [engine, sound, flash]);
 
   const start = useCallback(() => {
     sound.unlock();
@@ -296,9 +334,26 @@ export default function Imjin50({ onFinish }: GameProps) {
     setPaused(false);
     setResult(null);
     setRecorded(false);
+    setInspected(null);
     setStats(engine.snapshot());
     flash(null);
     setMode('playing');
+  }, [engine, flash, sound]);
+
+  // "처음부터 다시"는 곧장 재시작하지 않고 인트로 화면으로 돌아간다 — 작전 개요를
+  // 다시 볼지, 바로 시작할지는 플레이어가 그 화면에서 고른다.
+  const restartToIntro = useCallback(() => {
+    sound.stopHeartbeat();
+    engine.reset();
+    setPending(null);
+    setSelection(null);
+    setPaused(false);
+    setResult(null);
+    setRecorded(false);
+    setInspected(null);
+    setStats(engine.snapshot());
+    flash(null);
+    setMode('intro');
   }, [engine, flash, sound]);
 
   const tryBuild = useCallback(
@@ -327,7 +382,31 @@ export default function Imjin50({ onFinish }: GameProps) {
       const view = viewRef.current;
       if (!canvas || !view || modeRef.current !== 'playing' || pausedRef.current) return;
       const rect = canvas.getBoundingClientRect();
-      const { col, row } = cellFromPoint(view, event.clientX - rect.left, event.clientY - rect.top);
+      const px = event.clientX - rect.left;
+      const py = event.clientY - rect.top;
+
+      // 무기를 놓으려는 게 아니면, 칸보다 먼저 적을 짚었는지부터 본다 — 계속
+      // 움직이는 적이라 칸이 아니라 판 위 실수 좌표로 가까운 순서를 찾는다.
+      if (!pendingRef.current) {
+        const tap = pointFromEvent(view, px, py);
+        let nearest: Enemy | null = null;
+        let bestDist = Infinity;
+        for (const enemy of engine.enemies) {
+          if (enemy.dead) continue;
+          const d = Math.hypot(enemy.x - tap.x, enemy.y - tap.y);
+          if (d <= enemy.radius + 0.24 && d < bestDist) {
+            bestDist = d;
+            nearest = enemy;
+          }
+        }
+        if (nearest) {
+          setInspected(nearest.kind);
+          return;
+        }
+      }
+      setInspected(null);
+
+      const { col, row } = cellFromPoint(view, px, py);
 
       const build = engine.buildAt(col, row);
       if (build) {
@@ -397,11 +476,25 @@ export default function Imjin50({ onFinish }: GameProps) {
             onHoverKind={(kind) => {
               hoverKindRef.current = kind;
             }}
+            nextWave={nextWave}
+            inspected={inspected}
+            onCloseInspect={() => setInspected(null)}
+            best={best}
             onUpgrade={() => {
               if (!selection) return;
               if (engine.upgrade(selection.col, selection.row)) {
                 const build = engine.buildAt(selection.col, selection.row);
                 sound.upgrade(build?.level ?? 1);
+              } else if (engine.refusal) {
+                flash(REFUSAL_TEXT[engine.refusal]);
+                sound.refuse();
+              }
+              syncSelection();
+            }}
+            onUnlockSkill={() => {
+              if (!selection) return;
+              if (engine.unlockSkill(selection.col, selection.row)) {
+                sound.upgrade(MAX_LEVEL + 1);
               } else if (engine.refusal) {
                 flash(REFUSAL_TEXT[engine.refusal]);
                 sound.refuse();
@@ -435,7 +528,11 @@ export default function Imjin50({ onFinish }: GameProps) {
           />
 
           {mode === 'playing' && paused ? (
-            <PauseOverlay stats={stats} onResume={() => setPaused(false)} onRestart={start} />
+            <PauseOverlay
+              stats={stats}
+              onResume={() => setPaused(false)}
+              onRestart={restartToIntro}
+            />
           ) : null}
           {mode === 'finished' && result && !recorded ? (
             <EndingOverlay result={result} onProceed={proceed} />

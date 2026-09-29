@@ -8,6 +8,7 @@ import {
   PRE_WAVE_SECONDS,
   ROWS,
   SCORE,
+  SKILLS,
   START_GOLD,
   START_LIVES,
   TOTAL_WAVES,
@@ -54,6 +55,7 @@ export type SimEvent =
   | { type: 'shotCannon' }
   | { type: 'chain' }
   | { type: 'kill'; kind: EnemyKind }
+  | { type: 'skill'; kind: BuildKind }
   | { type: 'leak' }
   | { type: 'waveStart'; wave: number; boss: boolean }
   | { type: 'waveClear'; wave: number }
@@ -106,6 +108,10 @@ export interface Build {
   level: number;
   invested: number;
   cooldown: number;
+  /** 3단계를 채운 뒤 군자금을 더 들여 스킬을 따로 해금했는지. */
+  skillUnlocked: boolean;
+  /** 스킬을 해금한 뒤부터 도는 자동 쿨타임. 해금 전에는 줄지 않고 그대로 대기한다. */
+  skillCooldown: number;
   angle: number;
   pulse: number;
   muzzle: number;
@@ -203,6 +209,8 @@ const FX = {
   steel: '#c8d5da',
   wood: '#8a6a44',
   white: '#fff4dc',
+  /** 스킬 발동 때만 쓰는 금박 색 — 스킬 강화 버튼의 금박과 같은 톤으로 맞췄다. */
+  gild: '#e9c05e',
 } as const;
 const MAX_PARTICLES = 500;
 
@@ -266,6 +274,11 @@ export class Engine {
   gold = START_GOLD;
   score = 0;
   combo = 0;
+  /** 화면에 보여주는 콤보 숫자. 실제 combo 를 그대로 따라가되, 끊겨서
+   *  0 으로 떨어질 때만 서서히 뒤따라가며 줄어든다 (그림 전용, 점수와 무관). */
+  comboEcho = 0;
+  /** 콤보가 늘어난 순간 숫자가 살짝 튀어 보이게 하는 펄스 (그림 전용) */
+  comboPulse = 0;
   breakLeft = PRE_WAVE_SECONDS;
   kills = 0;
   leaks = 0;
@@ -305,6 +318,8 @@ export class Engine {
     this.gold = START_GOLD;
     this.score = 0;
     this.combo = 0;
+    this.comboEcho = 0;
+    this.comboPulse = 0;
     this.breakLeft = PRE_WAVE_SECONDS;
     this.kills = 0;
     this.leaks = 0;
@@ -478,6 +493,8 @@ export class Engine {
       level: 1,
       invested: cost,
       cooldown: 0,
+      skillUnlocked: false,
+      skillCooldown: SKILLS[kind].cooldown,
       angle: -Math.PI / 2,
       pulse: 1,
       muzzle: 0,
@@ -502,6 +519,25 @@ export class Engine {
     this.gold -= cost;
     build.level += 1;
     build.invested += cost;
+    build.pulse = 1;
+    return true;
+  }
+
+  /** 3단계를 채운 시설에 군자금을 더 들여 자동 스킬을 따로 해금한다. */
+  unlockSkill(col: number, row: number): boolean {
+    this.refusal = null;
+    const build = this.buildAt(col, row);
+    if (!build || this.finished) return false;
+    if (build.level < MAX_LEVEL || build.skillUnlocked) return false;
+    const cost = SKILLS[build.kind].cost;
+    if (this.gold < cost) {
+      this.refusal = 'funds';
+      return false;
+    }
+    this.gold -= cost;
+    build.invested += cost;
+    build.skillUnlocked = true;
+    build.skillCooldown = SKILLS[build.kind].cooldown;
     build.pulse = 1;
     return true;
   }
@@ -671,6 +707,7 @@ export class Engine {
     }
     this.kills += 1;
     this.combo += 1;
+    this.comboPulse = 1;
     this.score += Math.round(enemy.reward * SCORE.perKill * comboMultiplier(this.combo));
     this.gold += enemy.reward;
     this.emit({ type: 'kill', kind: enemy.kind });
@@ -712,19 +749,69 @@ export class Engine {
     return best;
   }
 
-  private fire(build: Build, target: Enemy, range: number): void {
+  /**
+   * mult·splashMul: 평소 발사는 둘 다 1이고, 3단계 자동 스킬(대장군전)이 더 강한
+   * 한 발을 쏠 때만 키워서 넘긴다. volley 는 화차 스킬(신기전 일제) 전용 —
+   * 평소처럼 한 마리에서 옆으로 옮겨붙는 대신, 카트에서 가까운 적 여럿에게
+   * 지연 없이 한꺼번에 쏘아 "일제 발사"다운 순간을 만든다.
+   */
+  private fire(
+    build: Build,
+    target: Enemy,
+    range: number,
+    mult = 1,
+    splashMul = 1,
+    volley = false,
+  ): void {
     const def = BUILDS[build.kind];
     const cx = build.col + 0.5;
     const cy = build.row + 0.5;
-    const damage = towerDamage(build.kind, build.level);
+    const damage = towerDamage(build.kind, build.level) * mult;
     build.pulse = 1;
     build.muzzle = 1;
 
     if (build.kind === 'hwacha') {
+      const burnFor = 0.5 + build.level * 0.25;
+      const chain = towerChain(build.kind, build.level);
+
+      if (volley) {
+        this.burst(cx, cy, 6, 'smoke', FX.smoke, {
+          speed: [0.3, 0.8],
+          size: [0.12, 0.2],
+          life: [0.4, 0.7],
+          drag: 2,
+        });
+        const targets = this.enemies
+          .filter((enemy) => !enemy.dead)
+          .map((enemy) => ({ enemy, d: Math.hypot(enemy.x - cx, enemy.y - cy) }))
+          .filter((t) => t.d <= range)
+          .sort((a, b) => a.d - b.d)
+          .slice(0, chain);
+        let power = damage;
+        for (const { enemy } of targets) {
+          this.beams.push({
+            ax: cx,
+            ay: cy,
+            bx: enemy.x,
+            by: enemy.y,
+            life: 0.32,
+            span: 0.32,
+            delay: 0,
+            hop: 0,
+            seed: Math.random(),
+            level: build.level,
+          });
+          this.ignite(enemy, burnFor, 0);
+          this.hit(enemy, power, true);
+          this.emit({ type: 'chain' });
+          power *= 0.7;
+        }
+        return;
+      }
+
       const struck: Enemy[] = [target];
       let current = target;
       let power = damage;
-      const burnFor = 0.5 + build.level * 0.25;
       this.beams.push({
         ax: cx,
         ay: cy,
@@ -740,7 +827,6 @@ export class Engine {
       this.ignite(target, burnFor, 0);
       this.hit(target, power, true);
       this.emit({ type: 'chain' });
-      const chain = towerChain(build.kind, build.level);
       for (let hop = 1; hop < chain; hop += 1) {
         let next: Enemy | null = null;
         let bestDist = 1.85;
@@ -811,11 +897,133 @@ export class Engine {
       speed,
       targetId: target.id,
       damage,
-      splash: towerSplash(build.kind, build.level),
+      splash: towerSplash(build.kind, build.level) * splashMul,
       pierceArmor: def.pierceArmor,
       color: def.color,
       life: range / speed + 0.9,
     });
+  }
+
+  /**
+   * 스킬이 발동할 때 공통으로 붙는 이름표·불꽃·소리 — 평소 한 발과는 다르다는 걸
+   * 한눈에 알리려고, 무기색 고리 위에 스킬 버튼과 같은 금박색 고리를 한 번 더
+   * 겹쳐 퍼뜨리고, 섬광과 흔들림을 살짝 더한다.
+   */
+  private announceSkill(build: Build): void {
+    const cx = build.col + 0.5;
+    const cy = build.row + 0.5;
+    const color = BUILDS[build.kind].color;
+    this.pushNote(cx, cy - 0.55, SKILLS[build.kind].name + '!', color, true);
+
+    this.rings.push({ x: cx, y: cy, r: 0.08, max: 0.75, life: 0.38, color });
+    this.rings.push({ x: cx, y: cy, r: 0.08, max: 1.05, life: 0.54, color: FX.gild });
+
+    this.burst(cx, cy, 1, 'flash', FX.white, {
+      speed: [0, 0],
+      size: [0.5, 0.5],
+      life: [0.13, 0.13],
+    });
+    this.burst(cx, cy, 14, 'spark', color, {
+      speed: [1.6, 3.4],
+      size: [0.032, 0.058],
+      life: [0.24, 0.46],
+      drag: 3,
+    });
+    this.burst(cx, cy, 10, 'spark', FX.gild, {
+      speed: [1, 2.6],
+      size: [0.022, 0.042],
+      life: [0.3, 0.55],
+      drag: 2.6,
+      lift: 0.3,
+    });
+
+    this.shake = Math.max(this.shake, 0.3);
+    this.emit({ type: 'skill', kind: build.kind });
+  }
+
+  /** 궁수대·천자총통·화차 3단계 스킬: 평소보다 세거나 많은, 혹은 동시에 여러 발을 쏜다. */
+  private fireSkill(build: Build, target: Enemy, range: number): void {
+    const skill = SKILLS[build.kind];
+    if (build.kind === 'arrow') {
+      // power 는 "보통 한 발만큼의 화살을 몇 발 더 쏘는지" — 한 발씩 나눠 쏜다.
+      for (let i = 0; i < skill.power; i += 1) this.fire(build, target, range);
+    } else if (build.kind === 'cannon') {
+      this.fire(build, target, range, skill.power, 1.4);
+    } else {
+      // 화차: volley=true 로 넘겨 옆으로 옮겨붙는 평소 연쇄 대신 카트에서 여럿에게
+      // 동시에 신기전을 쏘는 "일제 발사"로 발동한다.
+      this.fire(build, target, range, skill.power, 1, true);
+    }
+    this.announceSkill(build);
+  }
+
+  /** 목책 3단계 스킬: 매복 찌르기 — 닿는 범위 안 모두에게 갑옷 무시 강타를 한 번에 꽂는다. */
+  private wallSkill(build: Build): boolean {
+    const cx = build.col + 0.5;
+    const cy = build.row + 0.5;
+    let touched = false;
+    for (const enemy of this.enemies) {
+      if (enemy.dead) continue;
+      const dx = enemy.x - cx;
+      const dy = enemy.y - cy;
+      if (dx * dx + dy * dy > WALL_REACH * WALL_REACH) continue;
+      touched = true;
+      const factor = enemy.kind === 'boss' ? WALL_BOSS_FACTOR : 1;
+      this.hit(enemy, enemy.maxHp * SKILLS.wall.power * factor, true, true);
+    }
+    if (!touched) return false;
+    build.pulse = 1;
+    this.rings.push({
+      x: cx,
+      y: cy,
+      r: WALL_REACH * 0.4,
+      max: WALL_REACH * 1.4,
+      life: 0.4,
+      color: BUILDS.wall.color,
+    });
+    this.burst(cx, cy, 8, 'debris', FX.wood, {
+      speed: [1, 2.2],
+      size: [0.03, 0.06],
+      life: [0.25, 0.45],
+      drag: 4,
+    });
+    this.announceSkill(build);
+    return true;
+  }
+
+  /** 마름쇠 3단계 스킬: 가시 폭발 — 사거리 안 모두에게 갑옷 무시 충격파를 한 번에 터뜨린다. */
+  private caltropSkill(build: Build, range: number): boolean {
+    const cx = build.col + 0.5;
+    const cy = build.row + 0.5;
+    const burst = towerDamage('caltrop', build.level) * SKILLS.caltrop.power;
+    let touched = false;
+    for (const enemy of this.enemies) {
+      if (enemy.dead) continue;
+      const dx = enemy.x - cx;
+      const dy = enemy.y - cy;
+      if (dx * dx + dy * dy > range * range) continue;
+      touched = true;
+      this.hit(enemy, burst, true, true);
+      if (enemy.slow < 0.7) enemy.slow = 0.7;
+    }
+    if (!touched) return false;
+    build.pulse = 1;
+    this.rings.push({
+      x: cx,
+      y: cy,
+      r: range * 0.2,
+      max: range,
+      life: 0.4,
+      color: BUILDS.caltrop.color,
+    });
+    this.burst(cx, cy, 12, 'spark', FX.steel, {
+      speed: [1.6, 3.2],
+      size: [0.03, 0.05],
+      life: [0.2, 0.38],
+      drag: 3,
+    });
+    this.announceSkill(build);
+    return true;
   }
 
   private advance(enemy: Enemy, distance: number): void {
@@ -926,6 +1134,12 @@ export class Engine {
           }
         }
         if (touched) build.pulse = Math.max(build.pulse, 0.4);
+        if (build.skillUnlocked) {
+          build.skillCooldown -= dt;
+          if (build.skillCooldown <= 0 && this.wallSkill(build)) {
+            build.skillCooldown = SKILLS.wall.cooldown;
+          }
+        }
         continue;
       }
 
@@ -965,16 +1179,27 @@ export class Engine {
           }
         }
         if (touched) build.pulse = Math.max(build.pulse, 0.4);
+        if (build.skillUnlocked) {
+          build.skillCooldown -= dt;
+          if (build.skillCooldown <= 0 && this.caltropSkill(build, range)) {
+            build.skillCooldown = SKILLS.caltrop.cooldown;
+          }
+        }
         continue;
       }
 
       build.cooldown -= dt;
+      if (build.skillUnlocked) build.skillCooldown -= dt;
       const target = this.findTarget(build, range);
       if (!target) continue;
       build.angle = Math.atan2(target.y - (build.row + 0.5), target.x - (build.col + 0.5));
       if (build.cooldown <= 0) {
         build.cooldown = 1 / towerRate(build.kind, build.level);
         this.fire(build, target, range);
+      }
+      if (build.skillUnlocked && build.skillCooldown <= 0) {
+        build.skillCooldown = SKILLS[build.kind].cooldown;
+        this.fireSkill(build, target, range);
       }
     }
 
@@ -1126,6 +1351,16 @@ export class Engine {
   }
 
   private decay(dt: number): void {
+    // 콤보는 늘어날 땐 바로 따라가고("잡았다" 반응이 늦으면 안 된다), 끊기면
+    // "콤보 끊김" 같은 문구 없이 그 자리에서 0.4초쯤에 걸쳐 스스로 옅어지며 줄어든다.
+    if (this.combo >= this.comboEcho) {
+      this.comboEcho = this.combo;
+    } else {
+      this.comboEcho += (this.combo - this.comboEcho) * (1 - Math.exp(-dt / 0.4));
+      if (this.comboEcho < 0.4) this.comboEcho = 0;
+    }
+    this.comboPulse = Math.max(0, this.comboPulse - dt * 3.2);
+
     for (const beam of this.beams) {
       if (beam.delay > 0) beam.delay -= dt;
       else beam.life -= dt;

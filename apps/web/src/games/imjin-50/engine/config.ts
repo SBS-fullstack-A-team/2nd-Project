@@ -63,8 +63,8 @@ export const PALETTE = {
   steel: '#8fa3ab',
   samcheong: '#7a9ccf',
   straw: '#d8c98f',
-  armour: '#6b7a85',
-  boss: '#e8452f',
+  armour: '#57616b',
+  boss: '#b32a22',
 } as const;
 
 export type BuildKind = 'wall' | 'arrow' | 'cannon' | 'caltrop' | 'hwacha';
@@ -94,7 +94,7 @@ export const BUILDS: Record<BuildKind, BuildDef> = {
     kind: 'wall',
     name: '목책',
     blurb:
-      '왜군이 걸어야 하는 길을 늘리는 나무 울타리. 강화하면 사슴뿔처럼 가지를 벌린 녹채가 되어 바로 옆을 지나는 적을 찌르고, 3단계에서는 걸음도 붙잡습니다.',
+      '왜군이 걸어야 하는 길을 늘리는 나무 울타리. 강화하면 사슴뿔처럼 가지를 벌려 바로 옆을 지나는 적을 찌르고, 3단계에서는 걸음도 붙잡습니다.',
     cost: 18,
     damage: 0,
     rate: 0,
@@ -178,6 +178,40 @@ export const BUILDS: Record<BuildKind, BuildDef> = {
 };
 
 export const BUILD_ORDER: readonly BuildKind[] = ['wall', 'arrow', 'cannon', 'caltrop', 'hwacha'];
+
+export interface SkillDef {
+  name: string;
+  /** 3단계를 찍은 뒤 이 스킬만 따로 해금하는 데 드는 군자금. */
+  cost: number;
+  /** 몇 초마다 저절로 발동하는지 — 해금하고 나면 버튼 없이 저절로 나간다. */
+  cooldown: number;
+  /**
+   * 목책은 적 최대 체력 대비 즉발 피해 비율, 나머지는 평소 한 발 피해에 곱하는 배율
+   * (마름쇠는 그 배율만큼의 피해를 한 번에, 화차·천자총통은 그만큼 강해진 한 발을
+   * 더 쏜다). 엔진의 실제 발동 로직과 towerDps 의 평균 피해 계산이 이 값을 함께 쓴다.
+   */
+  power: number;
+}
+
+/**
+ * 3단계를 다 찍은 시설에 군자금을 더 들여 따로 해금하는 자동 스킬. 해금하고 나면
+ * 버튼이나 쿨타임 UI 없이 알아서 주기적으로 한 번씩 터진다 — "3단계 + 별도 투자"를
+ * 다 마쳤을 때 주는 마무리 보상이다.
+ */
+export const SKILLS: Record<BuildKind, SkillDef> = {
+  wall: { name: '매복 찌르기', cost: 60, cooldown: 9, power: 0.05 },
+  /** power 는 "보통 한 발과 같은 위력의 화살을 몇 발 더 쏘는지"다(예: 2 = 2발 추가). */
+  arrow: { name: '연사', cost: 90, cooldown: 5, power: 2 },
+  cannon: { name: '대장군전', cost: 170, cooldown: 14, power: 1.8 },
+  caltrop: { name: '가시 폭발', cost: 150, cooldown: 8, power: 1.6 },
+  hwacha: { name: '신기전 일제', cost: 260, cooldown: 7, power: 1.3 },
+};
+
+/** 선택 패널·도감에 붙이는 한 줄 — "이름 N초마다". */
+export function skillLabel(kind: BuildKind): string {
+  const skill = SKILLS[kind];
+  return skill.name + ' ' + skill.cooldown + '초마다';
+}
 
 export function upgradeCost(kind: BuildKind, level: number): number {
   if (kind === 'wall') return WALL_UPGRADE_COST[level - 1] ?? 0;
@@ -264,6 +298,18 @@ export function towerChain(kind: BuildKind, level: number): number {
   return stepped(GROWTH[kind]?.chain, level, BUILDS[kind].chain);
 }
 
+/**
+ * 스킬을 해금했을 때 얹어지는 평균 초당 피해 — 스킬 강화를 살지 판단하는 데 쓴다.
+ * 목책은 최대 체력 비례라 dps 로 환산하지 않고 trait 문구로만 보여준다(그래서
+ * towerDps 에도 포함하지 않는다).
+ */
+export function skillDps(kind: BuildKind, level: number): number {
+  if (level < MAX_LEVEL || kind === 'wall') return 0;
+  const skill = SKILLS[kind];
+  return (towerDamage(kind, level) * skill.power) / skill.cooldown;
+}
+
+/** 스킬을 아직 해금하지 않았을 때도 그대로 적용되는 기본 초당 피해. */
 export function towerDps(kind: BuildKind, level: number): number {
   const def = BUILDS[kind];
   if (def.damage === 0) return 0;
@@ -317,7 +363,7 @@ export const ENEMIES: Record<EnemyKind, EnemyDef> = {
     ignoresWalls: false,
     slowResist: 0,
     radius: 0.21,
-    color: '#e07a5f',
+    color: '#c98a2e',
   },
   gunner: {
     kind: 'gunner',
@@ -331,12 +377,12 @@ export const ENEMIES: Record<EnemyKind, EnemyDef> = {
     ignoresWalls: false,
     slowResist: 0.1,
     radius: 0.27,
-    color: '#c08070',
+    color: '#4a5a7a',
   },
   armored: {
     kind: 'armored',
     name: '사무라이',
-    note: '갑주를 두른 무사. 느리지만 두꺼워서, 갑주를 무시하는 마름쇠와 화차가 잘 듣습니다.',
+    note: '갑주를 두른 무사. 느리지만 두꺼워서 어지간한 공격은 잘 먹히지 않습니다.',
     hp: 128,
     speed: 0.85,
     reward: 16,
@@ -476,4 +522,16 @@ export function buildWave(wave: number): Spawn[] {
   }
 
   return out;
+}
+
+/**
+ * 정비 시간에 다음 공세의 구성을 미리 보여주기 위한 집계. buildWave 는 웨이브
+ * 번호로만 정해지는 순수 함수라, 시뮬레이션에 아무 영향 없이 미리 내다볼 수 있다.
+ */
+export function previewWave(wave: number): Partial<Record<EnemyKind, number>> {
+  const counts: Partial<Record<EnemyKind, number>> = {};
+  for (const spawn of buildWave(wave)) {
+    counts[spawn.kind] = (counts[spawn.kind] ?? 0) + 1;
+  }
+  return counts;
 }

@@ -194,7 +194,7 @@ export function PauseOverlay({
             무기·강화 도감
           </button>
           <Link to="/" className={styles.stackedBtn}>
-            게임 목록으로
+            홈으로
           </Link>
         </div>
       </div>
