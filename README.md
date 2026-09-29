@@ -165,10 +165,11 @@ pnpm dev
     description: '한 줄 설명',
     thumbnail: wordChainThumbnail, // import wordChainThumbnail from './word-chain/thumbnail.svg';
     category: 'quiz',
+    card: 2, // 내 카드 번호 (CLAUDE.md "게임 카드 담당" 표)
     component: lazy(() => import('./word-chain')),
   },
   ```
-  → 메인 카드와 `/games/word-chain` 페이지가 자동으로 생깁니다.
+  → 메인 화면의 내 카드 칸("준비 중" 자리)에 게임이 들어가고, `/games/word-chain` 페이지가 자동으로 생깁니다.
 - [ ] **3. 공용 타입** — `packages/shared/src/game.ts`
   - `MAX_SCORE_BY_GAME` 에 최고 점수 추가 (서버가 이보다 큰 점수를 거부)
   - 퀴즈류라면 `quiz_item.meta` 에 들어갈 타입 추가 (예: `ChosungQuizMeta`)
