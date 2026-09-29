@@ -105,14 +105,14 @@ gamesRoute.get(
   },
 );
 
-// 퀴즈 문제 조회 (랜덤 N개)
+// 퀴즈 문제 조회 (랜덤 N개, category 를 주면 meta.category 가 같은 문제만)
 gamesRoute.get(
   '/:gameId/questions',
   zValidator('param', gameIdParamSchema),
   zValidator('query', questionsQuerySchema),
   async (c) => {
     const { gameId } = c.req.valid('param');
-    const { limit } = c.req.valid('query');
+    const { limit, category } = c.req.valid('query');
     const db = createDb(c.env.DB);
 
     if (!(await gameExists(db, gameId))) {
@@ -127,7 +127,13 @@ gamesRoute.get(
         meta: quizItem.meta,
       })
       .from(quizItem)
-      .where(eq(quizItem.gameId, gameId))
+      .where(
+        and(
+          eq(quizItem.gameId, gameId),
+          // 값은 바인딩 파라미터로 전달된다 (SQL 인젝션 안전)
+          category ? sql`json_extract(${quizItem.meta}, '$.category') = ${category}` : undefined,
+        ),
+      )
       .orderBy(sql`random()`)
       .limit(limit)
       .all();

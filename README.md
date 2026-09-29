@@ -125,12 +125,12 @@ pnpm dev
 
 모든 API 는 게임별이 아닌 **gameId 기반 범용 API** 입니다. 요청/응답 타입은 `packages/shared/src/api.ts` 참고.
 
-| 메서드 | 경로                                    | 설명                                             |
-| ------ | --------------------------------------- | ------------------------------------------------ |
-| `POST` | `/api/games/:gameId/scores`             | 점수 등록 `{ nickname, score }` → `{ id, rank }` |
-| `GET`  | `/api/games/:gameId/ranking?limit=10`   | 상위 N개 (최대 50, 같은 점수는 먼저 등록한 순)   |
-| `GET`  | `/api/games/:gameId/questions?limit=10` | 퀴즈 문제 랜덤 N개 (최대 50)                     |
-| `GET`  | `/api/health`                           | 상태 확인                                        |
+| 메서드 | 경로                                                  | 설명                                                                            |
+| ------ | ----------------------------------------------------- | ------------------------------------------------------------------------------- |
+| `POST` | `/api/games/:gameId/scores`                           | 점수 등록 `{ nickname, score }` → `{ id, rank }`                                |
+| `GET`  | `/api/games/:gameId/ranking?limit=10`                 | 상위 N개 (최대 50, 같은 점수는 먼저 등록한 순)                                  |
+| `GET`  | `/api/games/:gameId/questions?limit=10&category=동물` | 퀴즈 문제 랜덤 N개 (최대 50). `category` 를 주면 `meta.category` 가 같은 문제만 |
+| `GET`  | `/api/health`                                         | 상태 확인                                                                       |
 
 - 에러 응답은 공통 형식입니다: `{ "error": { "code": "GAME_NOT_FOUND", "message": "..." } }`
 - 검증: 닉네임 1~12자(앞뒤 공백 제거), 점수는 0 이상 정수이고 게임별 상한(`MAX_SCORE_BY_GAME`) 이하
