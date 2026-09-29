@@ -166,12 +166,16 @@ function QuizPlay({
   const [shaking, setShaking] = useState(false);
   /** 이번 문제를 못 맞혀서 정답을 보여주는 중 — '다음 문제' 를 눌러야 넘어간다 */
   const [missed, setMissed] = useState(false);
+  /** 마지막 문제를 맞혀서 결과를 보여주는 중 (얻은 점수) — '결과 보기' 를 눌러야 끝난다 */
+  const [solvedPoints, setSolvedPoints] = useState<number | null>(null);
   /** 지금 문제를 시작한 시각 */
   const [startedAt, setStartedAt] = useState(() => Date.now());
   const finishedRef = useRef(false);
   const inputRef = useRef<HTMLInputElement>(null);
 
-  const elapsed = useElapsedSeconds(startedAt, phase === 'playing' && !missed);
+  /** 정답을 공개하는 중 (못 맞혔거나, 마지막 문제를 맞혔을 때) — 입력·타이머 멈춤 */
+  const revealing = missed || solvedPoints !== null;
+  const elapsed = useElapsedSeconds(startedAt, phase === 'playing' && !revealing);
   const item = items[index];
   // 문제 힌트 뒤에 '이름 초성' 힌트를 자동으로 붙인다
   const hints = item ? [...item.meta.hints.slice(0, MAX_HINTS - 1), initialsHint(item.answer)] : [];
@@ -202,14 +206,14 @@ function QuizPlay({
 
   /** 이번 문제 실패(0점) — 정답을 보여주고 '다음 문제' 를 기다린다 */
   function miss(text: string) {
-    if (phase !== 'playing' || missed) return;
+    if (phase !== 'playing' || revealing) return;
     setMissed(true);
     setFeedback({ type: 'pass', text });
   }
 
   /** 다음 힌트를 연다. 이미 마지막 힌트에서 틀렸다면 이 문제는 실패로 처리한다. */
   function revealNext(reason: 'wrong' | 'request') {
-    if (!item || phase !== 'playing' || missed) return;
+    if (!item || phase !== 'playing' || revealing) return;
     if (!isLastHint) {
       setRevealed(revealed + 1);
       setFeedback(reason === 'wrong' ? { type: 'wrong', text: '땡! 힌트가 하나 더 열려요' } : null);
@@ -220,7 +224,7 @@ function QuizPlay({
 
   function handleSubmit(e: FormEvent) {
     e.preventDefault();
-    if (!item || phase !== 'playing' || missed || !input.trim()) return;
+    if (!item || phase !== 'playing' || revealing || !input.trim()) return;
 
     const match = matchAnswer(input, item);
     if (match !== 'wrong') {
@@ -235,6 +239,11 @@ function QuizPlay({
         type: 'correct',
         text: `${label} "${item.answer}" — 힌트 ${revealed}개 · ${Math.floor(seconds)}초 → +${points}점`,
       });
+      // 마지막 문제는 바로 끝내지 않고 정답을 보여준 뒤 '결과 보기' 를 누르게 한다
+      if (isLastQuestion) {
+        setSolvedPoints(points);
+        return;
+      }
       goNext(next);
     } else {
       setShaking(true);
@@ -245,7 +254,7 @@ function QuizPlay({
   }
 
   function handlePass() {
-    if (!item || phase !== 'playing' || missed) return;
+    if (!item || phase !== 'playing' || revealing) return;
     miss('패스했어요');
   }
 
@@ -273,7 +282,7 @@ function QuizPlay({
       <Timer
         key={index}
         seconds={QUESTION_TIME_SEC}
-        running={!missed}
+        running={!revealing}
         onExpire={() => miss('⏰ 시간 초과! 이 문제는 0점이에요')}
       />
       {index === 0 && items.length < requestedCount && (
@@ -285,12 +294,18 @@ function QuizPlay({
       <div className={styles.card}>
         <div className={styles.cardTop}>
           <span className={styles.category}>{item.meta.category}</span>
-          <span className={styles.worth}>{missed ? '0점' : `지금 맞히면 +${pointsNow}점`}</span>
+          <span className={styles.worth}>
+            {missed
+              ? '0점'
+              : solvedPoints !== null
+                ? `+${solvedPoints}점 획득`
+                : `지금 맞히면 +${pointsNow}점`}
+          </span>
         </div>
         <p className={styles.question}>{item.question}</p>
         <ol className={styles.hints}>
           {hints.map((hint, i) =>
-            i < revealed || missed ? (
+            i < revealed || revealing ? (
               <li key={i} className={`${styles.hint} ${styles.open}`}>
                 <span className={styles.hintNo}>{i + 1}</span>
                 <span className={styles.hintLabel}>{hint.label}</span>
@@ -310,9 +325,9 @@ function QuizPlay({
         </ol>
       </div>
 
-      {missed ? (
+      {revealing ? (
         <div className={styles.reveal}>
-          <p className={styles.revealLabel}>정답</p>
+          <p className={styles.revealLabel}>{missed ? '정답' : '🎉 맞혔어요! 정답은'}</p>
           <p className={styles.revealAnswer}>{item.answer}</p>
           <button type="button" className="btn btn-primary" onClick={handleNextQuestion} autoFocus>
             {isLastQuestion ? '결과 보기' : '다음 문제 →'}
