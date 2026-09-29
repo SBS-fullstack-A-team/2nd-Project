@@ -1,6 +1,6 @@
-import { GameCard } from '../components/GameCard';
+import { ComingSoonCard, GameCard } from '../components/GameCard';
 import { Window } from '../components/Window';
-import { GAMES } from '../games/registry';
+import { GAME_CARD_SLOTS, GAMES } from '../games/registry';
 import { useTheme } from '../lib/theme';
 import classicStyles from './HomePage.classic.module.css';
 import xpStyles from './HomePage.xp.module.css';
@@ -16,9 +16,29 @@ export function HomePage() {
       <p className={styles.subtitle}>퀴즈부터 추억의 게임까지. 점수를 올리고 랭킹에 도전하세요.</p>
     </section>
   );
+  // 카드 칸(1~4) 순서대로 등록된 게임을 넣고, 비어 있는 칸은 "준비 중" 으로 채운다.
+  // 카드 번호가 없는 게임(샘플 등)은 카드 칸 뒤에 둔다.
+  const slotCards = new Set(GAME_CARD_SLOTS.map((slot) => slot.card));
+  const extraGames = GAMES.filter((game) => game.card === undefined || !slotCards.has(game.card));
+  const comingSoonCount = GAME_CARD_SLOTS.filter(
+    (slot) => !GAMES.some((game) => game.card === slot.card),
+  ).length;
+
   const grid = (
     <ul className={styles.grid}>
-      {GAMES.map((game) => (
+      {GAME_CARD_SLOTS.map((slot) => {
+        const game = GAMES.find((g) => g.card === slot.card);
+        return (
+          <li key={`card-${slot.card}`}>
+            {game ? (
+              <GameCard game={game} />
+            ) : (
+              <ComingSoonCard card={slot.card} owner={slot.owner} />
+            )}
+          </li>
+        );
+      })}
+      {extraGames.map((game) => (
         <li key={game.id}>
           <GameCard game={game} />
         </li>
@@ -40,7 +60,9 @@ export function HomePage() {
     <Window title="심심오락실" icon="🕹️" bodyClassName={xpStyles.body}>
       {hero}
       <div className={xpStyles.panel}>
-        <p className={xpStyles.count}>게임 {GAMES.length}개</p>
+        <p className={xpStyles.count}>
+          게임 {GAMES.length}개{comingSoonCount > 0 && ` · 준비 중 ${comingSoonCount}개`}
+        </p>
         {grid}
       </div>
     </Window>
