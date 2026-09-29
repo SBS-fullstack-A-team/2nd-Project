@@ -106,7 +106,7 @@ gh auth status
 | 카드 | 담당     | 게임 (id)               | 브랜치                   |
 | ---- | -------- | ----------------------- | ------------------------ |
 | 1    | 혁 (Heo) | 힌트 퀴즈 (`hint-quiz`) | `feature/game-hint-quiz` |
-| 2    | 경수     | 미정                    | `feature/game-<게임id>`  |
+| 2    | 경수     | 임진 50 (`imjin-50`)    | `feature/game-imjin-50`  |
 | 3    | 신영     | 미정                    | `feature/game-<게임id>`  |
 | 4    | 동한     | 미정                    | `feature/game-<게임id>`  |
 

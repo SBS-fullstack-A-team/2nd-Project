@@ -3,6 +3,7 @@ import type { GameCategory, GameProps } from '@simsim/shared';
 import chosungQuizThumbnail from './chosung-quiz/thumbnail.svg';
 import fruitSlicerThumbnail from './fruit-slicer/thumbnail.svg';
 import hintQuizThumbnail from './hint-quiz/thumbnail.svg';
+import imjin50Thumbnail from './imjin-50/thumbnail.svg';
 
 /**
  * 게임 등록부 — 메인 화면 카드와 /games/:gameId 라우트가 이 목록으로 자동 생성된다.
@@ -45,6 +46,16 @@ export const GAMES: readonly GameMeta[] = [
     thumbnail: chosungQuizThumbnail,
     category: 'quiz',
     component: lazy(() => import('./chosung-quiz')),
+  },
+  // 카드 2 (경수)
+  {
+    id: 'imjin-50',
+    name: '임진 50',
+    description: '벽으로 길을 접어 쉰 차례의 공세를 막는 미로형 타워디펜스',
+    thumbnail: imjin50Thumbnail,
+    category: 'arcade',
+    card: 2,
+    component: lazy(() => import('./imjin-50')),
   },
   // 카드 3 (신영)
   {

@@ -1,0 +1,1037 @@
+/* 이 게임 청크가 로드될 때만 받는 폰트 (공통 index.html 은 건드리지 않는다) */
+@import url('https://fonts.googleapis.com/css2?family=Gowun+Batang:wght@400;700&family=Song+Myung&display=swap');
+
+/*
+ * 임진 50 전용 색/폰트 토큰. 사이트 공통 테마(global.css)는 건드리지 않고
+ * 이 게임 폴더 안에서만 쓴다. 먹빛 목판 바탕에 한지색 글씨, 주칠·황토 강조 —
+ * 흙빛 전장 맵과 한 화면처럼 이어지도록 맞췄다.
+ */
+
+/* 무대 폭에 따라 배치를 바꾸기 위한 컨테이너 (넓으면 무기줄이 판 옆, 좁으면 판 아래) */
+.shell {
+  container-type: inline-size;
+  /* 한글은 공백이 없어도 아무 글자 사이에서나 줄이 넘어갈 수 있어(예: "아시가루"가
+     "아시가"+"루"로 잘림), 브라우저 기본값 대신 뒤어쓰기에서만 줄을 넘기게 한다.
+     상속되는 속성이라 여기 한 번만 둬도 게임 안 모든 글자에 적용된다. */
+  word-break: keep-all;
+  overflow-wrap: break-word;
+}
+
+.root {
+  --ij-void: #120f0a;
+  --ij-ground: #1c1710;
+  --ij-panel: #2a2217;
+  --ij-line: #3a2f20;
+  --ij-paper: #efe4cc;
+  --ij-muted: #b3a384;
+  --ij-dim: #7d6f55;
+  --ij-rose: #c0442a;
+  --ij-rose-deep: #6e2317;
+  --ij-core: #8fb59b;
+  --ij-amber: #d9a441;
+  --ij-font-body: 'Gowun Batang', 'Batang', serif;
+  --ij-font-display: 'Song Myung', 'Gowun Batang', 'Batang', serif;
+
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  /* 페이지 제목·여백을 빼고 한 화면 안에 들어오도록 */
+  height: clamp(440px, calc(100vh - 230px), 640px);
+  padding: 10px;
+  overflow: hidden;
+  background: var(--ij-void);
+  color: var(--ij-paper);
+  font-family: var(--ij-font-body);
+  border-radius: 12px;
+  /* 게임 안 오버레이의 z-index 가 이 안에서만 통하도록 가둔다.
+     그러지 않으면 결말·일시정지 화면이 페이지의 공통 결과창 위로 올라온다. */
+  isolation: isolate;
+}
+
+.digits {
+  font-family: var(--ij-font-body);
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+}
+
+.eyebrow {
+  font-family: var(--ij-font-body);
+  font-size: 0.72rem;
+  font-weight: 700;
+  letter-spacing: 0.12em;
+}
+
+/* ---- 점수판 ---- */
+.hud {
+  flex-shrink: 0;
+  border-radius: 8px;
+  background: var(--ij-ground);
+  padding: 8px 14px 9px;
+}
+/* 다섯 칸을 똑같은 폭으로 나누면 점수(최대 "9,999,999")나 경과("1:23:45")가
+   목책 값들을 잘라 버렸다. 실제로 나올 수 있는 최대 글자 수에 맞춰 칸 폭을 다르게 준다. */
+.hudGrid {
+  display: grid;
+  grid-template-columns: 0.7fr 1fr 0.9fr 1.6fr 1.1fr;
+  gap: 10px;
+}
+.chip {
+  min-width: 0;
+  padding-left: 10px;
+  border-left: 1px solid var(--ij-line);
+}
+.chip:first-child {
+  padding-left: 0;
+  border-left: 0;
+}
+.chipLabel {
+  composes: eyebrow;
+  color: var(--ij-dim);
+  margin: 0;
+}
+.chipValue {
+  composes: digits;
+  margin: 2px 0 0;
+  /* 칸 폭을 나눠도 화면이 아주 좁아지면 여전히 모자랄 수 있어, 그럴 때는
+     글자를 줄여서라도 다 보이게 한다 — 말줄임표로 잘라내지 않는다. */
+  font-size: clamp(0.78rem, 3cqi, 1.05rem);
+  line-height: 1.15;
+  white-space: nowrap;
+}
+.tonePaper {
+  color: var(--ij-paper);
+}
+.toneAmber {
+  color: var(--ij-amber);
+}
+.toneRose {
+  color: var(--ij-rose);
+}
+.toneCore {
+  color: var(--ij-core);
+}
+.toneMuted {
+  color: var(--ij-muted);
+}
+.pulse {
+  animation: ij-pulse 1.6s ease-in-out infinite;
+}
+@keyframes ij-pulse {
+  0%,
+  100% {
+    opacity: 1;
+  }
+  50% {
+    opacity: 0.45;
+  }
+}
+.progressRow {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin-top: 8px;
+}
+.progressTrack {
+  flex: 1;
+  height: 4px;
+  overflow: hidden;
+  border-radius: 2px;
+  background: var(--ij-line);
+}
+.progressFill {
+  height: 100%;
+  background: var(--ij-core);
+  transition: width 0.2s;
+}
+.progressFillWave {
+  background: var(--ij-rose);
+}
+.progressNote {
+  composes: digits;
+  flex-shrink: 0;
+  font-size: 0.75rem;
+  color: var(--ij-dim);
+}
+.progressNoteAmber {
+  color: var(--ij-amber);
+}
+
+/* ---- 판 + 무기줄 ---- */
+.body {
+  position: relative;
+  display: grid;
+  flex: 1;
+  grid-template-columns: minmax(0, 1fr) 156px;
+  grid-template-rows: minmax(0, 1fr);
+  gap: 10px;
+  min-height: 0;
+}
+.canvasWrap {
+  position: relative;
+  min-height: 0;
+  overflow: hidden;
+  border-radius: 8px;
+}
+.canvas {
+  display: block;
+  width: 100%;
+  height: 100%;
+  touch-action: none;
+}
+.notice {
+  position: absolute;
+  right: 0;
+  bottom: 10px;
+  left: 0;
+  z-index: 10;
+  display: flex;
+  justify-content: center;
+  padding: 0 16px;
+  pointer-events: none;
+}
+.noticeText {
+  margin: 0;
+  border-radius: 6px;
+  background: var(--ij-rose-deep);
+  padding: 6px 12px;
+  text-align: center;
+  font-size: 0.75rem;
+  color: var(--ij-paper);
+  box-shadow: 0 4px 12px rgb(0 0 0 / 0.35);
+}
+
+.dock {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  min-height: 0;
+}
+.controls {
+  display: flex;
+  gap: 6px;
+}
+.controlBtn {
+  flex: 1;
+  border: 0;
+  border-radius: 6px;
+  background: var(--ij-panel);
+  padding: 8px 0;
+  font-family: var(--ij-font-body);
+  font-size: 0.8rem;
+  font-weight: 700;
+  line-height: 1;
+  color: var(--ij-paper);
+  cursor: pointer;
+}
+.controlBtn:hover {
+  background: var(--ij-line);
+}
+.controlBtn:active,
+.callWaveButton:active,
+.buildBtn:active:not(:disabled),
+.upgradeBtn:active:not(:disabled),
+.sellBtn:active,
+.closeBtn:active,
+.skillBtn:active:not(:disabled) {
+  transform: translateY(1px);
+}
+.callWaveButton {
+  composes: eyebrow;
+  border: 0;
+  border-radius: 6px;
+  background: var(--ij-rose);
+  padding: 10px 6px;
+  color: var(--ij-paper);
+  cursor: pointer;
+}
+.callWaveButton:hover {
+  background: #d3553a;
+}
+.remainingTag {
+  composes: digits;
+  border-radius: 6px;
+  background: var(--ij-ground);
+  padding: 10px 6px;
+  text-align: center;
+  font-size: 0.8rem;
+  color: var(--ij-dim);
+}
+
+/* ---- 다음 공세 예고 ---- */
+.roster {
+  flex-shrink: 0;
+}
+.rosterLabel {
+  composes: eyebrow;
+  margin: 0 0 4px;
+  color: var(--ij-dim);
+}
+.rosterRow {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+.rosterBadge {
+  position: relative;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 6px;
+  background: var(--ij-ground);
+  padding: 3px;
+}
+.enemyIcon {
+  display: block;
+}
+.rosterCount {
+  composes: digits;
+  position: absolute;
+  right: -4px;
+  bottom: -4px;
+  border-radius: 999px;
+  background: var(--ij-panel);
+  padding: 0 4px;
+  font-size: 0.62rem;
+  line-height: 1.4;
+  color: var(--ij-paper);
+  box-shadow: 0 0 0 1px var(--ij-line);
+}
+
+/* 무기·적 정보 패널이 함께 쓰는 " · "로 이은 능력치 줄. 한글은 공백이 없어도
+   글자 사이에서 줄이 넘어갈 수 있어(예: "사거리" 가 중간에서 잘림), 구절마다
+   따로 줄바꿈 없는 조각으로 두고 조각 사이에서만 줄을 넘기게 한다. */
+.statRow {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0 8px;
+  margin: 0;
+  font-size: 0.76rem;
+  line-height: 1.45;
+  color: var(--ij-muted);
+}
+.statRow span {
+  white-space: nowrap;
+}
+.statRow span:not(:last-child)::after {
+  content: '·';
+  margin-left: 8px;
+  color: var(--ij-dim);
+}
+
+.enemyNote {
+  margin: 8px 0 0;
+  font-size: 0.76rem;
+  line-height: 1.5;
+  color: var(--ij-muted);
+}
+
+.counterRow {
+  margin-top: 10px;
+  border-top: 1px solid var(--ij-line);
+  padding-top: 8px;
+}
+.counterLabel {
+  composes: eyebrow;
+  margin: 0 0 5px;
+  color: var(--ij-dim);
+}
+.counterList {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 5px;
+}
+.counterItem {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  border-radius: 999px;
+  background: var(--ij-panel);
+  padding: 3px 9px 3px 7px;
+  font-size: 0.74rem;
+  font-weight: 700;
+}
+
+.dockContent {
+  display: flex;
+  flex: 1;
+  flex-direction: column;
+  min-height: 0;
+  overflow-y: auto;
+}
+
+.buildPane {
+  display: flex;
+  flex: 1;
+  flex-direction: column;
+  min-height: 0;
+}
+.buildGrid {
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: 6px;
+}
+/* 무기줄 아래 남는 자리에 이 브라우저의 최고 기록을 붙인다 (서버 랭킹과는 별개). */
+.bestRecord {
+  margin-top: auto;
+  padding-top: 10px;
+  border-top: 1px solid var(--ij-line);
+}
+.bestRecordLabel {
+  composes: eyebrow;
+  margin: 0 0 4px;
+  color: var(--ij-dim);
+}
+.bestRecordRow {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  font-size: 0.78rem;
+  color: var(--ij-muted);
+}
+.bestRecordEmpty {
+  margin: 0;
+  font-size: 0.76rem;
+  color: var(--ij-dim);
+}
+.buildBtn {
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  border: 0;
+  border-left: 3px solid var(--build-accent, var(--ij-line));
+  border-radius: 6px;
+  background: var(--ij-ground);
+  padding: 9px 10px;
+  text-align: left;
+  color: var(--build-accent, var(--ij-dim));
+  cursor: pointer;
+  transition: background-color 0.15s;
+}
+.buildBtn:hover:not(:disabled) {
+  background: var(--ij-panel);
+}
+.buildBtn:disabled {
+  opacity: 0.55;
+  cursor: default;
+}
+.buildBtnActive {
+  background: var(--ij-panel);
+  box-shadow: inset 0 0 0 1px var(--build-accent, var(--ij-line));
+}
+.buildText {
+  display: flex;
+  flex: 1;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 6px;
+  min-width: 0;
+}
+.buildName {
+  font-size: 0.82rem;
+  font-weight: 700;
+  line-height: 1.1;
+  white-space: nowrap;
+}
+.buildCost {
+  composes: digits;
+  font-size: 0.8rem;
+  line-height: 1.1;
+}
+
+.selection {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  border-radius: 8px;
+  background: var(--ij-ground);
+  padding: 10px;
+}
+.selectionTop {
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+}
+.selectionIcon {
+  flex-shrink: 0;
+  margin-top: 1px;
+}
+.selectionInfo {
+  flex: 1;
+  min-width: 0;
+}
+.selectionName {
+  margin: 0;
+  font-size: 0.9rem;
+  font-weight: 700;
+  line-height: 1.2;
+  color: var(--ij-paper);
+}
+.selectionLevel {
+  composes: digits;
+  display: block;
+  margin-top: 2px;
+  font-size: 0.72rem;
+  color: var(--ij-muted);
+}
+.closeBtn {
+  flex-shrink: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 24px;
+  height: 24px;
+  border: 1px solid var(--ij-line);
+  border-radius: 6px;
+  background: transparent;
+  padding: 0;
+  font-family: var(--ij-font-body);
+  font-size: 1.05rem;
+  line-height: 1;
+  color: var(--ij-muted);
+  cursor: pointer;
+}
+.selectionActions {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+.upgradeBtn {
+  composes: eyebrow;
+  border: 0;
+  border-radius: 6px;
+  background: var(--ij-core);
+  padding: 9px 0;
+  color: var(--ij-void);
+  cursor: pointer;
+}
+.upgradeBtn:disabled {
+  background: var(--ij-line);
+  color: var(--ij-dim);
+  cursor: default;
+}
+.sellBtn {
+  composes: eyebrow;
+  border: 1px solid var(--ij-line);
+  border-radius: 6px;
+  background: transparent;
+  padding: 9px 0;
+  color: var(--ij-muted);
+  cursor: pointer;
+}
+
+/* 스킬 버튼: 3단계를 채운 시설에서만 뜨는 금박 마감 — 다른 버튼보다 한 급 위라는
+   느낌을 준다. 값은 render.ts 의 3단계 금박(gildLit/gildMid/gildDark)과 맞췄다. */
+.skillBtn {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 1px;
+  border: 1px solid #a9822f;
+  border-radius: 6px;
+  background: linear-gradient(180deg, #fff4c6, #e9c05e 60%, #cda14c);
+  padding: 6px 0 7px;
+  color: #40300f;
+  cursor: pointer;
+  box-shadow: 0 1px 0 rgba(255, 255, 255, 0.5) inset;
+}
+.skillBtn:hover:not(:disabled) {
+  background: linear-gradient(180deg, #fffae0, #f2cd72 60%, #d9af5c);
+}
+.skillBtn:disabled {
+  border-color: var(--ij-line);
+  background: linear-gradient(180deg, #4a4432, #3a3524 60%, #2c2819);
+  color: var(--ij-muted);
+  cursor: default;
+  box-shadow: none;
+}
+.skillBtnName {
+  composes: eyebrow;
+  line-height: 1.15;
+}
+.skillBtnCost {
+  composes: digits;
+  font-size: 0.72rem;
+  line-height: 1.1;
+  color: #5a431a;
+}
+.skillBtn:disabled .skillBtnCost {
+  color: var(--ij-dim);
+}
+
+/* 폭이 좁으면(폰) 무기줄을 판 아래로 내리고 무기 버튼을 한 줄에 늘어놓는다 */
+@container (max-width: 440px) {
+  .root {
+    gap: 8px;
+    height: min(88vh, 760px);
+    padding: 8px;
+  }
+  .hud {
+    padding: 7px 10px 8px;
+  }
+  .hudGrid {
+    gap: 6px;
+  }
+  .chip {
+    padding-left: 6px;
+  }
+  .body {
+    grid-template-columns: minmax(0, 1fr);
+    grid-template-rows: minmax(0, 1fr) auto;
+    gap: 8px;
+  }
+  .dock {
+    gap: 6px;
+  }
+  .dockContent {
+    flex: none;
+    min-height: 96px;
+    overflow: visible;
+  }
+  .buildGrid {
+    grid-template-columns: repeat(5, minmax(0, 1fr));
+  }
+  .buildBtn {
+    flex-direction: column;
+    gap: 3px;
+    border-top: 3px solid var(--build-accent, var(--ij-line));
+    border-left: 0;
+    padding: 7px 2px;
+    text-align: center;
+  }
+  .buildText {
+    flex-direction: column;
+    align-items: center;
+    gap: 2px;
+  }
+  .buildName {
+    font-size: 0.66rem;
+  }
+  .buildCost {
+    font-size: 0.68rem;
+  }
+  .selectionActions {
+    flex-direction: row;
+  }
+  .selectionActions > * {
+    flex: 1;
+  }
+}
+
+/* ---- 인트로 / 일시정지 시트 (판과 무기줄을 함께 덮는다) ---- */
+.sheet {
+  position: absolute;
+  inset: 0;
+  z-index: 20;
+  overflow-y: auto;
+  border-radius: 8px;
+  background: rgb(18 15 10 / 0.96);
+  padding: 22px 18px;
+}
+/* 인트로: 점수판까지 덮고, 고정된 전장 풍경 위로 글만 스크롤된다 */
+.introFrame {
+  position: absolute;
+  inset: 0;
+  z-index: 20;
+  overflow: hidden;
+  background: var(--ij-void);
+}
+.introBackdrop {
+  position: absolute;
+  inset: 0;
+  display: block;
+  width: 100%;
+  height: 100%;
+}
+.introScroll {
+  position: absolute;
+  inset: 0;
+  overflow-y: auto;
+  padding: 26px 18px 22px;
+}
+.introScroll p,
+.introScroll li,
+.introScroll h1 {
+  text-shadow: 0 1px 3px rgb(0 0 0 / 0.75);
+}
+/* 군령부터 아래는 풍경의 성벽·깃발과 겹쳐도 읽히도록 어두운 판 위에 */
+.introPanel {
+  margin-top: 22px;
+  border-radius: 10px;
+  background: rgb(14 11 7 / 0.8);
+  padding: 4px 16px 16px;
+  backdrop-filter: blur(2px);
+}
+.introPanel > .introSection:first-child {
+  margin-top: 14px;
+}
+.sheetInner {
+  margin: 0 auto;
+  width: 100%;
+  max-width: 440px;
+}
+.introKicker {
+  composes: eyebrow;
+  color: var(--ij-rose);
+  margin: 0;
+  font-size: 0.8rem;
+}
+.introTitle {
+  margin: 6px 0 0;
+  font-family: var(--ij-font-display);
+  font-size: 2.6rem;
+  font-weight: 400;
+  line-height: 1;
+  color: var(--ij-paper);
+}
+.introBody {
+  margin: 12px 0 0;
+  font-size: 1rem;
+  line-height: 1.75;
+  color: var(--ij-muted);
+}
+.introStakes {
+  margin: 14px 0 0;
+  border-left: 2px solid var(--ij-rose);
+  padding: 2px 0 2px 12px;
+  font-size: 1.05rem;
+  font-weight: 700;
+  line-height: 1.65;
+  color: var(--ij-paper);
+}
+.introSection {
+  composes: eyebrow;
+  margin: 22px 0 0;
+  font-size: 0.85rem;
+  color: var(--ij-amber);
+}
+.introSection + .ruleList,
+.introSection + .buildLegend {
+  margin-top: 10px;
+}
+.ruleList {
+  display: grid;
+  gap: 8px;
+  margin: 18px 0 0;
+  padding-left: 14px;
+  border-left: 1px solid var(--ij-line);
+  list-style: none;
+}
+.ruleList li {
+  font-size: 0.94rem;
+  line-height: 1.7;
+  color: var(--ij-muted);
+}
+.buildLegend {
+  display: grid;
+  gap: 6px;
+  margin: 18px 0 0;
+  padding: 0;
+  list-style: none;
+}
+.buildLegendItem {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  border-radius: 6px;
+  background: rgb(28 23 16 / 0.82);
+  padding: 11px 13px;
+}
+.buildLegendIcon {
+  flex-shrink: 0;
+  margin-top: 2px;
+}
+.buildLegendName {
+  margin: 0;
+  font-size: 0.95rem;
+  font-weight: 700;
+  color: var(--ij-paper);
+}
+.buildLegendCost {
+  composes: digits;
+  margin-left: 6px;
+  font-size: 0.88rem;
+  color: var(--ij-amber);
+}
+.buildLegendBlurb {
+  margin: 2px 0 0;
+  font-size: 0.84rem;
+  line-height: 1.6;
+  color: var(--ij-muted);
+}
+.footNote {
+  margin: 16px 0 0;
+  font-size: 0.84rem;
+  line-height: 1.6;
+  color: var(--ij-muted);
+}
+.primaryBtn {
+  width: 100%;
+  margin-top: 20px;
+  border: 0;
+  border-radius: 8px;
+  background: var(--ij-rose);
+  padding: 14px 20px;
+  font-family: var(--ij-font-display);
+  font-size: 1.3rem;
+  font-weight: 400;
+  letter-spacing: 0.08em;
+  color: var(--ij-paper);
+  cursor: pointer;
+  transition: background-color 0.15s;
+}
+.primaryBtn:hover {
+  background: var(--ij-amber);
+  color: var(--ij-void);
+}
+.primaryBtn:active {
+  transform: translateY(1px);
+}
+
+/* 일시정지 메뉴: 판 위 한가운데 (내용이 넘치면 위에서부터 스크롤) */
+.sheetCenter {
+  display: flex;
+  flex-direction: column;
+}
+.pauseInner {
+  margin: auto;
+  width: 100%;
+  max-width: 280px;
+  text-align: center;
+}
+.pauseSummary {
+  composes: digits;
+  margin: 12px 0 0;
+  font-size: 0.8rem;
+  color: var(--ij-muted);
+}
+.stackedActions {
+  display: grid;
+  gap: 8px;
+  margin-top: 22px;
+}
+.stackedBtn {
+  composes: eyebrow;
+  display: block;
+  border: 1px solid var(--ij-line);
+  border-radius: 8px;
+  background: transparent;
+  padding: 12px 16px;
+  text-align: center;
+  text-decoration: none;
+  color: var(--ij-muted);
+  cursor: pointer;
+  transition:
+    background-color 0.15s,
+    color 0.15s;
+}
+.stackedBtn:hover {
+  background: var(--ij-panel);
+  color: var(--ij-paper);
+}
+.stackedBtn:active {
+  transform: translateY(1px);
+}
+.resumeBtn {
+  composes: stackedBtn;
+  border: 0;
+  background: var(--ij-core);
+  color: var(--ij-void);
+}
+.resumeBtn:hover {
+  background: #a3c6ad;
+  color: var(--ij-void);
+}
+
+/* ---- 결말 (성문 함락 / 완전 방어) ---- */
+.endingLost {
+  background: radial-gradient(ellipse at 50% 60%, rgb(90 22 12 / 0.78), rgb(18 12 8 / 0.94) 70%);
+  animation: ij-fade-in 1.2s ease-out both;
+}
+.endingWon {
+  background: radial-gradient(ellipse at 50% 55%, rgb(96 72 28 / 0.7), rgb(18 15 10 / 0.94) 70%);
+  animation: ij-fade-in 1.2s ease-out both;
+}
+@keyframes ij-fade-in {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+.endingInner {
+  margin: auto;
+  width: 100%;
+  max-width: 330px;
+  text-align: center;
+}
+.endingTitle {
+  margin: 8px 0 0;
+  font-family: var(--ij-font-display);
+  font-size: 2.2rem;
+  font-weight: 400;
+  line-height: 1.15;
+  color: var(--ij-paper);
+  text-shadow: 0 2px 12px rgb(0 0 0 / 0.6);
+}
+.endingBody {
+  margin: 14px 0 0;
+  font-size: 0.86rem;
+  line-height: 1.7;
+  color: var(--ij-muted);
+}
+.endingStats {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 6px;
+  margin: 20px 0 0;
+}
+.endingStats div {
+  border-radius: 8px;
+  background: rgb(18 15 10 / 0.7);
+  padding: 9px 6px;
+}
+.endingStats dt {
+  font-size: 0.72rem;
+  font-weight: 700;
+  letter-spacing: 0.12em;
+  color: var(--ij-dim);
+}
+.endingStats dd {
+  margin: 3px 0 0;
+  font-size: 1.05rem;
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+  color: var(--ij-paper);
+}
+.endingHint {
+  margin: 10px 0 0;
+  font-size: 0.72rem;
+  color: var(--ij-dim);
+}
+
+/* ---- 무기·강화 도감 ---- */
+.codexBar {
+  position: sticky;
+  top: -22px;
+  z-index: 1;
+  display: flex;
+  justify-content: space-between;
+  gap: 8px;
+  margin: -22px 0 0;
+  background: rgb(18 15 10 / 0.97);
+  padding: 14px 0 10px;
+}
+.barBtn {
+  composes: eyebrow;
+  border: 1px solid var(--ij-line);
+  border-radius: 6px;
+  background: transparent;
+  padding: 7px 12px;
+  color: var(--ij-muted);
+  cursor: pointer;
+}
+.barBtn:hover {
+  color: var(--ij-paper);
+}
+.barBtnPrimary {
+  composes: barBtn;
+  border-color: transparent;
+  background: var(--ij-core);
+  color: var(--ij-void);
+}
+.barBtnPrimary:hover {
+  color: var(--ij-void);
+}
+.codexTitle {
+  margin: 8px 0 0;
+  font-family: var(--ij-font-display);
+  font-size: 1.6rem;
+  font-weight: 400;
+  color: var(--ij-paper);
+}
+.codexIntro {
+  margin: 8px 0 0;
+  font-size: 0.78rem;
+  line-height: 1.6;
+  color: var(--ij-muted);
+}
+.codexList {
+  display: grid;
+  gap: 10px;
+  margin: 16px 0 0;
+  padding: 0;
+  list-style: none;
+}
+.codexItem {
+  border-radius: 8px;
+  background: var(--ij-ground);
+  padding: 12px;
+}
+.codexHead {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.codexName {
+  margin: 0;
+  font-size: 0.95rem;
+  font-weight: 700;
+  color: var(--ij-paper);
+}
+.codexBlurb {
+  margin: 6px 0 0;
+  font-size: 0.74rem;
+  line-height: 1.6;
+  color: var(--ij-muted);
+}
+.codexTags {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+  margin-top: 8px;
+}
+.codexTag {
+  border-radius: 999px;
+  background: var(--ij-panel);
+  padding: 2px 8px;
+  font-size: 0.66rem;
+  font-weight: 700;
+  color: var(--ij-amber);
+}
+.levelGrid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 6px;
+  margin-top: 10px;
+}
+.levelCell {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  border-radius: 6px;
+  background: var(--ij-void);
+  padding: 8px 4px;
+  text-align: center;
+}
+.levelPreview {
+  display: block;
+  border-radius: 4px;
+}
+.levelLabel {
+  composes: digits;
+  margin: 6px 0 2px;
+  font-size: 0.72rem;
+  color: var(--ij-paper);
+}
+.levelCost {
+  margin-left: 5px;
+  color: var(--ij-amber);
+}
+.levelStat {
+  margin: 1px 0 0;
+  font-size: 0.66rem;
+  line-height: 1.4;
+  color: var(--ij-muted);
+}
