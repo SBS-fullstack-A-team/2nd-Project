@@ -1,0 +1,498 @@
+/*
+ * 임진 50 전용 색/폰트 토큰. 사이트 공통 테마(global.css)는 건드리지 않고
+ * 이 게임 폴더 안에서만 쓰는 어두운 단청 팔레트를 여기 스코프로 정의한다.
+ */
+.root {
+  --ij-void: #0c1410;
+  --ij-ground: #111d17;
+  --ij-panel: #17291f;
+  --ij-line: #1c3227;
+  --ij-paper: #ece3cf;
+  --ij-muted: #94a793;
+  --ij-dim: #5b7364;
+  --ij-rose: #cf4a2c;
+  --ij-rose-deep: #6e2317;
+  --ij-core: #74c0a4;
+  --ij-amber: #d9a441;
+
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  height: min(82vh, 720px);
+  overflow: hidden;
+  background: var(--ij-void);
+  color: var(--ij-paper);
+  font-family: 'IBM Plex Sans KR', system-ui, sans-serif;
+  border-radius: 10px;
+}
+
+.digits {
+  font-family: 'IBM Plex Mono', ui-monospace, monospace;
+  font-variant-numeric: tabular-nums;
+  letter-spacing: -0.02em;
+}
+
+.eyebrow {
+  font-family: 'IBM Plex Mono', ui-monospace, monospace;
+  font-size: 0.6875rem;
+  font-weight: 600;
+  letter-spacing: 0.18em;
+  text-transform: uppercase;
+}
+
+/* ---- HUD ---- */
+.hud {
+  flex-shrink: 0;
+  border-bottom: 1px solid var(--ij-line);
+  background: var(--ij-ground);
+  padding: 6px 12px 6px;
+}
+.hudGrid {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 8px;
+}
+.chip {
+  min-width: 0;
+  padding-left: 8px;
+  border-left: 1px solid var(--ij-line);
+}
+.chip:first-child {
+  padding-left: 0;
+  border-left: 0;
+}
+.chipLabel {
+  composes: eyebrow;
+  color: var(--ij-dim);
+  margin: 0;
+}
+.chipValue {
+  composes: digits;
+  margin: 2px 0 0;
+  font-size: 1rem;
+  font-weight: 700;
+  line-height: 1.1;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.tonePaper {
+  color: var(--ij-paper);
+}
+.toneAmber {
+  color: var(--ij-amber);
+}
+.toneRose {
+  color: var(--ij-rose);
+}
+.toneCore {
+  color: var(--ij-core);
+}
+.pulse {
+  animation: ij-pulse 1.6s ease-in-out infinite;
+}
+@keyframes ij-pulse {
+  0%,
+  100% {
+    opacity: 1;
+  }
+  50% {
+    opacity: 0.45;
+  }
+}
+.progressRow {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-top: 6px;
+}
+.progressTrack {
+  flex: 1;
+  height: 4px;
+  background: var(--ij-line);
+}
+.progressFill {
+  height: 100%;
+  background: var(--ij-core);
+  transition: width 0.2s;
+}
+.progressFillWave {
+  background: var(--ij-rose);
+}
+.progressNote {
+  composes: digits;
+  flex-shrink: 0;
+  font-size: 0.75rem;
+  color: var(--ij-dim);
+}
+.progressNoteAmber {
+  color: var(--ij-amber);
+  font-weight: 700;
+}
+
+/* ---- Canvas ---- */
+.canvasWrap {
+  position: relative;
+  min-height: 0;
+  flex: 1;
+}
+.canvas {
+  display: block;
+  width: 100%;
+  height: 100%;
+  touch-action: none;
+}
+.notice {
+  position: absolute;
+  right: 0;
+  bottom: 8px;
+  left: 0;
+  z-index: 10;
+  display: flex;
+  justify-content: center;
+  padding: 0 16px;
+  pointer-events: none;
+}
+.noticeText {
+  margin: 0;
+  background: var(--ij-rose-deep);
+  padding: 6px 12px;
+  text-align: center;
+  font-size: 0.75rem;
+  color: var(--ij-paper);
+  box-shadow: 0 4px 12px rgb(0 0 0 / 0.35);
+}
+
+/* ---- Dock ---- */
+.dock {
+  flex-shrink: 0;
+  border-top: 1px solid var(--ij-line);
+  background: var(--ij-ground);
+}
+.dockTopRow {
+  display: flex;
+  align-items: stretch;
+  gap: 1px;
+  border-bottom: 1px solid var(--ij-line);
+}
+.dockButton {
+  composes: digits;
+  flex: 1;
+  border: 0;
+  background: var(--ij-panel);
+  padding: 6px 0;
+  font-size: 0.875rem;
+  font-weight: 700;
+  color: var(--ij-paper);
+  cursor: pointer;
+}
+.dockButton:active {
+  transform: translateY(1px);
+}
+.dockButtonLabel {
+  composes: eyebrow;
+  flex: 1;
+  border: 0;
+  background: var(--ij-panel);
+  padding: 6px 0;
+  color: var(--ij-paper);
+  cursor: pointer;
+}
+.callWaveButton {
+  composes: eyebrow;
+  flex: 2;
+  border: 0;
+  background: var(--ij-rose);
+  padding: 6px 0;
+  color: var(--ij-void);
+  cursor: pointer;
+}
+.muteButton {
+  flex: 0 0 auto;
+  border: 0;
+  background: var(--ij-panel);
+  padding: 6px 10px;
+  font-size: 0.875rem;
+  line-height: 1;
+  cursor: pointer;
+}
+.muteButton:active {
+  transform: translateY(1px);
+}
+.remainingTag {
+  composes: digits;
+  flex: 2;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: var(--ij-panel);
+  font-size: 0.75rem;
+  color: var(--ij-dim);
+}
+
+.dockContent {
+  display: flex;
+  min-height: 92px;
+  flex-direction: column;
+  justify-content: center;
+}
+
+.buildGrid {
+  display: grid;
+  grid-template-columns: repeat(5, 1fr);
+  gap: 1px;
+  padding: 1px;
+}
+.buildBtn {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 2px;
+  border: 0;
+  border-top: 2px solid var(--ij-line);
+  background: transparent;
+  padding: 6px 2px;
+  color: var(--ij-dim);
+  cursor: pointer;
+  transition:
+    background-color 0.15s,
+    color 0.15s;
+}
+.buildBtn:active {
+  transform: translateY(1px);
+}
+.buildBtn:disabled {
+  cursor: default;
+}
+.buildBtnActive {
+  background: var(--ij-panel);
+}
+.buildName {
+  font-size: 0.65rem;
+  font-weight: 600;
+  line-height: 1;
+}
+.buildCost {
+  composes: digits;
+  font-size: 0.68rem;
+  font-weight: 700;
+  line-height: 1;
+}
+
+.selection {
+  padding: 6px 8px;
+}
+.selectionTop {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.selectionIcon {
+  flex-shrink: 0;
+}
+.selectionInfo {
+  flex: 1;
+  min-width: 0;
+}
+.selectionName {
+  margin: 0;
+  overflow: hidden;
+  font-size: 0.875rem;
+  font-weight: 700;
+  line-height: 1.2;
+  color: var(--ij-paper);
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.selectionLevel {
+  composes: digits;
+  margin-left: 8px;
+  font-size: 0.75rem;
+  color: var(--ij-muted);
+}
+.selectionStats {
+  composes: digits;
+  margin: 0;
+  overflow: hidden;
+  font-size: 0.75rem;
+  line-height: 1.2;
+  color: var(--ij-muted);
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.closeBtn {
+  composes: eyebrow;
+  flex-shrink: 0;
+  border: 1px solid var(--ij-line);
+  background: transparent;
+  padding: 4px 8px;
+  color: var(--ij-muted);
+  cursor: pointer;
+}
+.selectionActions {
+  display: flex;
+  gap: 1px;
+  margin-top: 6px;
+}
+.upgradeBtn {
+  composes: eyebrow;
+  flex: 2;
+  border: 0;
+  background: var(--ij-core);
+  padding: 8px 0;
+  color: var(--ij-void);
+  cursor: pointer;
+}
+.upgradeBtn:disabled {
+  background: var(--ij-line);
+  color: var(--ij-dim);
+  cursor: default;
+}
+.sellBtn {
+  composes: eyebrow;
+  flex: 1;
+  border: 1px solid var(--ij-line);
+  background: transparent;
+  padding: 8px 0;
+  color: var(--ij-muted);
+  cursor: pointer;
+}
+
+/* ---- Overlay sheets (intro / pause) ---- */
+.sheet {
+  position: absolute;
+  inset: 0;
+  z-index: 20;
+  overflow-y: auto;
+  background: rgb(12 20 16 / 0.96);
+  padding: 20px 16px;
+}
+.sheetInner {
+  margin: 0 auto;
+  width: 100%;
+  max-width: 380px;
+}
+.introKicker {
+  composes: eyebrow;
+  color: var(--ij-rose);
+  margin: 0;
+}
+.introTitle {
+  margin: 6px 0 0;
+  font-family: 'Nanum Myeongjo', serif;
+  font-size: 1.75rem;
+  font-weight: 800;
+  line-height: 1;
+  letter-spacing: -0.01em;
+  color: var(--ij-paper);
+}
+.introBody {
+  margin: 10px 0 0;
+  font-size: 0.875rem;
+  line-height: 1.6;
+  color: var(--ij-muted);
+}
+.ruleList {
+  display: grid;
+  gap: 8px;
+  margin: 16px 0 0;
+  padding-left: 14px;
+  border-left: 1px solid var(--ij-line);
+  list-style: none;
+}
+.ruleList li {
+  font-size: 0.8125rem;
+  line-height: 1.6;
+  color: var(--ij-muted);
+}
+.buildLegend {
+  display: grid;
+  gap: 1px;
+  margin: 16px 0 0;
+}
+.buildLegendItem {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  background: var(--ij-panel);
+  padding: 8px 10px;
+}
+.buildLegendIcon {
+  flex-shrink: 0;
+  margin-top: 2px;
+}
+.buildLegendName {
+  margin: 0;
+  font-size: 0.8125rem;
+  font-weight: 700;
+  color: var(--ij-paper);
+}
+.buildLegendCost {
+  composes: digits;
+  margin-left: 6px;
+  font-size: 0.75rem;
+  color: var(--ij-amber);
+}
+.buildLegendBlurb {
+  margin: 0;
+  font-size: 0.72rem;
+  line-height: 1.5;
+  color: var(--ij-muted);
+}
+.footNote {
+  margin: 14px 0 0;
+  font-size: 0.72rem;
+  line-height: 1.6;
+  color: var(--ij-dim);
+}
+.primaryBtn {
+  width: 100%;
+  margin-top: 20px;
+  border: 0;
+  background: var(--ij-rose);
+  padding: 14px 20px;
+  font-family: 'Nanum Myeongjo', serif;
+  font-size: 1.05rem;
+  font-weight: 700;
+  color: var(--ij-void);
+  cursor: pointer;
+  transition: background-color 0.15s;
+}
+.primaryBtn:hover {
+  background: var(--ij-paper);
+}
+.primaryBtn:active {
+  transform: translateY(1px);
+}
+
+.pauseHeading {
+  margin: 40px 0 0;
+}
+.stackedActions {
+  display: grid;
+  gap: 1px;
+  margin-top: 20px;
+}
+.stackedBtn {
+  composes: eyebrow;
+  border: 1px solid var(--ij-line);
+  background: transparent;
+  padding: 12px 16px;
+  color: var(--ij-muted);
+  cursor: pointer;
+}
+.stackedBtn:active {
+  transform: translateY(1px);
+}
+.resumeBtn {
+  composes: stackedBtn;
+  border: 0;
+  background: var(--ij-core);
+  color: var(--ij-void);
+}
+
+.message {
+  padding: 24px 16px;
+  text-align: center;
+  color: var(--ij-muted);
+}

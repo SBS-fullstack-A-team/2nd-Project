@@ -1,6 +1,7 @@
 import { lazy, type ComponentType, type LazyExoticComponent } from 'react';
 import type { GameCategory, GameProps } from '@simsim/shared';
 import chosungQuizThumbnail from './chosung-quiz/thumbnail.svg';
+import imjin50Thumbnail from './imjin-50/thumbnail.svg';
 
 /**
  * 게임 등록부 — 메인 화면 카드와 /games/:gameId 라우트가 이 목록으로 자동 생성된다.
@@ -27,6 +28,14 @@ export const GAMES: readonly GameMeta[] = [
     thumbnail: chosungQuizThumbnail,
     category: 'quiz',
     component: lazy(() => import('./chosung-quiz')),
+  },
+  {
+    id: 'imjin-50',
+    name: '임진 50',
+    description: '벽으로 길을 접어 쉰 번의 파도를 막는 미로형 타워디펜스',
+    thumbnail: imjin50Thumbnail,
+    category: 'arcade',
+    component: lazy(() => import('./imjin-50')),
   },
 ];
 
