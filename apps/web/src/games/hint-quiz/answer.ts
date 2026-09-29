@@ -23,7 +23,10 @@ const CHO = 'ㄱㄲㄴㄷㄸㄹㅁㅂㅃㅅㅆㅇㅈㅉㅊㅋㅌㅍㅎ';
 const JUNG = 'ㅏㅐㅑㅒㅓㅔㅕㅖㅗㅘㅙㅚㅛㅜㅝㅞㅟㅠㅡㅢㅣ';
 const JONG = ['', ...'ㄱㄲㄳㄴㄵㄶㄷㄹㄺㄻㄼㄽㄾㄿㅀㅁㅂㅄㅅㅆㅇㅈㅊㅋㅌㅍㅎ'];
 
-/** 외래어 표기에서 흔히 섞여 쓰이는 자모를 하나로 모은다 */
+/**
+ * 외래어 표기에서 흔히 섞여 쓰이는 자모를 하나로 모은다.
+ * 이중모음은 풀어서 비교한다 — '와' = 우+아 ('쿠르트와' ≈ '쿠르투아')
+ */
 const SIMILAR_JAMO: Record<string, string> = {
   ㄲ: 'ㄱ',
   ㄸ: 'ㄷ',
@@ -32,8 +35,12 @@ const SIMILAR_JAMO: Record<string, string> = {
   ㅉ: 'ㅈ',
   ㅐ: 'ㅔ',
   ㅒ: 'ㅖ',
-  ㅙ: 'ㅞ',
-  ㅚ: 'ㅞ',
+  ㅘ: 'ㅜㅏ',
+  ㅝ: 'ㅜㅓ',
+  ㅟ: 'ㅜㅣ',
+  ㅙ: 'ㅜㅔ',
+  ㅚ: 'ㅜㅔ',
+  ㅞ: 'ㅜㅔ',
 };
 
 /** 한글을 자모로 풀고 비슷한 자모를 합친다. 'ㅡ'(외래어의 받침 뒤 모음, 예: 홀란'드')는 뺀다 */
@@ -53,24 +60,30 @@ function toJamo(text: string): string[] {
     ];
     for (const jamo of parts) {
       if (!jamo || jamo === 'ㅡ') continue;
-      out.push(SIMILAR_JAMO[jamo] ?? jamo);
+      out.push(...(SIMILAR_JAMO[jamo] ?? jamo));
     }
   }
   return out;
 }
 
-/** 편집 거리 (삽입·삭제·교체 1회 = 1) */
+/** 편집 거리 (삽입·삭제·교체·이웃한 두 자모 자리바꿈 1회 = 1) */
 function editDistance(a: readonly string[], b: readonly string[]): number {
-  let prev = Array.from({ length: b.length + 1 }, (_, j) => j);
+  const d: number[][] = Array.from({ length: a.length + 1 }, (_, i) =>
+    Array.from({ length: b.length + 1 }, (_, j) => (i === 0 ? j : j === 0 ? i : 0)),
+  );
+  const at = (i: number, j: number) => d[i]?.[j] ?? 0;
   for (let i = 1; i <= a.length; i++) {
-    const cur = [i];
     for (let j = 1; j <= b.length; j++) {
       const cost = a[i - 1] === b[j - 1] ? 0 : 1;
-      cur[j] = Math.min((prev[j] ?? 0) + 1, (cur[j - 1] ?? 0) + 1, (prev[j - 1] ?? 0) + cost);
+      let best = Math.min(at(i - 1, j) + 1, at(i, j - 1) + 1, at(i - 1, j - 1) + cost);
+      // 자리바꿈 — '투아'(ㅌㅜㅇㅏ) ↔ '트와'(ㅌㅇㅜㅏ)
+      if (i > 1 && j > 1 && a[i - 1] === b[j - 2] && a[i - 2] === b[j - 1]) {
+        best = Math.min(best, at(i - 2, j - 2) + 1);
+      }
+      d[i]![j] = best;
     }
-    prev = cur;
   }
-  return prev[b.length] ?? 0;
+  return at(a.length, b.length);
 }
 
 /** 이름 길이(자모 수)에 따라 허용하는 차이 — 짧은 이름은 정확히 맞혀야 한다 */
@@ -101,6 +114,20 @@ function nameParts(name: string): string[] {
   return name.split(/[\s·-]+/).filter((part) => part.length >= 2);
 }
 
+/**
+ * 외국 이름의 부분들 — 본 이름 + 본 이름과 한 부분이라도 겹치는 별칭(같은 사람의 다른 표기)
+ * 예: '티보 쿠르투아' + 별칭 '티보 쿠르트와' → ['티보', '쿠르투아', '쿠르트와']
+ * 겹치지 않는 별칭(별명)은 쪼개지 않는다 — 호나우지뉴의 '작은 호나우두' → '호나우두' 오인정 방지
+ */
+function variantNameParts(item: QuizItem<HintQuizMeta>): string[] {
+  const main = nameParts(item.answer);
+  const mainSet = new Set(main.map(normalizeAnswer));
+  const variants = (item.meta.aliases ?? [])
+    .map(nameParts)
+    .filter((parts) => parts.length > 1 && parts.some((p) => mainSet.has(normalizeAnswer(p))));
+  return [...main, ...variants.flat()];
+}
+
 export function matchAnswer(input: string, item: QuizItem<HintQuizMeta>): AnswerMatch {
   const guess = normalizeAnswer(input);
   if (!guess) return 'wrong';
@@ -114,8 +141,7 @@ export function matchAnswer(input: string, item: QuizItem<HintQuizMeta>): Answer
       item.answer.length >= 3
       ? [item.answer.slice(1)]
       : []
-    : // 부분 정답은 본 이름에서만 (별칭까지 쪼개면 '작은 호나우두' → '호나우두' 같은 오답이 생긴다)
-      nameParts(item.answer);
+    : variantNameParts(item);
   if (parts.some((part) => normalizeAnswer(part) === guess)) return 'partial';
 
   if (koreanPerson) return 'wrong';
