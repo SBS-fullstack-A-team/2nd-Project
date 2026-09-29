@@ -6,11 +6,13 @@ export const VIEW_HEIGHT = 500;
 
 export const START_LIVES = 3;
 export const POINTS_PER_FRUIT = 10;
-/** 콤보 판정: 직전 슬라이스로부터 이 시간(초) 안에 또 베면 연속으로 본다 */
-export const COMBO_WINDOW_SEC = 0.2;
-export const COMBO_MIN = 3;
-/** 콤보 보너스 = 콤보 수 × 이 값 */
-export const COMBO_BONUS_PER_FRUIT = 10;
+/**
+ * 콤보 = 과일을 놓치지 않고 연속으로 벤 개수. 과일 1개를 벨 때마다 +1 (동시에 3개면 +3),
+ * 과일을 하나라도 놓치면 0 으로 돌아간다.
+ * COMBO_MILESTONE 단위(10, 20, 30…)에 닿을 때마다 콤보 수 × COMBO_MILESTONE_BONUS 보너스
+ */
+export const COMBO_MILESTONE = 10;
+export const COMBO_MILESTONE_BONUS = 5;
 /**
  * 점수 상한 — 서버 검증용. 게임은 이 값을 넘지 않게 자른다.
  * 바꾸면 packages/shared 의 MAX_SCORE_BY_GAME 도 같이 수정할 것
@@ -22,7 +24,7 @@ export const RANKING_SIZE = 5;
 
 // ---------- 피버 타임 ----------
 
-/** 한 판에서 콤보를 이 횟수만큼 달성할 때마다 피버 타임 발동 */
+/** 콤보가 이만큼 쌓이면 피버 타임 발동 (피버가 끝나면 다시 0 부터 채운다) */
 export const FEVER_COMBO_GOAL = 20;
 export const FEVER_DURATION_SEC = 10;
 /** 피버 중 과일 점수 배율 */
@@ -229,11 +231,10 @@ export const BLADES: readonly BladeDef[] = [
 /** 누적 기록 (localStorage 에 저장) */
 export interface PlayerStats {
   totalSliced: number;
-  totalCombos: number;
   bestSwipe: number;
   highScore: number;
-  /** 한 번의 콤보에서 벤 최대 과일 수 */
-  bestCombo: number;
+  /** 최고 콤보 (놓치지 않고 연속으로 벤 최대 개수) */
+  maxCombo: number;
   /** 누적 피버 타임 발동 횟수 */
   totalFevers: number;
 }
@@ -270,10 +271,10 @@ export const QUESTS: readonly QuestDef[] = [
   },
   {
     id: 'q4',
-    title: '누적 콤보 20회 달성',
+    title: '콤보 20 달성',
     reward: 'golden',
     goal: 20,
-    progress: (s) => s.totalCombos,
+    progress: (s) => s.maxCombo,
   },
   // ----- 상급 퀘스트 → 전설 검 -----
   {
@@ -292,10 +293,10 @@ export const QUESTS: readonly QuestDef[] = [
   },
   {
     id: 'q7',
-    title: '한 번의 콤보로 과일 7개 베기',
+    title: '콤보 60 달성',
     reward: 'void',
-    goal: 7,
-    progress: (s) => s.bestCombo,
+    goal: 60,
+    progress: (s) => s.maxCombo,
   },
   {
     id: 'q8',
@@ -317,9 +318,10 @@ export const QUESTS: readonly QuestDef[] = [
 
 export const HOW_TO_PLAY: readonly string[] = [
   '마우스를 누른 채 드래그하거나 화면을 스와이프해서 날아오는 과일을 베세요.',
-  `과일 1개당 ${POINTS_PER_FRUIT}점, ${COMBO_WINDOW_SEC}초 안에 연속으로 ${COMBO_MIN}개 이상 베면 콤보 보너스!`,
+  `과일 1개당 ${POINTS_PER_FRUIT}점. 과일을 벨 때마다 콤보 +1 (동시에 3개를 베면 +3), 하나라도 놓치면 콤보는 0!`,
+  `콤보 ${COMBO_MILESTONE}, ${COMBO_MILESTONE * 2}, ${COMBO_MILESTONE * 3}… 에 닿을 때마다 보너스 점수!`,
   `과일을 놓쳐 바닥에 떨어뜨리면 목숨이 1개 줄어요. (목숨 ${START_LIVES}개)`,
   '💣 폭탄을 베면 그 즉시 게임 오버!',
-  `🔥 한 판에서 콤보 ${FEVER_COMBO_GOAL}회를 달성하면 ${FEVER_DURATION_SEC}초간 피버 타임! 폭탄까지 전부 벨 수 있고 점수 ${FEVER_SCORE_MULTIPLIER}배, 과일을 놓쳐도 목숨이 줄지 않아요.`,
+  `🔥 콤보 ${FEVER_COMBO_GOAL}을 쌓으면 ${FEVER_DURATION_SEC}초간 피버 타임! 폭탄까지 전부 벨 수 있고 점수 ${FEVER_SCORE_MULTIPLIER}배, 과일을 놓쳐도 목숨과 콤보가 유지돼요.`,
   '퀘스트를 달성하면 새로운 검 스킨이 열려요. 상급 퀘스트로 전설 검 5종을 모아 보세요!',
 ];

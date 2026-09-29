@@ -29,10 +29,9 @@ function defaultSave(): SaveData {
   return {
     stats: {
       totalSliced: 0,
-      totalCombos: 0,
       bestSwipe: 0,
       highScore: 0,
-      bestCombo: 0,
+      maxCombo: 0,
       totalFevers: 0,
     },
     unlocked: ['basic'],
@@ -50,11 +49,10 @@ function load(): SaveData {
     const stats = (parsed.stats ?? {}) as Partial<Record<keyof PlayerStats, unknown>>;
     data.stats = {
       totalSliced: toCount(stats.totalSliced),
-      totalCombos: toCount(stats.totalCombos),
       bestSwipe: toCount(stats.bestSwipe),
       highScore: toCount(stats.highScore),
-      // 새로 생긴 기록 — 예전 저장 데이터에는 없으므로 0 부터 시작
-      bestCombo: toCount(stats.bestCombo),
+      // 콤보 기준이 바뀌어 예전 콤보 기록(totalCombos, bestCombo)은 쓰지 않고 새 키로 0 부터 시작
+      maxCombo: toCount(stats.maxCombo),
       totalFevers: toCount(stats.totalFevers),
     };
     if (Array.isArray(parsed.unlocked)) {
@@ -112,10 +110,10 @@ export class QuestManager {
     return this.checkUnlocks();
   }
 
-  /** 콤보(3개 이상 연속)가 성립할 때마다 호출. count = 이번 콤보에서 벤 과일 수 */
-  recordCombo(count: number): BladeDef[] {
-    this.data.stats.totalCombos += 1;
-    this.data.stats.bestCombo = Math.max(this.data.stats.bestCombo, count);
+  /** 현재 콤보 — 최고 기록을 넘을 때만 갱신한다 */
+  recordCombo(combo: number): BladeDef[] {
+    if (combo <= this.data.stats.maxCombo) return [];
+    this.data.stats.maxCombo = combo;
     return this.checkUnlocks();
   }
 
