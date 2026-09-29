@@ -1,11 +1,12 @@
 -- 힌트 퀴즈 시드 데이터 (직접 만든 문제 30개 — 축구선수·동물·나라·음식)
 -- 힌트는 막연한 것 → 구체적인 것 순서. 이적 등으로 바뀌기 쉬운 정보(현 소속팀 등)는 쓰지 않는다.
--- 여러 번 실행해도 결과가 같도록 내 게임 문제만 지우고 다시 넣는다. (점수 기록은 유지)
+-- 여러 번 실행해도 결과가 같도록 이 파일의 문제만 지우고 다시 넣는다. (점수 기록은 유지)
+-- 위키데이터로 자동 생성한 축구선수 문제(meta.source = wikidata)는 hint-quiz-football.sql 이 따로 관리한다.
 -- 적용: pnpm db:seed:local (seeds/*.sql 전체가 파일명 순서대로 적용됨)
 
 INSERT OR IGNORE INTO game (id, name, category) VALUES ('hint-quiz', '힌트 퀴즈', 'quiz');
 
-DELETE FROM quiz_item WHERE game_id = 'hint-quiz';
+DELETE FROM quiz_item WHERE game_id = 'hint-quiz' AND json_extract(meta, '$.source') IS NULL;
 
 INSERT INTO quiz_item (game_id, question, answer, meta) VALUES
   ('hint-quiz', '이 축구선수는 누구일까요?', '손흥민', '{"category": "축구선수", "hints": [{"label": "포지션", "value": "공격수"}, {"label": "국적", "value": "대한민국"}, {"label": "신장", "value": "183cm"}, {"label": "주로 쓰는 발", "value": "양발"}, {"label": "대표 경력", "value": "토트넘에서 10년 활약, 2021-22 프리미어리그 득점왕"}], "aliases": ["쏘니", "son", "손흥민선수"]}'),

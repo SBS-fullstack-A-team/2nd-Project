@@ -4,6 +4,7 @@ import { zValidator as zv } from '@hono/zod-validator';
 import {
   NICKNAME_MAX_LENGTH,
   NICKNAME_MIN_LENGTH,
+  QUESTION_CATEGORY_MAX_LENGTH,
   QUESTIONS_DEFAULT_LIMIT,
   QUESTIONS_MAX_LIMIT,
   RANKING_DEFAULT_LIMIT,
@@ -56,4 +57,18 @@ function limitQuerySchema(defaultLimit: number, maxLimit: number) {
 }
 
 export const rankingQuerySchema = limitQuerySchema(RANKING_DEFAULT_LIMIT, RANKING_MAX_LIMIT);
-export const questionsQuerySchema = limitQuerySchema(QUESTIONS_DEFAULT_LIMIT, QUESTIONS_MAX_LIMIT);
+/** ?limit=N&category=분류 — category 는 선택 (quiz_item.meta.category 와 비교) */
+export const questionsQuerySchema = limitQuerySchema(
+  QUESTIONS_DEFAULT_LIMIT,
+  QUESTIONS_MAX_LIMIT,
+).extend({
+  category: z
+    .string()
+    .trim()
+    .min(1, 'category 가 비어 있습니다.')
+    .max(
+      QUESTION_CATEGORY_MAX_LENGTH,
+      `category 는 ${QUESTION_CATEGORY_MAX_LENGTH}자 이하여야 합니다.`,
+    )
+    .optional(),
+});

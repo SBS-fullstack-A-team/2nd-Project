@@ -14,6 +14,8 @@ export const RANKING_MAX_LIMIT = 50;
 
 export const QUESTIONS_DEFAULT_LIMIT = 10;
 export const QUESTIONS_MAX_LIMIT = 50;
+/** 문제 조회 시 category 필터 값의 최대 길이 */
+export const QUESTION_CATEGORY_MAX_LENGTH = 30;
 
 // ---------- POST /api/games/:gameId/scores ----------
 
@@ -44,7 +46,8 @@ export interface RankingResponse {
   items: RankingEntry[];
 }
 
-// ---------- GET /api/games/:gameId/questions?limit=N ----------
+// ---------- GET /api/games/:gameId/questions?limit=N&category=분류 ----------
+// category 를 주면 quiz_item.meta.category 가 같은 문제만 고른다 (생략하면 전체에서)
 
 export interface QuestionsResponse<TMeta = Record<string, unknown>> {
   gameId: string;

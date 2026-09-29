@@ -46,8 +46,12 @@ async function request<T>(path: string, init?: RequestInit): Promise<T> {
 const gamePath = (gameId: string) => `/games/${encodeURIComponent(gameId)}`;
 
 export const api = {
-  getQuestions<TMeta>(gameId: string, limit?: number) {
-    const query = limit ? `?limit=${limit}` : '';
+  /** category 를 주면 meta.category 가 같은 문제만 받는다 */
+  getQuestions<TMeta>(gameId: string, limit?: number, category?: string) {
+    const params = new URLSearchParams();
+    if (limit) params.set('limit', String(limit));
+    if (category) params.set('category', category);
+    const query = params.toString() ? `?${params}` : '';
     return request<QuestionsResponse<TMeta>>(`${gamePath(gameId)}/questions${query}`);
   },
 
