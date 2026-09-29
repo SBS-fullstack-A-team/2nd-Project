@@ -2,6 +2,7 @@ import { lazy, type ComponentType, type LazyExoticComponent } from 'react';
 import type { GameCategory, GameProps } from '@simsim/shared';
 import chosungQuizThumbnail from './chosung-quiz/thumbnail.svg';
 import fruitSlicerThumbnail from './fruit-slicer/thumbnail.svg';
+import hintQuizThumbnail from './hint-quiz/thumbnail.svg';
 
 /**
  * 게임 등록부 — 메인 화면 카드와 /games/:gameId 라우트가 이 목록으로 자동 생성된다.
@@ -27,6 +28,16 @@ export interface GameMeta {
 }
 
 export const GAMES: readonly GameMeta[] = [
+  // 카드 1 (혁)
+  {
+    id: 'hint-quiz',
+    name: '힌트 퀴즈',
+    description: '힌트가 하나씩 열린다! 적은 힌트로 먼저 맞힐수록 고득점',
+    thumbnail: hintQuizThumbnail,
+    category: 'quiz',
+    card: 1,
+    component: lazy(() => import('./hint-quiz')),
+  },
   {
     id: 'chosung-quiz',
     name: '초성 퀴즈',
