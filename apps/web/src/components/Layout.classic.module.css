@@ -12,6 +12,10 @@
   border-bottom: 3px solid var(--text);
   background: var(--surface);
 }
+.nav {
+  display: flex;
+  gap: 8px;
+}
 .brand {
   font-size: 1.3rem;
   font-weight: 900;
