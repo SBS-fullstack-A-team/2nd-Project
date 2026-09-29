@@ -99,7 +99,7 @@ export function GameDock({
         <button
           type="button"
           onClick={onSpeed}
-          aria-label="배속 전환"
+          aria-label={`배속 전환 (지금 ${speed}배속)`}
           className={styles.controlBtn}
         >
           x{speed}

@@ -31,6 +31,7 @@ import { colOf, index, isBuildable, rowOf } from './engine/maze';
 import { cellFromPoint, drawGame, layout, pointFromEvent, type View } from './engine/render';
 import { SoundEngine, mapSimEvent } from './engine/audio';
 import { loadBest, updateBest, type Best } from './best';
+import { MAX_SIM_STEP, SPEED_STEPS } from './config';
 
 import { GameDock, type DockSelection } from './game-dock';
 import { GameHud } from './game-hud';
@@ -282,7 +283,13 @@ export default function Imjin50({ onFinish }: GameProps) {
       last = now;
 
       if (modeRef.current === 'playing' && !pausedRef.current) {
-        engine.update(dt * speedRef.current);
+        // 배속만큼 늘어난 시간을 MAX_SIM_STEP 이하로 나눠 돌린다 (1배속에선 보통 한 번)
+        let simLeft = dt * speedRef.current;
+        while (simLeft > 0 && !engine.finished) {
+          const step = Math.min(MAX_SIM_STEP, simLeft);
+          engine.update(step);
+          simLeft -= step;
+        }
         const events = engine.drainEvents();
         if (events.length) playSimEvents(sound, events);
         for (const event of events) {
@@ -519,7 +526,10 @@ export default function Imjin50({ onFinish }: GameProps) {
             }}
             onSpeed={() => {
               sound.ui();
-              setSpeed((value) => (value === 1 ? 2 : 1));
+              setSpeed((value) => {
+                const at = SPEED_STEPS.indexOf(value as (typeof SPEED_STEPS)[number]);
+                return SPEED_STEPS[(at + 1) % SPEED_STEPS.length]!;
+              });
             }}
             onPause={() => {
               sound.ui();
