@@ -1,0 +1,75 @@
+/* 탐색기 "타일 보기" 항목처럼 — 마우스를 올리면 파란 선택 표시 */
+.card {
+  display: flex;
+  flex-direction: column;
+  padding: 6px;
+  border: 1px solid transparent;
+  border-radius: var(--radius-sm);
+  color: inherit;
+  text-decoration: none;
+}
+.card:hover,
+.card:focus-visible {
+  background: #e8f0fd;
+  border-color: #a8c4f0;
+}
+.card:active {
+  background: #cfdff9;
+}
+.thumbnail {
+  width: 100%;
+  aspect-ratio: 16 / 9;
+  object-fit: cover;
+  display: block;
+  border: 1px solid #808080;
+  box-shadow: 2px 2px 0 rgb(0 0 0 / 0.15);
+}
+.body {
+  padding: 8px 2px 2px;
+}
+.category {
+  font-size: 0.75rem;
+  color: var(--text-muted);
+}
+.name {
+  margin: 2px 0 4px;
+  font-size: 1.05rem;
+  color: var(--accent);
+}
+.card:hover .name {
+  text-decoration: underline;
+}
+.description {
+  margin: 0;
+  color: var(--text-muted);
+  font-size: 0.85rem;
+}
+
+/* 준비 중 카드 칸 — 선택 표시 없이 흐리게 */
+.comingSoon,
+.comingSoon:hover,
+.comingSoon:active {
+  background: none;
+  border-color: transparent;
+  cursor: default;
+}
+.placeholder {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 4px;
+  border-style: dashed;
+  box-shadow: none;
+  background: repeating-linear-gradient(-45deg, #f5f4ee 0 10px, #ebe9df 10px 20px);
+  color: #808080;
+  font-weight: 700;
+  letter-spacing: 0.1em;
+}
+.placeholderIcon {
+  font-size: 1.8rem;
+}
+.comingSoon .name {
+  color: var(--text-muted);
+  text-decoration: none;
+}

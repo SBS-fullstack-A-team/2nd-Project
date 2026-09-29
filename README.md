@@ -19,6 +19,23 @@
 
 > 팀 규칙(브랜치, 커밋, PR)과 게임 설계 원칙은 [CLAUDE.md](./CLAUDE.md) 를 참고하세요.
 
+## 프로젝트 목표
+
+이번 프로젝트는 **팀원 각자가 게임 하나를 맡아 처음부터 끝까지 직접 만들면서, 풀스택 개발자로서의 역량을 확인하는 프로젝트**입니다.
+
+- **1인 1게임** — 게임 담당자는 프론트·백엔드 구분 없이 화면, 게임 로직, 점수 계산, 문제 데이터(DB 시드), 서버 점수 검증 값까지 혼자 완성합니다.
+- **공통 기반은 역할대로 함께** — 레이아웃·공통 컴포넌트·API·DB 스키마 같은 웹 공통 구성은 프론트/백엔드 역할을 나눠 만들고, 모든 게임이 이 기반 위에서 동작합니다.
+- **실제 서비스처럼 운영** — PR 리뷰, CI, `main` 머지 시 자동 배포까지 현업과 같은 흐름으로 작업합니다.
+
+| 카드 | 담당       | 웹 공통 구성 역할 | 게임                    |
+| ---- | ---------- | ----------------- | ----------------------- |
+| 1    | Heo (팀장) | 프론트엔드        | 힌트 퀴즈 (`hint-quiz`) |
+| 2    | 경수       | 프론트엔드        | 미정                    |
+| 3    | 신영       | 백엔드            | 미정                    |
+| 4    | 동한       | 백엔드            | 미정                    |
+
+> 게임이 정해지면 위 표와 [CLAUDE.md](./CLAUDE.md#게임-카드-담당-1인-1게임) 의 게임 카드 표를 함께 채웁니다.
+
 ## 구성
 
 | 폴더              | 내용              | 기술                                                     |
@@ -108,12 +125,12 @@ pnpm dev
 
 모든 API 는 게임별이 아닌 **gameId 기반 범용 API** 입니다. 요청/응답 타입은 `packages/shared/src/api.ts` 참고.
 
-| 메서드 | 경로                                    | 설명                                             |
-| ------ | --------------------------------------- | ------------------------------------------------ |
-| `POST` | `/api/games/:gameId/scores`             | 점수 등록 `{ nickname, score }` → `{ id, rank }` |
-| `GET`  | `/api/games/:gameId/ranking?limit=10`   | 상위 N개 (최대 50, 같은 점수는 먼저 등록한 순)   |
-| `GET`  | `/api/games/:gameId/questions?limit=10` | 퀴즈 문제 랜덤 N개 (최대 50)                     |
-| `GET`  | `/api/health`                           | 상태 확인                                        |
+| 메서드 | 경로                                                  | 설명                                                                            |
+| ------ | ----------------------------------------------------- | ------------------------------------------------------------------------------- |
+| `POST` | `/api/games/:gameId/scores`                           | 점수 등록 `{ nickname, score }` → `{ id, rank }`                                |
+| `GET`  | `/api/games/:gameId/ranking?limit=10`                 | 상위 N개 (최대 50, 같은 점수는 먼저 등록한 순)                                  |
+| `GET`  | `/api/games/:gameId/questions?limit=10&category=동물` | 퀴즈 문제 랜덤 N개 (최대 50). `category` 를 주면 `meta.category` 가 같은 문제만 |
+| `GET`  | `/api/health`                                         | 상태 확인                                                                       |
 
 - 에러 응답은 공통 형식입니다: `{ "error": { "code": "GAME_NOT_FOUND", "message": "..." } }`
 - 검증: 닉네임 1~12자(앞뒤 공백 제거), 점수는 0 이상 정수이고 게임별 상한(`MAX_SCORE_BY_GAME`) 이하
@@ -139,6 +156,7 @@ pnpm dev
   - `config.ts`(규칙 상수), `*.module.css`, `thumbnail.svg`(16:9) 도 이 폴더에 둡니다.
   - 점수 등록·결과창·랭킹은 공통 페이지가 처리하므로 게임에서 만들지 않습니다.
   - 공통 UI 가 필요하면 `components/` 의 `Timer` 등을 가져다 씁니다.
+  - 색·모서리는 직접 쓰지 말고 **테마 토큰**(`var(--accent)` 등)을 씁니다. 그래야 XP·98·클래식 모든 테마에서 자연스럽습니다 (아래 "디자인 테마" 참고).
 - [ ] **2. registry 등록** — `apps/web/src/games/registry.ts` 의 `GAMES` 에 **내 카드 번호 위치**에 추가
   ```ts
   {
@@ -147,10 +165,11 @@ pnpm dev
     description: '한 줄 설명',
     thumbnail: wordChainThumbnail, // import wordChainThumbnail from './word-chain/thumbnail.svg';
     category: 'quiz',
+    card: 2, // 내 카드 번호 (CLAUDE.md "게임 카드 담당" 표)
     component: lazy(() => import('./word-chain')),
   },
   ```
-  → 메인 카드와 `/games/word-chain` 페이지가 자동으로 생깁니다.
+  → 메인 화면의 내 카드 칸("준비 중" 자리)에 게임이 들어가고, `/games/word-chain` 페이지가 자동으로 생깁니다.
 - [ ] **3. 공용 타입** — `packages/shared/src/game.ts`
   - `MAX_SCORE_BY_GAME` 에 최고 점수 추가 (서버가 이보다 큰 점수를 거부)
   - 퀴즈류라면 `quiz_item.meta` 에 들어갈 타입 추가 (예: `ChosungQuizMeta`)
@@ -163,6 +182,36 @@ pnpm dev
   - 문제는 직접 만든 것만 사용합니다 (방송 프로그램 이름·로고·실제 방송 문제 금지).
 - [ ] **5. 확인** — `pnpm typecheck && pnpm lint && pnpm build` 통과, `pnpm dev` 로 한 판 끝까지 플레이 → 점수 등록 → 랭킹 확인
 - [ ] **6. PR** — 새 테이블이나 API 는 필요 없습니다. 필요해 보이면 먼저 팀과 상의하세요.
+
+## 디자인 테마 (XP / 98 / 클래식)
+
+사이트는 세 가지 테마를 골라 쓸 수 있습니다. 기본은 **XP** 입니다.
+
+| 테마   | 모습                                                                    | 바꾸는 곳                   |
+| ------ | ----------------------------------------------------------------------- | --------------------------- |
+| XP     | 추억의 윈도우 XP 느낌 — 하늘·언덕 바탕화면, 파란 제목 표시줄 창         | [시작] 메뉴 맨 아래 🎨 테마 |
+| 98     | 추억의 윈도우 98 느낌 — 청록색 바탕화면, 회색 입체 창, 남색 제목 표시줄 | [시작] 메뉴 맨 아래 🎨 테마 |
+| 클래식 | 처음 디자인 — 크림색 배경, 두꺼운 테두리 카드                           | 헤더 오른쪽 테마 선택 목록  |
+
+- XP·98 은 화면 구조(바탕화면 · 창 · 작업 표시줄 · 시작 메뉴)가 같고 스타일만 다릅니다. [시작] 메뉴에는 게임 목록, Q&A(`/qna`), 프로젝트 소개 바로가기와 테마 선택이 있습니다.
+- 클래식은 헤더의 Q&A 버튼과 테마 선택 목록을 씁니다.
+- 선택한 테마는 브라우저(`localStorage` 의 `simsim:theme`)에 저장되어 다음 방문에도 유지됩니다.
+- 테마는 `<html data-theme="xp|win98|classic">` 로 적용되고, 로딩 중 깜빡이지 않도록 `index.html` 에서 먼저 적용합니다.
+- 게임 도중 테마를 바꾸면 화면 틀이 바뀌면서 게임이 처음부터 다시 시작될 수 있습니다.
+
+**게임 담당자:** 게임 폴더의 CSS 에서는 색·모서리를 직접 적지 말고 `styles/global.css` 의 토큰을 쓰세요.
+`--bg`, `--surface`, `--surface-strong`, `--on-strong`, `--text`, `--text-muted`, `--border`, `--accent`, `--yellow`, `--success`, `--danger`, `--radius`, `--radius-sm`
+→ 토큰 값이 테마마다 달라서 따로 작업하지 않아도 모든 테마를 따라갑니다. 공통 버튼은 `className="btn"` / `"btn btn-primary"` 를 쓰면 됩니다.
+
+**공통 UI 담당자:** 구조
+
+- 테마 상태: `lib/theme.ts` (`useTheme`, `useThemeStyles`, `isDesktopTheme`), `components/ThemeProvider.tsx`, `components/ThemeSelect.tsx`
+- 테마별 토큰·공통 버튼: `styles/global.css` (`:root` = 클래식, `:root[data-theme='xp']`, `:root[data-theme='win98']`)
+- 공통 컴포넌트·페이지 스타일은 테마별 파일로 나눕니다: `Xxx.classic.module.css` / `Xxx.xp.module.css` / `Xxx.win98.module.css`
+  - 구조가 같으면 `useThemeStyles({ classic, xp, win98 })` 로 스타일만 바꿔 끼우고 (`GameCard`, `RankingList`, `Timer`, `Window`, `StartMenu`)
+  - 구조가 다르면 클래식 / 바탕화면 테마(`isDesktopTheme`)로 화면 틀만 나눕니다 (`Layout`, `HomePage`, `GamePage`, `ResultModal`, `QnaPage`)
+- 바탕화면 테마의 창 틀은 `components/Window.tsx` 공통 컴포넌트를 씁니다.
+- **테마 추가 방법:** `Theme` 타입에 추가 → `global.css` 토큰 → 각 `*.<테마>.module.css` → `index.html` 초기 스크립트 허용값. 타입 검사가 빠진 곳을 알려 줍니다.
 
 ## CI (GitHub Actions)
 

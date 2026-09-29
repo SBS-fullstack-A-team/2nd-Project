@@ -32,12 +32,34 @@ export interface ChosungQuizMeta {
   aliases?: string[];
 }
 
+/** 힌트 퀴즈 힌트 1개 (예: { label: '국적', value: '대한민국' }) */
+export interface HintQuizHint {
+  label: string;
+  value: string;
+}
+
+/** 힌트 퀴즈 문제의 meta */
+export interface HintQuizMeta {
+  /** 정답 분류 (예: 축구선수, 동물) — 화면에 항상 보여준다 */
+  category: string;
+  /** 막연한 것 → 구체적인 것 순서의 힌트 (한 문제에 5개) */
+  hints: HintQuizHint[];
+  /** 정답으로 함께 인정할 이름 (선택, 예: 별명·영문 이름) */
+  aliases?: string[];
+  /** 자동 생성한 문제의 출처 (예: 'wikidata'). 직접 만든 문제는 없음 */
+  source?: string;
+  /** 출처가 위키데이터일 때 항목 ID (예: 'Q615') — 데이터 확인·갱신용 */
+  wikidata?: string;
+}
+
 /**
  * 게임별 점수 상한 — 서버가 비정상 점수를 거르는 데 사용한다.
  * 새 게임을 추가하면 반드시 여기에 등록할 것 (미등록 시 DEFAULT_MAX_SCORE 적용).
  */
 export const MAX_SCORE_BY_GAME: Record<string, number> = {
   'chosung-quiz': 100,
+  'fruit-slicer': 100_000,
+  'hint-quiz': 1000,
   // 시뮬레이션상 무피해 완전 방어가 약 201만 점 — 더 잘하는 플레이어를 위해 넉넉히 잡은 상한
   'imjin-50': 3_000_000,
 };

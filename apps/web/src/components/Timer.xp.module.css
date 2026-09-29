@@ -1,0 +1,44 @@
+.timer {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+/* XP 진행 막대 — 안쪽으로 파인 흰 틀 + 초록 블록 */
+.track {
+  flex: 1;
+  height: 16px;
+  padding: 2px;
+  background: var(--surface);
+  border: 1px solid #686868;
+  border-radius: 3px;
+  box-shadow: inset 1px 1px 1px rgb(0 0 0 / 0.15);
+  overflow: hidden;
+}
+.bar {
+  height: 100%;
+  background: repeating-linear-gradient(
+    90deg,
+    transparent 0 1px,
+    var(--success) 1px 9px,
+    transparent 9px 11px
+  );
+  transform-origin: left;
+  transition: transform 0.1s linear;
+}
+.label {
+  min-width: 3.5em;
+  text-align: right;
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+}
+.urgent .bar {
+  background: repeating-linear-gradient(
+    90deg,
+    transparent 0 1px,
+    var(--danger) 1px 9px,
+    transparent 9px 11px
+  );
+}
+.urgent .label {
+  color: var(--danger);
+}

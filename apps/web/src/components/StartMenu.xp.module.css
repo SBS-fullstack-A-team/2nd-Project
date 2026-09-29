@@ -1,0 +1,186 @@
+/* XP 시작 메뉴 — 작업 표시줄 시작 버튼 바로 위에 뜬다 */
+.menu {
+  position: fixed;
+  left: 0;
+  bottom: var(--taskbar-height);
+  z-index: 20;
+  width: min(400px, calc(100vw - 8px));
+  max-height: calc(100vh - var(--taskbar-height) - 8px);
+  display: flex;
+  flex-direction: column;
+  border: 2px solid #0831d9;
+  border-bottom: 0;
+  border-radius: 8px 8px 0 0;
+  background: #fff;
+  box-shadow: 3px -2px 12px rgb(0 0 0 / 0.45);
+  overflow: hidden;
+}
+
+/* 98 전용 세로 배너는 쓰지 않는다 */
+.banner {
+  display: none;
+}
+.panel {
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+  flex: 1;
+}
+
+.header {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 8px 10px;
+  background: linear-gradient(
+    180deg,
+    #1868ce 0%,
+    #0e60cb 12%,
+    #0e60cb 20%,
+    #1164cf 32%,
+    #1667cf 44%,
+    #1f5fc3 88%,
+    #1b54ba 100%
+  );
+  color: #fff;
+}
+.avatar {
+  display: grid;
+  place-items: center;
+  width: 44px;
+  height: 44px;
+  border: 2px solid #fff;
+  border-radius: 4px;
+  background: #fff8e7;
+  font-size: 1.6rem;
+  box-shadow: 1px 1px 3px rgb(0 0 0 / 0.4);
+}
+.userName {
+  font-family: 'Trebuchet MS', Tahoma, 'Malgun Gothic', sans-serif;
+  font-size: 1.1rem;
+  font-weight: 700;
+  text-shadow: 1px 1px 2px rgb(0 0 0 / 0.5);
+}
+
+.columns {
+  display: flex;
+  min-height: 0;
+  border-top: 2px solid #f39c3c;
+}
+.left {
+  flex: 1.2;
+  min-width: 0;
+  padding: 6px;
+  overflow-y: auto;
+  background: #fff;
+}
+.right {
+  flex: 1;
+  min-width: 0;
+  padding: 6px;
+  background: #d3e5fa;
+  border-left: 1px solid #95bdee;
+}
+.sectionTitle {
+  margin: 2px 6px 6px;
+  color: var(--text-muted);
+  font-size: 0.75rem;
+  font-weight: 700;
+}
+.list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+
+.gameItem,
+.placeItem {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 5px 6px;
+  border-radius: 2px;
+  color: #000;
+  font-size: 0.85rem;
+  text-decoration: none;
+}
+.gameItem:hover,
+.gameItem:focus-visible,
+.placeItem:hover,
+.placeItem:focus-visible {
+  background: var(--selection);
+  color: #fff;
+}
+.gameThumb {
+  width: 48px;
+  aspect-ratio: 16 / 9;
+  object-fit: cover;
+  border: 1px solid #808080;
+  flex-shrink: 0;
+}
+.gameText {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+}
+.gameDesc {
+  font-size: 0.75rem;
+  opacity: 0.75;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.placeItem {
+  font-weight: 700;
+  color: #0a246a;
+}
+.separator {
+  height: 1px;
+  margin: 6px 4px;
+  background: linear-gradient(90deg, transparent, #95bdee, transparent);
+}
+
+.footer {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  flex-wrap: wrap;
+  gap: 4px;
+  padding: 6px 8px;
+  background: linear-gradient(
+    180deg,
+    #4282d6 0%,
+    #3b85e0 5%,
+    #418ae3 10%,
+    #418ae3 90%,
+    #3a7dd8 100%
+  );
+  color: #fff;
+}
+.footerLabel {
+  margin-right: auto;
+  font-size: 0.85rem;
+}
+.footerButton {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  padding: 4px 8px;
+  border: 1px solid transparent;
+  border-radius: 3px;
+  background: none;
+  color: #fff;
+  font: inherit;
+  font-size: 0.85rem;
+  cursor: pointer;
+}
+.footerButton:hover,
+.footerButton:focus-visible {
+  border-color: rgb(255 255 255 / 0.5);
+  background: rgb(255 255 255 / 0.15);
+}
+.footerCurrent {
+  border-color: rgb(255 255 255 / 0.6);
+  background: rgb(0 0 0 / 0.2);
+  font-weight: 700;
+}

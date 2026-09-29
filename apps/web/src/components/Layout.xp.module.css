@@ -1,0 +1,135 @@
+/* 바탕화면 — 푸른 하늘 위 구름 + 초록 언덕 (CSS 그라디언트로만 그림) */
+.desktop {
+  min-height: 100vh;
+  display: flex;
+  flex-direction: column;
+  padding-bottom: var(--taskbar-height);
+  background:
+    radial-gradient(ellipse 140% 60% at 30% 108%, var(--desktop-hill) 0 58%, transparent 59%),
+    radial-gradient(ellipse 120% 50% at 90% 112%, var(--desktop-hill-dark) 0 60%, transparent 61%),
+    radial-gradient(ellipse 30% 8% at 20% 22%, rgb(255 255 255 / 0.55), transparent 70%),
+    radial-gradient(ellipse 25% 6% at 72% 14%, rgb(255 255 255 / 0.45), transparent 70%),
+    linear-gradient(180deg, var(--desktop-sky) 0%, var(--desktop-sky-light) 70%);
+  background-attachment: fixed;
+}
+
+.main {
+  flex: 1;
+  width: 100%;
+  max-width: 1000px;
+  margin: 0 auto;
+  padding: 24px 16px 32px;
+}
+
+/* 작업 표시줄 */
+.taskbar {
+  position: fixed;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  z-index: 5;
+  height: var(--taskbar-height);
+  display: flex;
+  align-items: center;
+  background: var(--taskbar);
+  color: #fff;
+}
+
+.startArea {
+  height: 100%;
+  flex-shrink: 0;
+}
+.start {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  height: 100%;
+  padding: 0 22px 0 12px;
+  margin-right: 10px;
+  border-radius: 0 12px 12px 0;
+  background: radial-gradient(circle at 20% 30%, #5ec65e 0%, #3a9b3a 55%, #2a7a2a 100%);
+  box-shadow:
+    inset 0 2px 2px rgb(255 255 255 / 0.4),
+    2px 0 4px rgb(0 0 0 / 0.35);
+  color: #fff;
+  font-size: 1.15rem;
+  font-weight: 700;
+  font-style: italic;
+  text-decoration: none;
+  text-shadow: 1px 1px 2px rgb(0 0 0 / 0.6);
+  border: 0;
+  font-family: inherit;
+  cursor: pointer;
+}
+.start:hover {
+  filter: brightness(1.1);
+}
+.startOpen {
+  background: radial-gradient(circle at 20% 30%, #3f9f3f 0%, #2a7a2a 55%, #1e5e1e 100%);
+  box-shadow:
+    inset 1px 2px 4px rgb(0 0 0 / 0.5),
+    2px 0 4px rgb(0 0 0 / 0.35);
+}
+
+.tasks {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  gap: 4px;
+  overflow: hidden;
+}
+.task {
+  min-width: 0;
+  max-width: 180px;
+  padding: 6px 10px;
+  border-radius: 3px;
+  background: #3c81f3;
+  box-shadow:
+    inset -1px 0 rgb(0 0 0 / 0.3),
+    inset 1px 1px rgb(255 255 255 / 0.2);
+  color: #fff;
+  font-size: 0.85rem;
+  text-decoration: none;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+a.task:hover {
+  background: #53a3ff;
+}
+.taskActive {
+  background: #1e52b7;
+  box-shadow: inset 1px 1px 2px rgb(0 0 0 / 0.5);
+}
+
+.tray {
+  height: 100%;
+  display: flex;
+  align-items: center;
+  margin-left: 6px;
+  padding: 0 14px;
+  background: linear-gradient(
+    180deg,
+    #0c59b9 0%,
+    #139ee9 6%,
+    #18b5f2 10%,
+    #139beb 14%,
+    #1290e8 90%,
+    #0d8dea 100%
+  );
+  border-left: 1px solid #1042af;
+  box-shadow: inset 1px 0 1px #18bbff;
+  font-size: 0.85rem;
+  white-space: nowrap;
+  flex-shrink: 0;
+}
+
+@media (max-width: 480px) {
+  .start {
+    padding-right: 16px;
+    margin-right: 6px;
+  }
+  .tray {
+    padding: 0 8px;
+  }
+}

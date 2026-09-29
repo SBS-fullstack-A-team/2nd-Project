@@ -1,0 +1,637 @@
+.root {
+  width: 100%;
+}
+
+/* 캔버스와 오버레이를 겹쳐 놓는 무대 — 모바일 세로 화면에선 더 길쭉하게 */
+.stage {
+  position: relative;
+  width: 100%;
+  aspect-ratio: 8 / 5;
+  border-radius: var(--radius-sm);
+  overflow: hidden;
+  background: #23140a;
+  user-select: none;
+  -webkit-user-select: none;
+}
+@media (max-width: 600px) {
+  .stage {
+    aspect-ratio: 3 / 4;
+  }
+}
+
+.canvas {
+  display: block;
+  width: 100%;
+  height: 100%;
+  /* 스와이프가 스크롤/확대로 먹히지 않게 */
+  touch-action: none;
+  cursor: crosshair;
+}
+
+.overlay {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 16px;
+  background: rgba(20, 10, 4, 0.55);
+  backdrop-filter: blur(2px);
+  overflow-y: auto;
+  animation: fadeIn 0.2s ease-out;
+}
+
+.panel {
+  width: min(440px, 100%);
+  max-height: 100%;
+  overflow-y: auto;
+  margin: auto;
+  padding: 20px;
+  background: var(--surface);
+  border: 3px solid var(--text);
+  border-radius: var(--radius);
+  box-shadow: 5px 5px 0 var(--text);
+  text-align: center;
+  animation: popIn 0.25s ease-out;
+}
+
+.panelTitle {
+  margin: 0 0 12px;
+  font-size: 1.25rem;
+}
+.panelText {
+  margin: 0 0 12px;
+  color: var(--text-muted);
+  font-size: 0.95rem;
+}
+
+/* ---------- 메인 메뉴 ---------- */
+
+.logo {
+  margin: 0 0 4px;
+  font-size: clamp(1.8rem, 6vw, 2.4rem);
+  font-weight: 900;
+  letter-spacing: 0.02em;
+  color: var(--text);
+}
+.logo span {
+  color: var(--accent);
+}
+
+.statRow {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 8px;
+  margin: 0 0 14px;
+}
+.statRow div {
+  padding: 8px 4px;
+  background: var(--bg);
+  border: 2px solid var(--border);
+  border-radius: var(--radius-sm);
+}
+.statRow dt {
+  font-size: 0.72rem;
+  color: var(--text-muted);
+}
+.statRow dd {
+  margin: 2px 0 0;
+  font-weight: 800;
+  font-size: 0.95rem;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 4px;
+}
+
+.inlineSwatch {
+  display: inline-block;
+  width: 14px;
+  height: 14px;
+  border-radius: 50%;
+  border: 1px solid rgba(0, 0, 0, 0.3);
+  flex-shrink: 0;
+}
+
+.startButton {
+  width: 100%;
+  padding: 14px;
+  font-size: 1.15rem;
+  margin-bottom: 10px;
+}
+
+.menuGrid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 8px;
+}
+
+.backButton {
+  margin-top: 14px;
+}
+
+/* ---------- 검 선택 ---------- */
+
+.bladeList {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: grid;
+  gap: 8px;
+}
+.bladeItem {
+  width: 100%;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 10px 12px;
+  font: inherit;
+  text-align: left;
+  color: var(--text);
+  background: var(--surface);
+  border: 2px solid var(--border);
+  border-radius: var(--radius-sm);
+  cursor: pointer;
+  transition:
+    transform 0.1s,
+    border-color 0.1s;
+}
+.bladeItem:hover:not(:disabled) {
+  border-color: var(--text);
+  transform: translateY(-1px);
+}
+.bladeItem:disabled {
+  cursor: not-allowed;
+  opacity: 0.55;
+  filter: grayscale(0.8);
+}
+.bladeSelected {
+  border-color: var(--accent);
+  background: #fff0f4;
+}
+.bladeSwatch {
+  width: 56px;
+  height: 14px;
+  border-radius: 999px;
+  flex-shrink: 0;
+  box-shadow: 0 0 10px rgba(0, 0, 0, 0.15);
+}
+/* 전설 등급 검 — 금빛 테두리 + 미리보기에 빛이 훑고 지나감 */
+.bladeLegend {
+  border-color: #e6b422;
+  background: linear-gradient(135deg, #fffaf0, #fff4d6);
+}
+/* 에픽 등급 — 보랏빛 테두리 */
+.bladeEpic {
+  border-color: #9b5cff;
+  background: linear-gradient(135deg, #fbf7ff, #f1e8ff);
+}
+.epicBadge {
+  display: inline-block;
+  margin-left: 6px;
+  padding: 1px 6px;
+  font-size: 0.68rem;
+  font-weight: 900;
+  color: #fff;
+  vertical-align: 2px;
+  background: linear-gradient(90deg, #6a3cff, #b06bff);
+  border-radius: 999px;
+}
+.bladeLegend.bladeSelected,
+.bladeEpic.bladeSelected {
+  border-color: var(--accent);
+}
+.legendBadge {
+  display: inline-block;
+  margin-left: 6px;
+  padding: 1px 6px;
+  font-size: 0.68rem;
+  font-weight: 900;
+  color: #fff;
+  vertical-align: 2px;
+  background: linear-gradient(90deg, #ff9a3c, #e6b422, #ff5ec8);
+  border-radius: 999px;
+}
+.swatchShine {
+  position: relative;
+  overflow: hidden;
+}
+.swatchShine::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(
+    100deg,
+    transparent 30%,
+    rgba(255, 255, 255, 0.85) 50%,
+    transparent 70%
+  );
+  transform: translateX(-100%);
+  animation: shine 2.2s ease-in-out infinite;
+}
+@keyframes shine {
+  60%,
+  100% {
+    transform: translateX(100%);
+  }
+}
+.bladeInfo {
+  display: flex;
+  flex-direction: column;
+  flex: 1;
+  min-width: 0;
+}
+.bladeInfo small {
+  color: var(--text-muted);
+}
+.equipped {
+  font-size: 0.75rem;
+  font-weight: 800;
+  color: #fff;
+  background: var(--accent);
+  padding: 2px 8px;
+  border-radius: 999px;
+}
+
+/* ---------- 퀘스트 ---------- */
+
+.questList {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: grid;
+  gap: 10px;
+  text-align: left;
+}
+.questList li {
+  padding: 10px 12px;
+  border: 2px solid var(--border);
+  border-radius: var(--radius-sm);
+}
+.questList small {
+  color: var(--text-muted);
+}
+.questDone {
+  background: #eefaf4;
+  border-color: var(--success) !important;
+}
+.questHead {
+  display: flex;
+  justify-content: space-between;
+  gap: 8px;
+  font-size: 0.92rem;
+}
+.questHead span {
+  white-space: nowrap;
+  font-weight: 700;
+}
+.progress {
+  height: 8px;
+  margin: 6px 0 4px;
+  background: var(--border);
+  border-radius: 999px;
+  overflow: hidden;
+}
+.progress div {
+  height: 100%;
+  background: linear-gradient(90deg, var(--accent), #ff9a3c);
+  border-radius: inherit;
+  transition: width 0.3s;
+}
+
+/* ---------- 게임 방법 ---------- */
+
+.howto {
+  margin: 0;
+  padding-left: 20px;
+  text-align: left;
+  line-height: 1.6;
+}
+
+/* ---------- 게임 오버 / 이름 입력 ---------- */
+
+.gameOver {
+  margin: 0;
+  font-size: 1.9rem;
+  font-weight: 900;
+  color: var(--danger);
+  letter-spacing: 0.04em;
+}
+.finalScore {
+  margin: 2px 0 6px;
+}
+.finalScore strong {
+  font-size: 2.6rem;
+  color: var(--accent);
+}
+.newBest {
+  margin: 0 0 8px;
+  font-weight: 800;
+  color: var(--success);
+}
+.nameForm {
+  margin-top: 8px;
+}
+.nameForm label {
+  display: block;
+  margin-bottom: 8px;
+}
+.nameRow {
+  display: flex;
+  gap: 8px;
+}
+.input {
+  flex: 1;
+  min-width: 0;
+  padding: 10px 12px;
+  font: inherit;
+  border: 2px solid var(--text);
+  border-radius: var(--radius-sm);
+}
+.error {
+  margin: 8px 0 0;
+  color: var(--danger);
+  font-size: 0.9rem;
+}
+.linkButton {
+  margin-top: 12px;
+  padding: 4px;
+  font: inherit;
+  font-size: 0.88rem;
+  color: var(--text-muted);
+  background: none;
+  border: none;
+  text-decoration: underline;
+  cursor: pointer;
+}
+.linkButton:disabled {
+  opacity: 0.4;
+  cursor: default;
+}
+.settingsBrightness .linkButton {
+  margin-top: 0;
+}
+
+/* ---------- 랭킹 ---------- */
+
+.rankTable {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 0.92rem;
+}
+.rankTable th {
+  padding: 6px 4px;
+  font-size: 0.78rem;
+  color: var(--text-muted);
+  border-bottom: 2px solid var(--border);
+}
+.rankTable td {
+  padding: 8px 4px;
+  border-bottom: 1px solid var(--border);
+}
+.rankName {
+  font-weight: 700;
+  max-width: 120px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.mine td {
+  background: #fff3c4;
+}
+
+.actions {
+  display: flex;
+  justify-content: center;
+  gap: 8px;
+  margin-top: 16px;
+}
+
+/* ---------- 설정(일시정지) 버튼 ----------
+ * 크기·여백을 바꾸면 engine.ts 의 SETTINGS_BUTTON_SPACE_CSS 도 맞출 것 (목숨 표시 자리) */
+
+.settingsButton {
+  position: absolute;
+  top: 10px;
+  right: 10px;
+  z-index: 3;
+  width: 44px;
+  height: 44px;
+  display: grid;
+  place-items: center;
+  padding: 0;
+  color: #fff;
+  background: rgba(20, 12, 6, 0.55);
+  border: 2px solid rgba(255, 255, 255, 0.55);
+  border-radius: 50%;
+  cursor: pointer;
+  transition:
+    transform 0.15s,
+    background 0.15s;
+}
+.settingsButton:hover {
+  background: rgba(20, 12, 6, 0.8);
+  transform: rotate(30deg);
+}
+.settingsButton svg {
+  width: 24px;
+  height: 24px;
+}
+
+.settingsOverlay {
+  z-index: 4;
+}
+
+.settingsBody {
+  display: flex;
+  gap: 16px;
+  align-items: stretch;
+  margin-bottom: 14px;
+  text-align: left;
+}
+.settingsSound {
+  flex: 1;
+  min-width: 0;
+  display: grid;
+  gap: 12px;
+  align-content: start;
+}
+.settingRow {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+.settingLabel {
+  font-weight: 800;
+  font-size: 0.9rem;
+  white-space: nowrap;
+  min-width: 56px;
+}
+.settingValue {
+  min-width: 34px;
+  font-size: 0.85rem;
+  font-variant-numeric: tabular-nums;
+  color: var(--text-muted);
+  text-align: right;
+}
+.range {
+  flex: 1;
+  min-width: 0;
+  accent-color: var(--accent);
+  cursor: pointer;
+}
+.range:disabled {
+  cursor: not-allowed;
+  opacity: 0.45;
+}
+.toggle {
+  padding: 6px 12px;
+  font: inherit;
+  font-size: 0.88rem;
+  font-weight: 800;
+  color: var(--text-muted);
+  background: var(--bg);
+  border: 2px solid var(--border);
+  border-radius: 999px;
+  cursor: pointer;
+}
+.toggleOn {
+  color: #fff;
+  background: var(--accent);
+  border-color: var(--accent);
+}
+
+/* 밝기 — 세로 슬라이더 (위로 올리면 밝게) */
+.settingsBrightness {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 6px;
+  padding: 8px 12px;
+  background: var(--bg);
+  border: 2px solid var(--border);
+  border-radius: var(--radius-sm);
+}
+.vSlider {
+  position: relative;
+  width: 14px;
+  height: 150px;
+  margin: 6px 0;
+  background: linear-gradient(to top, #2a2a2a, #fff6c2);
+  border: 2px solid var(--text);
+  border-radius: 999px;
+  cursor: ns-resize;
+  touch-action: none;
+}
+.vSliderFill {
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  border-radius: 999px;
+  background: linear-gradient(to top, rgba(232, 56, 109, 0.35), rgba(255, 210, 63, 0.65));
+  pointer-events: none;
+}
+.vSliderThumb {
+  position: absolute;
+  left: 50%;
+  width: 26px;
+  height: 26px;
+  transform: translate(-50%, 50%);
+  background: #fff;
+  border: 3px solid var(--accent);
+  border-radius: 50%;
+  box-shadow: 0 2px 6px rgba(0, 0, 0, 0.3);
+  pointer-events: none;
+  transition: transform 0.1s;
+}
+.vSliderActive .vSliderThumb,
+.vSlider:focus-visible .vSliderThumb {
+  transform: translate(-50%, 50%) scale(1.15);
+}
+
+.confirm {
+  padding: 12px;
+  background: #fff4e5;
+  border: 2px solid #ffb347;
+  border-radius: var(--radius-sm);
+}
+.confirm .actions {
+  margin-top: 4px;
+}
+
+@media (max-width: 420px) {
+  .settingsBody {
+    gap: 10px;
+  }
+  .settingLabel {
+    min-width: 48px;
+  }
+}
+
+/* ---------- 해금 알림 ---------- */
+
+.toasts {
+  position: absolute;
+  left: 50%;
+  top: 12px;
+  transform: translateX(-50%);
+  display: grid;
+  gap: 6px;
+  pointer-events: none;
+  z-index: 2;
+}
+.toast {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 8px 14px;
+  color: #fff;
+  background: rgba(20, 14, 30, 0.92);
+  border: 2px solid var(--yellow);
+  border-radius: 999px;
+  font-size: 0.9rem;
+  white-space: nowrap;
+  box-shadow: 0 0 18px rgba(255, 227, 110, 0.5);
+  animation: toastIn 3s ease-out forwards;
+}
+.toastSwatch {
+  width: 36px;
+  height: 10px;
+  border-radius: 999px;
+}
+
+@keyframes fadeIn {
+  from {
+    opacity: 0;
+  }
+}
+@keyframes popIn {
+  from {
+    opacity: 0;
+    transform: scale(0.92);
+  }
+}
+@keyframes toastIn {
+  0% {
+    opacity: 0;
+    transform: translateY(-12px) scale(0.9);
+  }
+  10%,
+  85% {
+    opacity: 1;
+    transform: none;
+  }
+  100% {
+    opacity: 0;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .overlay,
+  .panel,
+  .toast,
+  .swatchShine::after {
+    animation: none;
+  }
+}

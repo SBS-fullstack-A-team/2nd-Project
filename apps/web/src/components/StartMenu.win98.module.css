@@ -1,0 +1,143 @@
+/* 98 시작 메뉴 — 왼쪽 세로 배너 + 회색 목록 */
+.menu {
+  position: fixed;
+  left: 2px;
+  bottom: calc(var(--taskbar-height) - 2px);
+  z-index: 20;
+  display: flex;
+  width: min(360px, calc(100vw - 8px));
+  max-height: calc(100vh - var(--taskbar-height) - 8px);
+  padding: 3px;
+  background: var(--bg);
+  box-shadow: var(--bevel-raised);
+}
+
+.banner {
+  flex-shrink: 0;
+  width: 26px;
+  display: flex;
+  align-items: flex-end;
+  justify-content: center;
+  padding-bottom: 8px;
+  background: linear-gradient(0deg, #000080, #1084d0);
+  color: #c0c0c0;
+  font-size: 1.05rem;
+  font-weight: 700;
+  writing-mode: vertical-rl;
+  transform: rotate(180deg);
+  white-space: nowrap;
+}
+.banner strong {
+  color: #fff;
+}
+
+.panel {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  overflow-y: auto;
+}
+
+/* XP 전용 머리글은 쓰지 않는다 */
+.header {
+  display: none;
+}
+
+.columns {
+  display: flex;
+  flex-direction: column;
+}
+.left,
+.right {
+  padding: 2px 0;
+}
+.right {
+  border-top: 1px solid #808080;
+  box-shadow: inset 0 1px #ffffff;
+}
+.sectionTitle {
+  margin: 4px 8px 2px;
+  color: #404040;
+  font-size: 0.75rem;
+}
+.list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+
+.gameItem,
+.placeItem {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 4px 8px;
+  color: #000;
+  font-size: 0.85rem;
+  text-decoration: none;
+}
+.gameItem:hover,
+.gameItem:focus-visible,
+.placeItem:hover,
+.placeItem:focus-visible {
+  background: var(--selection);
+  color: #fff;
+  outline: none;
+}
+.gameThumb {
+  width: 40px;
+  aspect-ratio: 16 / 9;
+  object-fit: cover;
+  flex-shrink: 0;
+  box-shadow: var(--bevel-sunken);
+  padding: 2px;
+  background: #fff;
+}
+.gameText {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+}
+.gameDesc {
+  font-size: 0.75rem;
+  opacity: 0.8;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.separator {
+  height: 0;
+  margin: 3px 4px;
+  border-top: 1px solid #808080;
+  border-bottom: 1px solid #ffffff;
+}
+
+.footer {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 4px;
+  padding: 6px 6px 3px;
+  border-top: 1px solid #808080;
+  box-shadow: inset 0 1px #ffffff;
+}
+.footerLabel {
+  font-size: 0.8rem;
+  margin-right: 2px;
+}
+.footerButton {
+  padding: 3px 8px;
+  border: 0;
+  background: var(--bg);
+  box-shadow: var(--bevel-raised);
+  color: #000;
+  font: inherit;
+  font-size: 0.8rem;
+  cursor: pointer;
+}
+.footerButton:active,
+.footerCurrent {
+  box-shadow: var(--bevel-pressed);
+  font-weight: 700;
+}

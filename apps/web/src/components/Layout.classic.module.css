@@ -4,9 +4,17 @@
   flex-direction: column;
 }
 .header {
-  padding: 14px 16px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 10px 16px;
   border-bottom: 3px solid var(--text);
   background: var(--surface);
+}
+.nav {
+  display: flex;
+  gap: 8px;
 }
 .brand {
   font-size: 1.3rem;
@@ -26,4 +34,9 @@
   padding: 16px;
   color: var(--text-muted);
   font-size: 0.8rem;
+}
+
+.themeSelect {
+  padding: 8px 12px;
+  appearance: auto;
 }

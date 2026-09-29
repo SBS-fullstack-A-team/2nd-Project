@@ -6,6 +6,17 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <meta name="description" content="심심할 때 한 판! 초성 퀴즈와 추억의 게임 모음" />
     <title>심심오락실</title>
+    <script>
+      // 저장된 테마를 화면이 그려지기 전에 적용해서 깜빡임을 막는다 (src/lib/theme.ts 와 같은 키·값)
+      (function () {
+        var theme = 'xp';
+        try {
+          var saved = localStorage.getItem('simsim:theme');
+          if (saved === 'classic' || saved === 'xp' || saved === 'win98') theme = saved;
+        } catch (e) {}
+        document.documentElement.dataset.theme = theme;
+      })();
+    </script>
   </head>
   <body>
     <div id="root"></div>
