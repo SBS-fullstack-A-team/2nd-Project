@@ -1,9 +1,8 @@
 import {
   BOMB_CHANCE_MAX,
   BOMB_CHANCE_START,
-  COMBO_BONUS_PER_FRUIT,
-  COMBO_MIN,
-  COMBO_WINDOW_SEC,
+  COMBO_MILESTONE,
+  COMBO_MILESTONE_BONUS,
   FEVER_BOMB_POINTS,
   FEVER_COMBO_GOAL,
   FEVER_DURATION_SEC,
@@ -27,43 +26,32 @@ import type { QuestManager } from './QuestManager';
 /* =========================================================
  * ScoreManager — 한 판의 점수 · 목숨 · 콤보 판정
  * ========================================================= */
-interface ComboResult {
-  count: number;
-  bonus: number;
-  x: number;
-  y: number;
-}
-
 class ScoreManager {
   score = 0;
   lives = START_LIVES;
-  private chain = 0;
-  private lastSliceAt = -Infinity;
-  private lastX = 0;
-  private lastY = 0;
+  /** 놓치지 않고 연속으로 벤 과일 수 */
+  combo = 0;
 
-  addSlice(time: number, x: number, y: number, points: number) {
+  /**
+   * 과일 1개를 벨 때마다 호출 — 콤보 +1.
+   * 콤보가 COMBO_MILESTONE 단위에 닿으면 보너스를 더하고 그 값을 돌려준다 (없으면 0)
+   */
+  addFruit(points: number): number {
     this.add(points);
-    // 직전 슬라이스로부터 COMBO_WINDOW_SEC 안이면 연속으로 친다
-    this.chain = time - this.lastSliceAt <= COMBO_WINDOW_SEC ? this.chain + 1 : 1;
-    this.lastSliceAt = time;
-    this.lastX = x;
-    this.lastY = y;
-  }
-
-  /** 콤보 대기 시간이 지나면 연속 기록을 확정한다. 3개 이상이면 보너스와 함께 결과를 돌려준다 */
-  update(time: number): ComboResult | null {
-    if (this.chain === 0 || time - this.lastSliceAt <= COMBO_WINDOW_SEC) return null;
-    const count = this.chain;
-    this.chain = 0;
-    if (count < COMBO_MIN) return null;
-    const bonus = count * COMBO_BONUS_PER_FRUIT;
+    this.combo += 1;
+    if (this.combo % COMBO_MILESTONE !== 0) return 0;
+    const bonus = this.combo * COMBO_MILESTONE_BONUS;
     this.add(bonus);
-    return { count, bonus, x: this.lastX, y: this.lastY };
+    return bonus;
   }
 
-  private add(points: number) {
+  /** 콤보와 상관없는 점수 (피버 중 폭탄 등) */
+  add(points: number) {
     this.score = Math.min(MAX_SCORE, this.score + points);
+  }
+
+  breakCombo() {
+    this.combo = 0;
   }
 }
 
@@ -84,6 +72,19 @@ export interface EngineCallbacks {
 type EngineState = 'idle' | 'playing' | 'ending' | 'over';
 
 const MAX_PARTICLES = 700;
+
+/** 발사 궤적 (시작 위치 + 초속도) */
+interface Trajectory {
+  x: number;
+  y: number;
+  vx: number;
+  vy: number;
+}
+/** 발사할 때 시험해 보는 후보 궤적 수 */
+const LAUNCH_CANDIDATES = 16;
+/** 필요 간격 = 두 반지름 합 × 배율 — 과일끼리는 살짝, 폭탄과 과일은 넉넉히 */
+const FRUIT_GAP = 1.15;
+const BOMB_GAP = 2.6;
 
 export class FruitSlicerEngine {
   private readonly ctx: CanvasRenderingContext2D;
@@ -123,8 +124,13 @@ export class FruitSlicerEngine {
   private lastPointer: { x: number; y: number } | null = null;
   private swipeCount = 0;
 
-  /** 피버 게이지 — 이번 판에서 달성한 콤보 수 (FEVER_COMBO_GOAL 이 되면 피버 발동 후 0) */
+  /**
+   * 피버 게이지 — 피버가 아닐 때 쌓은 콤보 수. 과일을 놓치면 콤보와 함께 0,
+   * FEVER_COMBO_GOAL 이 되면 피버 발동 후 0 부터 다시 채운다
+   */
   private feverGauge = 0;
+  /** HUD 콤보 숫자가 커졌다 돌아오는 연출용 (초) */
+  private comboPulse = 0;
   /** 피버 타임 남은 시간(초). 0 보다 크면 피버 중 */
   private feverTime = 0;
 
@@ -339,12 +345,33 @@ export class FruitSlicerEngine {
     this.splats.push(new Splat(fruit.x, fruit.y, type.juice, fruit.r * 0.8));
     this.blade.emitSlice(this.particles, fruit.x, fruit.y);
 
+    // 과일 1개 = 콤보 +1 (한 번에 여러 개를 베면 그만큼 연달아 오른다)
     const points = POINTS_PER_FRUIT * (this.fever ? FEVER_SCORE_MULTIPLIER : 1);
-    this.scoreBoard.addSlice(this.time, fruit.x, fruit.y, points);
+    const bonus = this.scoreBoard.addFruit(points);
+    const combo = this.scoreBoard.combo;
+    this.comboPulse = 0.25;
+    if (bonus > 0) {
+      this.popups.push(
+        new Popup(
+          `${combo} COMBO!`,
+          `+${bonus}`,
+          this.clampX(fruit.x),
+          Math.max(70, fruit.y - 40),
+          '#ffe36e',
+          40,
+        ),
+      );
+    }
     this.swipeCount += 1;
     this.unlock(this.quests.recordSlice());
     this.unlock(this.quests.recordSwipe(this.swipeCount));
+    this.unlock(this.quests.recordCombo(combo));
     this.unlock(this.quests.recordScore(this.scoreBoard.score));
+
+    if (!this.fever) {
+      this.feverGauge += 1;
+      if (this.feverGauge >= FEVER_COMBO_GOAL) this.startFever();
+    }
   }
 
   /** 피버 중 벤 폭탄 — 터지지 않고 불꽃만 튀며 점수를 준다 */
@@ -383,9 +410,8 @@ export class FruitSlicerEngine {
     );
     this.blade.emitSlice(this.particles, x, y);
     this.popups.push(new Popup(`+${FEVER_BOMB_POINTS}`, '', x, y - 10, '#ffe36e', 28, 0.8));
-    this.scoreBoard.addSlice(this.time, x, y, FEVER_BOMB_POINTS);
-    this.swipeCount += 1;
-    this.unlock(this.quests.recordSwipe(this.swipeCount));
+    // 폭탄은 과일이 아니므로 콤보·스와이프 개수에는 넣지 않는다
+    this.scoreBoard.add(FEVER_BOMB_POINTS);
     this.unlock(this.quests.recordScore(this.scoreBoard.score));
   }
 
@@ -552,9 +578,29 @@ export class FruitSlicerEngine {
     this.spawnTimer = interval * rand(0.85, 1.2) + (together ? 0 : size * 0.12);
   }
 
+  /**
+   * 과일/폭탄 발사 — 후보 궤적을 여러 개 만들어 보고, 이미 날고 있는 것들과
+   * 가장 덜 겹치는 궤적을 고른다. (폭탄 ↔ 과일은 특히 넉넉히 떨어뜨린다)
+   */
   private launch(bomb: boolean) {
     const type = bomb ? null : pick(FRUIT_TYPES);
     const r = type ? type.radius : 30;
+    let best: Trajectory | null = null;
+    let bestClearance = -Infinity;
+    for (let i = 0; i < LAUNCH_CANDIDATES; i++) {
+      const cand = this.randomTrajectory(r);
+      const clearance = this.clearance(cand, r, bomb);
+      if (clearance > bestClearance) {
+        best = cand;
+        bestClearance = clearance;
+      }
+      if (clearance >= 0) break; // 충분히 떨어진 궤적이면 바로 사용
+    }
+    if (!best) return;
+    this.fruits.push(new Fruit(type, best.x, best.y, best.vx, best.vy));
+  }
+
+  private randomTrajectory(r: number): Trajectory {
     const W = this.width;
     const H = this.height;
     const x = rand(W * 0.12, W * 0.88);
@@ -564,7 +610,27 @@ export class FruitSlicerEngine {
     const vy = -Math.sqrt(2 * GRAVITY * (y - peakY));
     const tPeak = -vy / GRAVITY;
     const vx = ((W / 2 - x) / (tPeak * 2)) * rand(0.2, 0.9) + rand(-30, 30);
-    this.fruits.push(new Fruit(type, x, y, vx, vy));
+    return { x, y, vx, vy };
+  }
+
+  /**
+   * 후보 궤적이 날고 있는 물체들과 얼마나 떨어져 지나가는지 (필요 간격을 뺀 최소 거리).
+   * 모두 같은 중력을 받으므로 두 물체의 상대 위치는 직선으로 변한다 → 시간별로 샘플링해 비교.
+   * 음수면 어딘가에서 필요 간격보다 가까워진다는 뜻
+   */
+  private clearance(c: Trajectory, r: number, bomb: boolean): number {
+    let min = Infinity;
+    for (const f of this.fruits) {
+      const gap = bomb !== f.isBomb ? BOMB_GAP : FRUIT_GAP;
+      const need = (r + f.r) * gap;
+      for (let k = 0; k <= 12; k++) {
+        const t = k * 0.12;
+        const dx = c.x - f.x + (c.vx - f.vx) * t;
+        const dy = c.y - f.y + (c.vy - f.vy) * t;
+        min = Math.min(min, Math.hypot(dx, dy) - need);
+      }
+    }
+    return min;
   }
 
   // ---------------- 루프 ----------------
@@ -632,29 +698,7 @@ export class FruitSlicerEngine {
       }
     }
 
-    if (this.state === 'playing') {
-      const combo = this.scoreBoard.update(this.time);
-      if (combo) {
-        this.popups.push(
-          new Popup(
-            `COMBO x${combo.count}!`,
-            `+${combo.bonus}`,
-            this.clampX(combo.x),
-            Math.max(60, combo.y - 30),
-            '#ffe36e',
-            40,
-          ),
-        );
-        this.unlock(this.quests.recordCombo(combo.count));
-        this.unlock(this.quests.recordScore(this.scoreBoard.score));
-        // 피버 중 콤보는 게이지에 넣지 않는다 (피버가 끝없이 이어지지 않게)
-        if (!this.fever) {
-          this.feverGauge += 1;
-          if (this.feverGauge >= FEVER_COMBO_GOAL) this.startFever();
-        }
-      }
-    }
-
+    if (this.comboPulse > 0) this.comboPulse = Math.max(0, this.comboPulse - realDt);
     if (this.shakeTime > 0) this.shakeTime = Math.max(0, this.shakeTime - realDt);
     if (this.flash > 0) this.flash = Math.max(0, this.flash - realDt * 1.1);
 
@@ -671,8 +715,15 @@ export class FruitSlicerEngine {
   }
 
   private miss(fruit: Fruit) {
-    // 피버 중엔 놓쳐도 목숨이 줄지 않는다
+    // 피버 중엔 놓쳐도 목숨과 콤보가 그대로다
     if (this.state !== 'playing' || this.fever) return;
+    if (this.scoreBoard.combo >= 5) {
+      this.popups.push(
+        new Popup('COMBO BREAK', '', this.width / 2, this.height * 0.3, '#ff8a8a', 28, 0.9),
+      );
+    }
+    this.scoreBoard.breakCombo();
+    this.feverGauge = 0;
     this.scoreBoard.lives -= 1;
     this.shakeFor(0.25, 5);
     this.popups.push(
@@ -810,6 +861,7 @@ export class FruitSlicerEngine {
     ctx.fillText(best, 22, 60);
 
     this.drawFeverGauge(ctx, font);
+    this.drawCombo(ctx, font);
 
     // 목숨: 오른쪽 위 X 3개 — 잃은 만큼 빨갛게
     const lost = START_LIVES - Math.max(0, this.scoreBoard.lives);
@@ -826,6 +878,29 @@ export class FruitSlicerEngine {
       ctx.lineWidth = isLost ? 6 : 4;
       this.cross(ctx, cx, cy, m);
     }
+  }
+
+  /** 게이지 아래 현재 콤보 — 벨 때마다 톡 커졌다가 돌아온다 */
+  private drawCombo(ctx: CanvasRenderingContext2D, font: string) {
+    const combo = this.scoreBoard.combo;
+    if (combo < 1) return;
+    const scale = 1 + this.comboPulse * 1.4;
+    ctx.save();
+    ctx.translate(this.width / 2, 78);
+    ctx.scale(scale, scale);
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'middle';
+    ctx.lineJoin = 'round';
+    ctx.font = `900 30px ${font}`;
+    ctx.lineWidth = 6;
+    ctx.strokeStyle = '#1a0f08';
+    const text = `${combo} COMBO`;
+    ctx.strokeText(text, 0, 0);
+    // 콤보가 높을수록 노랑 → 주황 → 분홍으로 달아오른다
+    const heat = Math.min(1, combo / 60);
+    ctx.fillStyle = `hsl(${50 - heat * 70}, 100%, ${65 - heat * 5}%)`;
+    ctx.fillText(text, 0, 0);
+    ctx.restore();
   }
 
   /** 가운데 위 피버 게이지 — 평소엔 콤보 진행도, 피버 중엔 남은 시간 */
@@ -864,7 +939,7 @@ export class FruitSlicerEngine {
     ctx.strokeStyle = '#1a0f08';
     const label = this.fever
       ? `FEVER TIME ${this.feverTime.toFixed(1)}s`
-      : `FEVER  콤보 ${this.feverGauge} / ${FEVER_COMBO_GOAL}`;
+      : `피버까지 ${this.feverGauge} / ${FEVER_COMBO_GOAL}`;
     ctx.strokeText(label, this.width / 2, y + h + 6);
     ctx.fillStyle = this.fever ? '#ffe36e' : '#ffffff';
     ctx.fillText(label, this.width / 2, y + h + 6);
