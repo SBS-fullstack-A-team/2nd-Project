@@ -1,5 +1,7 @@
 import type { ReactNode } from 'react';
-import styles from './Window.module.css';
+import { useThemeStyles } from '../lib/theme';
+import xpStyles from './Window.xp.module.css';
+import win98Styles from './Window.win98.module.css';
 
 interface WindowProps {
   title: ReactNode;
@@ -14,7 +16,7 @@ interface WindowProps {
   children: ReactNode;
 }
 
-/** XP 스타일 창 틀 — 파란 제목 표시줄 + 최소화/최대화/닫기 버튼 */
+/** 바탕화면 테마(XP·98)의 창 틀 — 제목 표시줄 + 최소화/최대화/닫기 버튼 */
 export function Window({
   title,
   icon,
@@ -24,6 +26,8 @@ export function Window({
   bodyClassName = '',
   children,
 }: WindowProps) {
+  // 클래식 테마에서는 창을 쓰지 않지만 타입상 값이 필요해 XP 스타일을 둔다
+  const styles = useThemeStyles({ classic: xpStyles, xp: xpStyles, win98: win98Styles });
   return (
     <div className={`${styles.window} ${className}`}>
       <div className={styles.titleBar}>

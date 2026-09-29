@@ -16,6 +16,17 @@
   overflow: hidden;
 }
 
+/* 98 전용 세로 배너는 쓰지 않는다 */
+.banner {
+  display: none;
+}
+.panel {
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+  flex: 1;
+}
+
 .header {
   display: flex;
   align-items: center;
@@ -131,7 +142,10 @@
 
 .footer {
   display: flex;
+  align-items: center;
   justify-content: flex-end;
+  flex-wrap: wrap;
+  gap: 4px;
   padding: 6px 8px;
   background: linear-gradient(
     180deg,
@@ -141,11 +155,16 @@
     #418ae3 90%,
     #3a7dd8 100%
   );
+  color: #fff;
+}
+.footerLabel {
+  margin-right: auto;
+  font-size: 0.85rem;
 }
 .footerButton {
   display: flex;
   align-items: center;
-  gap: 6px;
+  gap: 4px;
   padding: 4px 8px;
   border: 1px solid transparent;
   border-radius: 3px;
@@ -160,12 +179,8 @@
   border-color: rgb(255 255 255 / 0.5);
   background: rgb(255 255 255 / 0.15);
 }
-.footerIcon {
-  display: grid;
-  place-items: center;
-  width: 22px;
-  height: 22px;
-  border-radius: 3px;
-  background: #e8a33c;
-  box-shadow: inset 0 0 0 1px rgb(255 255 255 / 0.6);
+.footerCurrent {
+  border-color: rgb(255 255 255 / 0.6);
+  background: rgb(0 0 0 / 0.2);
+  font-weight: 700;
 }

@@ -4,11 +4,12 @@ import { GAME_CARD_SLOTS, GAMES } from '../games/registry';
 import { useTheme } from '../lib/theme';
 import classicStyles from './HomePage.classic.module.css';
 import xpStyles from './HomePage.xp.module.css';
+import win98Styles from './HomePage.win98.module.css';
 
 /** 메인 화면 — registry 에 등록된 게임을 카드로 보여준다 */
 export function HomePage() {
   const { theme } = useTheme();
-  const styles = theme === 'xp' ? xpStyles : classicStyles;
+  const styles = { classic: classicStyles, xp: xpStyles, win98: win98Styles }[theme];
 
   const hero = (
     <section className={styles.hero}>
@@ -57,10 +58,10 @@ export function HomePage() {
 
   // XP — 탐색기 창 안에 안내 영역 + 파일 목록처럼 보여준다
   return (
-    <Window title="심심오락실" icon="🕹️" bodyClassName={xpStyles.body}>
+    <Window title="심심오락실" icon="🕹️" bodyClassName={styles.body}>
       {hero}
-      <div className={xpStyles.panel}>
-        <p className={xpStyles.count}>
+      <div className={styles.panel}>
+        <p className={styles.count}>
           게임 {GAMES.length}개{comingSoonCount > 0 && ` · 준비 중 ${comingSoonCount}개`}
         </p>
         {grid}

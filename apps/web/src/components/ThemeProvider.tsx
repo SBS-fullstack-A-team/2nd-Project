@@ -14,11 +14,7 @@ export function ThemeProvider({ children }: { children: ReactNode }) {
     saveTheme(next);
   }, []);
 
-  const toggleTheme = useCallback(() => {
-    setTheme(theme === 'xp' ? 'classic' : 'xp');
-  }, [theme, setTheme]);
-
-  const value = useMemo(() => ({ theme, setTheme, toggleTheme }), [theme, setTheme, toggleTheme]);
+  const value = useMemo(() => ({ theme, setTheme }), [theme, setTheme]);
 
   return <ThemeContext.Provider value={value}>{children}</ThemeContext.Provider>;
 }

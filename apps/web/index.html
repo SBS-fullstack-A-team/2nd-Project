@@ -12,7 +12,7 @@
         var theme = 'xp';
         try {
           var saved = localStorage.getItem('simsim:theme');
-          if (saved === 'classic' || saved === 'xp') theme = saved;
+          if (saved === 'classic' || saved === 'xp' || saved === 'win98') theme = saved;
         } catch (e) {}
         document.documentElement.dataset.theme = theme;
       })();

@@ -86,6 +86,40 @@
   -webkit-font-smoothing: auto;
 }
 
+/* 98 — 추억의 윈도우 98 느낌 (회색 입체 테두리 + 남색 제목 표시줄) */
+:root[data-theme='win98'] {
+  --desktop: #008080;
+
+  --bg: #c0c0c0;
+  --surface: #ffffff;
+  --surface-strong: #000080;
+  --on-strong: #ffffff;
+  --text: #000000;
+  --text-muted: #404040;
+  --border: #808080;
+  --accent: #000080;
+  --yellow: #ffff80;
+  --success: #008000;
+  --danger: #c00000;
+  --selection: #000080;
+  --radius: 0;
+  --radius-sm: 0;
+
+  /* 입체 테두리 — 튀어나온(raised) / 들어간(sunken) */
+  --bevel-raised:
+    inset -1px -1px #0a0a0a, inset 1px 1px #ffffff, inset -2px -2px #808080, inset 2px 2px #dfdfdf;
+  --bevel-pressed:
+    inset -1px -1px #ffffff, inset 1px 1px #0a0a0a, inset -2px -2px #dfdfdf, inset 2px 2px #808080;
+  --bevel-sunken:
+    inset -1px -1px #ffffff, inset 1px 1px #808080, inset -2px -2px #dfdfdf, inset 2px 2px #0a0a0a;
+  --titlebar: linear-gradient(90deg, #000080, #1084d0);
+  --taskbar-height: 34px;
+
+  font-family: '굴림', Gulim, 'MS Sans Serif', Tahoma, 'Malgun Gothic', sans-serif;
+  font-size: 14px;
+  -webkit-font-smoothing: none;
+}
+
 *,
 *::before,
 *::after {
@@ -98,6 +132,9 @@ body {
 }
 [data-theme='xp'] body {
   background: var(--desktop-sky);
+}
+[data-theme='win98'] body {
+  background: var(--desktop);
 }
 
 /* 공통 버튼 — 클래식 */
@@ -178,5 +215,41 @@ body {
   outline-offset: -4px;
 }
 [data-theme='xp'] a:focus-visible {
+  outline-offset: 2px;
+}
+
+/* 공통 버튼 — 98 입체 버튼 */
+[data-theme='win98'] .btn {
+  min-width: 75px;
+  font-weight: 400;
+  padding: 6px 14px;
+  border: 0;
+  background: var(--bg);
+  color: #000;
+  box-shadow: var(--bevel-raised);
+}
+[data-theme='win98'] .btn:hover {
+  background: var(--bg);
+}
+[data-theme='win98'] .btn:active {
+  box-shadow: var(--bevel-pressed);
+  padding: 7px 13px 5px 15px;
+}
+[data-theme='win98'] .btn:disabled {
+  opacity: 1;
+  color: #808080;
+  text-shadow: 1px 1px #ffffff;
+}
+/* 기본(주요) 버튼 — 검은 테두리가 한 겹 더 */
+[data-theme='win98'] .btn-primary {
+  font-weight: 700;
+  outline: 1px solid #000;
+  outline-offset: -1px;
+}
+[data-theme='win98'] :focus-visible {
+  outline: 1px dotted #000;
+  outline-offset: -4px;
+}
+[data-theme='win98'] a:focus-visible {
   outline-offset: 2px;
 }

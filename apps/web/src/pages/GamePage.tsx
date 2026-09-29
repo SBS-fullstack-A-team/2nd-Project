@@ -9,6 +9,7 @@ import { useTheme } from '../lib/theme';
 import { NotFoundPage } from './NotFoundPage';
 import classicStyles from './GamePage.classic.module.css';
 import xpStyles from './GamePage.xp.module.css';
+import win98Styles from './GamePage.win98.module.css';
 
 /** 게임 실행 페이지 (/games/:gameId) — registry 에서 게임을 찾아 실행한다 */
 export function GamePage() {
@@ -75,7 +76,7 @@ function GameRunner({ game }: { game: GameMeta }) {
     );
   }
 
-  const styles = xpStyles;
+  const styles = theme === 'win98' ? win98Styles : xpStyles;
   return (
     <div className={styles.page}>
       <div className={styles.content}>

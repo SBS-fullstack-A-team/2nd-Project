@@ -1,7 +1,8 @@
 import { Link } from 'react-router';
 import { GAMES } from '../games/registry';
-import { THEME_LABEL, useTheme } from '../lib/theme';
-import styles from './StartMenu.module.css';
+import { THEMES, THEME_ICON, THEME_LABEL, useTheme, useThemeStyles } from '../lib/theme';
+import xpStyles from './StartMenu.xp.module.css';
+import win98Styles from './StartMenu.win98.module.css';
 
 const REPO_URL = 'https://github.com/SBS-fullstack-A-team/simsim-arcade';
 
@@ -16,80 +17,88 @@ interface StartMenuProps {
   onClose: () => void;
 }
 
-/** XP 시작 메뉴 — 왼쪽 게임 목록, 오른쪽 바로가기, 아래 테마 전환 */
+/** 시작 메뉴 (XP·98) — 게임 목록, 바로가기, 테마 선택 */
 export function StartMenu({ id, onClose }: StartMenuProps) {
-  const { theme, toggleTheme } = useTheme();
-  const nextTheme = theme === 'xp' ? 'classic' : 'xp';
+  const { theme, setTheme } = useTheme();
+  const styles = useThemeStyles({ classic: xpStyles, xp: xpStyles, win98: win98Styles });
 
   return (
     <div id={id} className={styles.menu}>
-      <div className={styles.header}>
-        <span className={styles.avatar} aria-hidden="true">
-          🕹️
-        </span>
-        <span className={styles.userName}>심심오락실</span>
+      {/* 98 스타일의 세로 배너 (XP 스타일에서는 숨김) */}
+      <div className={styles.banner} aria-hidden="true">
+        심심오락실 <strong>98</strong>
       </div>
+      <div className={styles.panel}>
+        <div className={styles.header}>
+          <span className={styles.avatar} aria-hidden="true">
+            🕹️
+          </span>
+          <span className={styles.userName}>심심오락실</span>
+        </div>
 
-      <div className={styles.columns}>
-        <nav className={styles.left} aria-label="게임">
-          <p className={styles.sectionTitle}>게임</p>
-          <ul className={styles.list}>
-            {MENU_GAMES.map((game) => (
-              <li key={game.id}>
-                <Link to={`/games/${game.id}`} className={styles.gameItem} onClick={onClose}>
-                  <img className={styles.gameThumb} src={game.thumbnail} alt="" />
-                  <span className={styles.gameText}>
-                    <strong>{game.name}</strong>
-                    <span className={styles.gameDesc}>{game.description}</span>
-                  </span>
+        <div className={styles.columns}>
+          <nav className={styles.left} aria-label="게임">
+            <p className={styles.sectionTitle}>게임</p>
+            <ul className={styles.list}>
+              {MENU_GAMES.map((game) => (
+                <li key={game.id}>
+                  <Link to={`/games/${game.id}`} className={styles.gameItem} onClick={onClose}>
+                    <img className={styles.gameThumb} src={game.thumbnail} alt="" />
+                    <span className={styles.gameText}>
+                      <strong>{game.name}</strong>
+                      <span className={styles.gameDesc}>{game.description}</span>
+                    </span>
+                  </Link>
+                </li>
+              ))}
+            </ul>
+          </nav>
+
+          <nav className={styles.right} aria-label="바로가기">
+            <ul className={styles.list}>
+              <li>
+                <Link to="/" className={styles.placeItem} onClick={onClose}>
+                  <span aria-hidden="true">🏠</span> 게임 목록
                 </Link>
               </li>
-            ))}
-          </ul>
-        </nav>
+              <li>
+                <Link to="/qna" className={styles.placeItem} onClick={onClose}>
+                  <span aria-hidden="true">❓</span> Q&amp;A · 도움말
+                </Link>
+              </li>
+              <li className={styles.separator} aria-hidden="true" />
+              <li>
+                <a
+                  href={REPO_URL}
+                  className={styles.placeItem}
+                  target="_blank"
+                  rel="noreferrer"
+                  onClick={onClose}
+                >
+                  <span aria-hidden="true">📁</span> 프로젝트 소개 (GitHub)
+                </a>
+              </li>
+            </ul>
+          </nav>
+        </div>
 
-        <nav className={styles.right} aria-label="바로가기">
-          <ul className={styles.list}>
-            <li>
-              <Link to="/" className={styles.placeItem} onClick={onClose}>
-                <span aria-hidden="true">🏠</span> 게임 목록
-              </Link>
-            </li>
-            <li>
-              <Link to="/qna" className={styles.placeItem} onClick={onClose}>
-                <span aria-hidden="true">❓</span> Q&amp;A · 도움말
-              </Link>
-            </li>
-            <li className={styles.separator} aria-hidden="true" />
-            <li>
-              <a
-                href={REPO_URL}
-                className={styles.placeItem}
-                target="_blank"
-                rel="noreferrer"
-                onClick={onClose}
-              >
-                <span aria-hidden="true">📁</span> 프로젝트 소개 (GitHub)
-              </a>
-            </li>
-          </ul>
-        </nav>
-      </div>
-
-      <div className={styles.footer}>
-        <button
-          type="button"
-          className={styles.footerButton}
-          onClick={() => {
-            toggleTheme();
-            onClose();
-          }}
-        >
-          <span className={styles.footerIcon} aria-hidden="true">
-            🎨
-          </span>
-          {THEME_LABEL[nextTheme]} 테마로 바꾸기
-        </button>
+        <div className={styles.footer}>
+          <span className={styles.footerLabel}>🎨 테마</span>
+          {THEMES.map((t) => (
+            <button
+              key={t}
+              type="button"
+              className={`${styles.footerButton} ${t === theme ? styles.footerCurrent : ''}`}
+              aria-pressed={t === theme}
+              onClick={() => {
+                setTheme(t);
+                onClose();
+              }}
+            >
+              <span aria-hidden="true">{THEME_ICON[t]}</span> {THEME_LABEL[t]}
+            </button>
+          ))}
+        </div>
       </div>
     </div>
   );

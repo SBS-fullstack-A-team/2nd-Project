@@ -3,10 +3,11 @@ import { Link } from 'react-router';
 import { NICKNAME_MAX_LENGTH, type SubmitScoreResponse } from '@simsim/shared';
 import { api, getErrorMessage } from '../lib/api';
 import { RankingList } from './RankingList';
-import { useTheme } from '../lib/theme';
+import { isDesktopTheme, useTheme } from '../lib/theme';
 import { Window } from './Window';
 import classicStyles from './ResultModal.classic.module.css';
 import xpStyles from './ResultModal.xp.module.css';
+import win98Styles from './ResultModal.win98.module.css';
 
 const NICKNAME_STORAGE_KEY = 'simsim:nickname';
 
@@ -40,7 +41,7 @@ export function ResultModal({ gameId, gameName, score, onRetry }: ResultModalPro
   const [error, setError] = useState<string | null>(null);
   const [submitted, setSubmitted] = useState<SubmitScoreResponse | null>(null);
   const { theme } = useTheme();
-  const styles = theme === 'xp' ? xpStyles : classicStyles;
+  const styles = { classic: classicStyles, xp: xpStyles, win98: win98Styles }[theme];
 
   async function handleSubmit(e: FormEvent) {
     e.preventDefault();
@@ -114,8 +115,8 @@ export function ResultModal({ gameId, gameName, score, onRetry }: ResultModalPro
   return (
     <div className={styles.backdrop}>
       <div className={styles.modal} role="dialog" aria-modal="true" aria-labelledby="result-title">
-        {theme === 'xp' ? (
-          <Window title={gameName} icon="🏁" bodyClassName={xpStyles.body}>
+        {isDesktopTheme(theme) ? (
+          <Window title={gameName} icon="🏁" bodyClassName={styles.body}>
             {content}
           </Window>
         ) : (
