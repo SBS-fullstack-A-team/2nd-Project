@@ -3,7 +3,10 @@ import type { GameProps } from '@simsim/shared';
 
 import {
   BUILDS,
+  isBossWave,
   MAX_LEVEL,
+  maxDurability,
+  SIEGE_FROM_WAVE,
   previewWave,
   skillDps,
   SKILLS,
@@ -52,6 +55,15 @@ function playSimEvents(sound: SoundEngine, events: SimEvent[]): void {
       case 'shotCannon':
         sound.sim('shotCannon');
         break;
+      case 'shotArrow':
+        sound.sim('shotArrow');
+        break;
+      case 'buildHit':
+        sound.sim('buildHit');
+        break;
+      case 'buildBroken':
+        sound.sim('buildBroken');
+        break;
       case 'chain':
         sound.sim('chain');
         break;
@@ -59,7 +71,7 @@ function playSimEvents(sound: SoundEngine, events: SimEvent[]): void {
         sound.sim(mapSimEvent(event.kind), { kind: event.kind });
         break;
       case 'skill':
-        sound.sim('skill');
+        sound.skill(event.kind);
         break;
       case 'leak':
         sound.sim('leak');
@@ -107,7 +119,7 @@ function traitOf(kind: BuildKind, level: number): string[] | null {
 }
 
 /**
- * 임진 50 — 벽으로 길을 접어 쉰 차례의 공세를 막는 미로형 타워디펜스.
+ * 임진 50 — 벽으로 길을 접어 50차례의 공세를 막는 미로형 타워디펜스.
  * 점수 등록·랭킹은 공통 GamePage 가 처리하므로, 여기서는 게임이 끝났을 때
  * onFinish(score) 를 한 번만 호출한다.
  */
@@ -137,6 +149,8 @@ export default function Imjin50({ onFinish }: GameProps) {
   const [mode, setMode] = useState<Mode>('intro');
   const [notice, setNotice] = useState<string | null>(null);
   const [muted, setMuted] = useState(false);
+  const [volume, setVolume] = useState(1);
+  const [musicOn, setMusicOn] = useState(true);
   const [result, setResult] = useState<RunResult | null>(null);
   // 결과창으로 넘긴 뒤에는 결말 장면을 걷어서 두 화면이 겹치지 않게 한다
   const [recorded, setRecorded] = useState(false);
@@ -161,11 +175,12 @@ export default function Imjin50({ onFinish }: GameProps) {
   speedRef.current = speed;
   pendingRef.current = pending;
 
-  const flash = useCallback((message: string | null) => {
+  // 긴 안내 문구는 더 오래 띄운다
+  const flash = useCallback((message: string | null, ms = 2600) => {
     setNotice(message);
     if (noticeTimer.current !== null) window.clearTimeout(noticeTimer.current);
     if (message) {
-      noticeTimer.current = window.setTimeout(() => setNotice(null), 2600);
+      noticeTimer.current = window.setTimeout(() => setNotice(null), ms);
     }
   }, []);
 
@@ -178,7 +193,12 @@ export default function Imjin50({ onFinish }: GameProps) {
 
   useEffect(() => {
     setMuted(sound.isMuted);
+    setVolume(sound.volume);
+    setMusicOn(sound.isMusicOn);
   }, [sound]);
+
+  // 다시 하기마다 게임이 새로 마운트되므로, 떠날 때 오디오 컨텍스트를 닫아 쌓이지 않게 한다
+  useEffect(() => () => sound.dispose(), [sound]);
 
   // 선택 칸이 바뀌면 이전 호버 미리보기는 더 이상 맞지 않으므로 지운다.
   // (버튼이 마우스 아래에서 그대로 사라지는 경우 mouseleave 가 안 올 수 있다.)
@@ -189,6 +209,21 @@ export default function Imjin50({ onFinish }: GameProps) {
   const toggleMute = useCallback(() => {
     setMuted(sound.toggleMuted());
   }, [sound]);
+
+  const toggleMusic = useCallback(() => {
+    sound.unlock();
+    setMusicOn(sound.toggleMusic());
+  }, [sound]);
+
+  const changeVolume = useCallback(
+    (value: number) => {
+      sound.unlock();
+      sound.setVolume(value);
+      setVolume(sound.volume);
+      setMuted(sound.isMuted);
+    },
+    [sound],
+  );
 
   const syncSelection = useCallback(() => {
     if (engine.selected === null) {
@@ -211,6 +246,10 @@ export default function Imjin50({ onFinish }: GameProps) {
         refund: 0,
         skillUnlocked: false,
         skillCost: null,
+        durability: 0,
+        maxDurability: 0,
+        broken: false,
+        repairCost: 0,
       });
       return;
     }
@@ -228,11 +267,19 @@ export default function Imjin50({ onFinish }: GameProps) {
       trait: traitOf(build.kind, build.level),
       nextCost:
         def.upgradable && build.level < MAX_LEVEL ? upgradeCost(build.kind, build.level) : null,
-      refund: Math.floor(build.invested * 0.6),
+      refund: engine.refund(build),
+      durability: Math.ceil(build.durability),
+      maxDurability: maxDurability(build.kind, build.level),
+      broken: build.broken,
+      repairCost: engine.repairCost(build),
       skillUnlocked: build.skillUnlocked,
       skillCost: maxed && !build.skillUnlocked ? SKILLS[build.kind].cost : null,
     });
   }, [engine]);
+
+  // rAF 루프 안에서 부르기 위한 최신 syncSelection
+  const syncSelectionRef = useRef(syncSelection);
+  syncSelectionRef.current = syncSelection;
 
   // 한 판에 한 번만 호출한다 (승리/패배가 같은 틱에 겹치는 경우 대비)
   const finish = useCallback(
@@ -293,7 +340,16 @@ export default function Imjin50({ onFinish }: GameProps) {
         const events = engine.drainEvents();
         if (events.length) playSimEvents(sound, events);
         for (const event of events) {
-          if (event.type === 'waveStart' && event.boss) flash('왜장 출현! 성문 방비를 굳히십시오.');
+          if (event.type === 'waveStart' && event.wave === SIEGE_FROM_WAVE) {
+            flash('왜군이 무기를 노립니다! 조총병·갑주병·왜장을 먼저 잡으십시오.', 5000);
+          } else if (event.type === 'waveStart' && event.boss) {
+            flash('왜장 출현! 성문 방비를 굳히십시오.');
+          } else if (event.type === 'waveClear' && event.wave === SIEGE_FROM_WAVE - 1) {
+            flash(
+              '다음 공세부터 왜군이 무기를 부수기 시작합니다! 수리할 군자금을 남겨 두십시오.',
+              6000,
+            );
+          }
         }
       } else if (modeRef.current === 'finished') {
         // 끝난 뒤에도 연기·불길 같은 효과는 가라앉을 때까지 흘려보낸다 (시뮬레이션은 멈춰 있다)
@@ -308,9 +364,26 @@ export default function Imjin50({ onFinish }: GameProps) {
       if (tick >= 0.1) {
         tick = 0;
         setStats(engine.snapshot());
-        const lowLives = engine.lives > 0 && engine.lives <= 4 && !engine.finished;
+        if (engine.selected !== null) syncSelectionRef.current();
+        const lowLives =
+          modeRef.current === 'playing' &&
+          !pausedRef.current &&
+          engine.lives > 0 &&
+          engine.lives <= 4 &&
+          !engine.finished;
         if (lowLives) sound.startHeartbeat();
         else sound.stopHeartbeat();
+        // BGM: 정비 시간엔 잔잔하게, 공세엔 전투 가락, 왜장 공세엔 더 빠르게. 멈추거나 끝나면 끈다.
+        const playing = modeRef.current === 'playing' && !pausedRef.current && !engine.finished;
+        sound.music(
+          !playing
+            ? 'off'
+            : engine.phase !== 'wave'
+              ? 'calm'
+              : isBossWave(engine.wave)
+                ? 'boss'
+                : 'battle',
+        );
         if (engine.finished && modeRef.current === 'playing') {
           sound.stopHeartbeat();
           const runResult = engine.result();
@@ -480,6 +553,10 @@ export default function Imjin50({ onFinish }: GameProps) {
             muted={muted}
             onPick={pick}
             onToggleMute={toggleMute}
+            musicOn={musicOn}
+            onToggleMusic={toggleMusic}
+            volume={volume}
+            onVolume={changeVolume}
             onHoverKind={(kind) => {
               hoverKindRef.current = kind;
             }}
@@ -512,6 +589,16 @@ export default function Imjin50({ onFinish }: GameProps) {
               if (!selection) return;
               if (engine.sell(selection.col, selection.row)) sound.sell();
               engine.selected = null;
+              syncSelection();
+            }}
+            onRepair={() => {
+              if (!selection) return;
+              if (engine.repair(selection.col, selection.row)) {
+                sound.repair();
+              } else if (engine.refusal) {
+                flash(REFUSAL_TEXT[engine.refusal]);
+                sound.refuse();
+              }
               syncSelection();
             }}
             onClose={() => {

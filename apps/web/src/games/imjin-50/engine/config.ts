@@ -7,10 +7,10 @@
 export const COLS = 11;
 export const ROWS = 15;
 export const TOTAL_WAVES = 50;
-export const START_GOLD = 260;
+export const START_GOLD = 220;
 export const START_LIVES = 20;
 export const PRE_WAVE_SECONDS = 20;
-export const BREAK_SECONDS = 12;
+export const BREAK_SECONDS = 9;
 export const MAX_LEVEL = 3;
 
 export interface Cell {
@@ -213,9 +213,12 @@ export function skillLabel(kind: BuildKind): string {
   return skill.name + ' ' + skill.cooldown + '초마다';
 }
 
+/** 강화 비용 배율 — 한 단계에 피해가 1.7배로 뛰므로 신축보다 싸면 강화만 반복하게 된다 */
+export const UPGRADE_COST_RATE = 1.1;
+
 export function upgradeCost(kind: BuildKind, level: number): number {
   if (kind === 'wall') return WALL_UPGRADE_COST[level - 1] ?? 0;
-  return Math.round(BUILDS[kind].cost * 0.85 * level);
+  return Math.round(BUILDS[kind].cost * UPGRADE_COST_RATE * level);
 }
 
 /**
@@ -343,7 +346,7 @@ export const ENEMIES: Record<EnemyKind, EnemyDef> = {
     note: '왜군 병력의 다수를 이룬 징집 보병. 수가 많고 하나하나는 약합니다.',
     hp: 42,
     speed: 1.2,
-    reward: 8,
+    reward: 6,
     armor: 0,
     leak: 1,
     ignoresWalls: false,
@@ -357,7 +360,7 @@ export const ENEMIES: Record<EnemyKind, EnemyDef> = {
     note: '가벼운 차림으로 빠르게 파고드는 검병. 체력은 얕지만 통로를 금방 지나갑니다.',
     hp: 28,
     speed: 2.2,
-    reward: 7,
+    reward: 5,
     armor: 0,
     leak: 1,
     ignoresWalls: false,
@@ -371,7 +374,7 @@ export const ENEMIES: Record<EnemyKind, EnemyDef> = {
     note: '왜군의 주력 신무기 조총을 든 병사. 조선군이 활과 화포로 맞서야 했던 상대입니다.',
     hp: 74,
     speed: 1.1,
-    reward: 14,
+    reward: 11,
     armor: 2,
     leak: 1,
     ignoresWalls: false,
@@ -385,7 +388,7 @@ export const ENEMIES: Record<EnemyKind, EnemyDef> = {
     note: '갑주를 두른 무사. 느리지만 두꺼워서 어지간한 공격은 잘 먹히지 않습니다.',
     hp: 128,
     speed: 0.85,
-    reward: 16,
+    reward: 12,
     armor: 6,
     leak: 2,
     ignoresWalls: false,
@@ -399,7 +402,7 @@ export const ENEMIES: Record<EnemyKind, EnemyDef> = {
     note: '목책과 성벽을 넘어 곧장 움직이는 정찰병. 미로를 아무리 길게 뽑아도 통하지 않습니다.',
     hp: 52,
     speed: 1.55,
-    reward: 13,
+    reward: 10,
     armor: 0,
     leak: 1,
     ignoresWalls: true,
@@ -411,9 +414,9 @@ export const ENEMIES: Record<EnemyKind, EnemyDef> = {
     kind: 'boss',
     name: '왜장',
     note: '부대를 이끄는 장수. 열 번째 공세마다 들어오고, 뚫리면 성문이 크게 흔들립니다.',
-    hp: 760,
+    hp: 520,
     speed: 0.72,
-    reward: 150,
+    reward: 120,
     armor: 6,
     leak: 4,
     ignoresWalls: false,
@@ -432,17 +435,78 @@ export const ENEMY_ORDER: readonly EnemyKind[] = [
   'boss',
 ];
 
+/** 초중반 보정 — 1공세 +10% 에서 시작해 42공세에 0 이 된다. 후반 곡선은 그대로 두고
+ *  무난하던 40공세 이전 구간만 단단하게 만든다. */
+export const EARLY_HP_BONUS = 0.1;
+export const EARLY_HP_UNTIL = 42;
+
 export function hpScale(wave: number): number {
   const w = wave - 1;
-  return 1 + 0.22 * w + 0.013 * w * w;
+  const early = 1 + EARLY_HP_BONUS * Math.max(0, Math.min(1, (EARLY_HP_UNTIL - wave) / 30));
+  return (1 + 0.35 * w + 0.01 * w * w) * early;
 }
 
+/** 공세가 거듭될수록 왜군의 걸음이 빨라진다 (공세마다 1%, 31공세에 1.3배, 50공세까지 1.5배) */
+export function speedScale(wave: number): number {
+  // 30공세 뒤로는 공세마다 1%씩 더 빨라져 50공세에 1.5배가 된다
+  return Math.min(1.3, 1 + 0.01 * (wave - 1)) + Math.max(0, wave - 30) * 0.01;
+}
+
+/** 40공세 전 왜장 공세(10·20·30)에서 척후병이 나오는 비중 — 30공세 척후병 6명 (원래 11명) */
+export const BOSS_WAVE_SCOUT_RATE = 0.5;
+
+/**
+ * 무기 내구도 (1단계 기준, 강화 한 단계마다 +50%). 적이 옆을 지나며 깎고, 0 이 되면 파손되어
+ * 사격을 멈춘다. 파손돼도 자리는 그대로 막으므로 미로는 무너지지 않는다. 목책은 내구도가 없다.
+ */
+/** 조총병이 무기를 깎는 초당 힘 — 갑주병·왜장 값도 이것을 기준으로 정한다 */
+const SIEGE_GUNNER = 2.5;
+/** 이 공세부터 왜군이 무기를 공격한다 — 초중반은 그대로 두고 후반에만 긴장을 더한다 */
+export const SIEGE_FROM_WAVE = 30;
+/** 공세마다 깎는 힘이 늘어나는 비율 */
+const SIEGE_GROWTH = 0.03;
+
+const BUILD_DURABILITY: Partial<Record<BuildKind, number>> = {
+  arrow: 90,
+  cannon: 150,
+  caltrop: 120,
+  hwacha: 130,
+};
+
+export function maxDurability(kind: BuildKind, level: number): number {
+  const base = BUILD_DURABILITY[kind];
+  return base ? Math.round(base * (1 + 0.5 * (level - 1))) : 0;
+}
+
+/**
+ * 적이 옆 무기를 깎는 힘(초당 내구도)과 닿는 거리(칸). 무기를 노리는 건 조총병·갑주병·왜장뿐이라
+ * 이들을 먼저 잡는 게 대응이 된다. 보병·돌격병은 지나가기만 하고, 척후병은 날아 넘어간다.
+ */
+export const SIEGE: Record<EnemyKind, { dps: number; reach: number }> = {
+  walker: { dps: 0, reach: 0 },
+  runner: { dps: 0, reach: 0 },
+  // 조총병은 조금 떨어진 무기도 쏜다
+  gunner: { dps: SIEGE_GUNNER, reach: 2 },
+  armored: { dps: SIEGE_GUNNER * 1.2, reach: 1.1 },
+  scout: { dps: 0, reach: 0 },
+  boss: { dps: SIEGE_GUNNER * 5, reach: 1.3 },
+};
+
+/** 공세가 거듭될수록 무기를 깎는 힘도 세진다 */
+export function siegeScale(wave: number): number {
+  if (wave < SIEGE_FROM_WAVE) return 0;
+  return 1 + SIEGE_GROWTH * (wave - SIEGE_FROM_WAVE);
+}
+
+/** 수리비 = 투자한 군자금 × 깎인 비율 × 이 배율 (정비 시간에만 수리할 수 있다) */
+export const REPAIR_RATE = 0.25;
+
 export function rewardScale(wave: number): number {
-  return 1 + 0.025 * (wave - 1);
+  return 1 + 0.012 * (wave - 1);
 }
 
 export function waveClearGold(wave: number): number {
-  return 24 + wave * 4;
+  return 18 + wave * 3;
 }
 
 export function isBossWave(wave: number): boolean {
@@ -496,16 +560,21 @@ export function buildWave(wave: number): Spawn[] {
   }
 
   const pool: Array<[EnemyKind, number]> = [['walker', 1]];
-  if (wave >= 4) pool.push(['runner', 0.62]);
-  if (wave >= 7) pool.push(['armored', 0.5]);
-  if (wave >= 9) pool.push(['gunner', 0.58]);
-  if (wave >= 11) pool.push(['scout', 0.55]);
+  if (wave >= 3) pool.push(['runner', 0.62]);
+  if (wave >= 6) pool.push(['armored', 0.5]);
+  if (wave >= 8) pool.push(['gunner', 0.58]);
+  // 40공세 전 왜장 공세에서는 척후병을 줄인다 — 방비가 왜장에게 몰린 사이 벽을 넘는
+  // 척후병이 빠져나가 30공세가 유독 가팔랐다
+  const scout = isBossWave(wave) && wave < 40 ? BOSS_WAVE_SCOUT_RATE : 1;
+  if (wave >= 10) pool.push(['scout', 0.55 * scout]);
+  // 16공세부터 성벽을 넘는 척후병을 늘려 미로만으로 버티는 중반을 흔든다
+  if (wave >= 16) pool.push(['scout', 0.35 * scout]);
   if (wave >= 18) pool.push(['runner', 0.45]);
   if (wave >= 26) pool.push(['armored', 0.4]);
 
   const weight = pool.reduce((sum, entry) => sum + entry[1], 0);
-  const count = Math.round(6 + wave * 0.9);
-  const gap = Math.max(0.36, 0.6 - wave * 0.004);
+  const count = Math.round(7 + wave * 1.25);
+  const gap = Math.max(0.3, 0.56 - wave * 0.006);
 
   for (let i = 0; i < count; i += 1) {
     let roll = rnd() * weight;

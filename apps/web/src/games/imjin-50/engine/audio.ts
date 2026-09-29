@@ -1,10 +1,13 @@
-// Synthesized SFX for Rampart 50. Every sound is drawn from Web Audio
-// oscillators and short noise bursts, the same way the board is drawn from
-// canvas primitives rather than shipped as image assets — no audio files, no
-// network request, nothing to download before the first sound plays.
+// 임진 50 효과음. 판을 캔버스 도형으로 그리듯 소리도 Web Audio 오실레이터와 짧은
+// 잡음으로 합성한다 — 음원 파일도, 네트워크 요청도, 첫 소리 전에 받을 것도 없다.
 import type { BuildKind, EnemyKind } from './config';
+import { MusicPlayer, type MusicMood } from './music';
 
 const MUTE_KEY = 'ij-muted';
+const VOLUME_KEY = 'ij-volume';
+const MUSIC_OFF_KEY = 'ij-music-off';
+/** 음량 1 일 때 마스터 게인. 컴프레서가 겹친 소리를 눌러 주므로 약간 여유를 둔다 */
+const MASTER_GAIN = 0.9;
 
 function readMuted(): boolean {
   if (typeof window === 'undefined') return false;
@@ -21,7 +24,46 @@ function writeMuted(value: boolean): void {
     if (value) window.localStorage.setItem(MUTE_KEY, '1');
     else window.localStorage.removeItem(MUTE_KEY);
   } catch {
-    /* private mode or storage disabled: mute just stays session-only */
+    /* 프라이빗 모드 등 저장이 막히면 음소거는 이번 방문에만 유지된다 */
+  }
+}
+
+function readVolume(): number {
+  if (typeof window === 'undefined') return 1;
+  try {
+    const raw = window.localStorage.getItem(VOLUME_KEY);
+    const value = raw === null ? 1 : Number(raw);
+    return Number.isFinite(value) ? Math.min(1, Math.max(0, value)) : 1;
+  } catch {
+    return 1;
+  }
+}
+
+function writeVolume(value: number): void {
+  if (typeof window === 'undefined') return;
+  try {
+    window.localStorage.setItem(VOLUME_KEY, String(value));
+  } catch {
+    /* 저장이 막히면 음량은 이번 방문에만 유지된다 */
+  }
+}
+
+function readMusicOn(): boolean {
+  if (typeof window === 'undefined') return true;
+  try {
+    return window.localStorage.getItem(MUSIC_OFF_KEY) !== '1';
+  } catch {
+    return true;
+  }
+}
+
+function writeMusicOn(value: boolean): void {
+  if (typeof window === 'undefined') return;
+  try {
+    if (value) window.localStorage.removeItem(MUSIC_OFF_KEY);
+    else window.localStorage.setItem(MUSIC_OFF_KEY, '1');
+  } catch {
+    /* 저장이 막히면 BGM 설정은 이번 방문에만 유지된다 */
   }
 }
 
@@ -30,16 +72,18 @@ function vibrate(pattern: number | number[]): void {
   try {
     navigator.vibrate(pattern);
   } catch {
-    /* some browsers throw instead of ignoring; either way, no sound is lost */
+    /* 무시하지 않고 예외를 던지는 브라우저가 있다. 어느 쪽이든 소리에는 영향 없음 */
   }
 }
 
 export type SimSound =
   | 'shotCannon'
+  | 'shotArrow'
+  | 'buildHit'
+  | 'buildBroken'
   | 'chain'
   | 'kill'
   | 'killBoss'
-  | 'skill'
   | 'leak'
   | 'waveStart'
   | 'waveStartBoss'
@@ -69,21 +113,71 @@ export class SoundEngine {
   private ctx: AudioContext | null = null;
   private master: GainNode | null = null;
   private muted: boolean;
+  private level: number;
   private lastPlayed = new Map<string, number>();
   private heartbeatTimer: number | null = null;
+  /** 최근 처치음 시각 — 한꺼번에 쓰러질 때 처치음을 줄여 삑삑거리지 않게 한다 */
+  private recentKills: number[] = [];
+  /** 전투 BGM — AudioContext 를 만들 때 함께 만든다 */
+  private player: MusicPlayer | null = null;
+  private musicOn: boolean;
+  /** 판이 원하는 음악 분위기 (BGM 을 꺼 두었거나 아직 소리를 켜기 전에도 기억해 둔다) */
+  private mood: MusicMood = 'off';
 
   constructor() {
     this.muted = readMuted();
+    this.level = readVolume();
+    this.musicOn = readMusicOn();
   }
 
   get isMuted(): boolean {
     return this.muted;
   }
 
+  get isMusicOn(): boolean {
+    return this.musicOn;
+  }
+
+  /** 판 상황에 맞춰 BGM 분위기를 바꾼다. 매 틱 불러도 바뀔 때만 동작한다. */
+  music(mood: MusicMood): void {
+    this.mood = mood;
+    this.player?.setMood(this.musicOn ? mood : 'off');
+  }
+
+  /** BGM 만 따로 켜고 끈다 (효과음은 그대로) */
+  toggleMusic(): boolean {
+    this.musicOn = !this.musicOn;
+    writeMusicOn(this.musicOn);
+    this.music(this.mood);
+    return this.musicOn;
+  }
+
+  /** 0~1 음량 (음소거와 별개로 기억한다) */
+  get volume(): number {
+    return this.level;
+  }
+
+  private applyGain(): void {
+    if (this.master) this.master.gain.value = this.muted ? 0 : MASTER_GAIN * this.level;
+  }
+
   setMuted(value: boolean): void {
     this.muted = value;
     writeMuted(value);
-    if (this.master) this.master.gain.value = value ? 0 : 0.9;
+    this.applyGain();
+  }
+
+  /** 음량을 바꾼다. 음량을 올리면 음소거는 풀리고, 0 으로 내리면 음소거가 된다. */
+  setVolume(value: number): void {
+    const next = Math.min(1, Math.max(0, value));
+    if (next > 0) {
+      this.level = next;
+      writeVolume(next);
+      if (this.muted) this.setMuted(false);
+    } else if (!this.muted) {
+      this.setMuted(true);
+    }
+    this.applyGain();
   }
 
   toggleMuted(): boolean {
@@ -91,8 +185,8 @@ export class SoundEngine {
     return this.muted;
   }
 
-  /** Creates (once) or resumes the AudioContext. Call this from a real user
-   *  gesture (a tap, a click) — browsers refuse to start audio otherwise. */
+  /** AudioContext 를 (한 번) 만들거나 다시 깨운다. 브라우저는 사용자 동작(탭·클릭) 안에서만
+   *  소리를 켜 주므로 그런 이벤트에서 부른다. */
   unlock(): void {
     if (typeof window === 'undefined') return;
     if (!this.ctx) {
@@ -102,10 +196,83 @@ export class SoundEngine {
       if (!Ctor) return;
       this.ctx = new Ctor();
       this.master = this.ctx.createGain();
-      this.master.gain.value = this.muted ? 0 : 0.9;
-      this.master.connect(this.ctx.destination);
+      // 여러 소리가 한꺼번에 겹쳐도 찢어지지 않게 마스터 뒤에 컴프레서를 둔다
+      const compressor = this.ctx.createDynamicsCompressor();
+      compressor.threshold.value = -18;
+      compressor.knee.value = 12;
+      compressor.ratio.value = 6;
+      compressor.attack.value = 0.003;
+      compressor.release.value = 0.2;
+      this.master.connect(compressor);
+      compressor.connect(this.ctx.destination);
+      this.applyGain();
+      // BGM 은 마스터를 거치므로 음량 슬라이더·음소거를 함께 따른다
+      this.player = new MusicPlayer(this.ctx, this.master);
+      // 소리를 켜기 전에 정해진 분위기가 있으면 이어서 튼다
+      this.music(this.mood);
     }
     if (this.ctx.state === 'suspended') void this.ctx.resume();
+  }
+
+  /** 게임을 떠날 때 부른다 — 심장박동을 멈추고 AudioContext 를 닫는다.
+   *  다시 unlock() 하면 새로 만든다 (개발 모드 StrictMode 의 재마운트 대비). */
+  dispose(): void {
+    this.stopHeartbeat();
+    this.player?.dispose();
+    this.player = null;
+    this.mood = 'off';
+    const ctx = this.ctx;
+    this.ctx = null;
+    this.master = null;
+    if (ctx && ctx.state !== 'closed') void ctx.close();
+  }
+
+  /** 3단계 뒤 해금한 스킬이 터질 때 — 무기마다 다른 소리 */
+  skill(kind: BuildKind): void {
+    if (!this.throttled('skill-' + kind, 120)) return;
+    switch (kind) {
+      case 'wall':
+        // 목책 매복: 나무가 뚫고 나오는 둔탁한 찌르기
+        this.noise(0.12, { gain: 0.24, filterFreq: 380 });
+        this.tone(180, 0.1, 'triangle', { gain: 0.14, glideTo: 120 });
+        break;
+      case 'arrow':
+        // 연사: 활 시위 세 번
+        for (let i = 0; i < 3; i += 1) {
+          this.noise(0.05, {
+            gain: 0.12,
+            filterFreq: 2600,
+            filterType: 'highpass',
+            delay: i * 0.06,
+          });
+        }
+        break;
+      case 'cannon':
+        // 대장군전: 깊고 긴 포성
+        this.noise(0.35, { gain: 0.3, filterFreq: 160 });
+        this.tone(70, 0.45, 'sine', { gain: 0.24, glideTo: 35 });
+        vibrate(30);
+        break;
+      case 'caltrop':
+        // 가시 폭발: 쇳조각이 흩어지는 짤랑임
+        [1800, 2300, 1500].forEach((f, i) =>
+          this.tone(f, 0.08, 'triangle', { gain: 0.09, glideTo: f * 0.7, delay: i * 0.035 }),
+        );
+        break;
+      case 'hwacha':
+        // 신기전 일제: 불화살이 줄지어 솟는 쉿쉿 소리
+        for (let i = 0; i < 5; i += 1) {
+          this.noise(0.09, {
+            gain: 0.1,
+            filterFreq: 1800 + i * 200,
+            filterType: 'bandpass',
+            delay: i * 0.04,
+          });
+        }
+        this.tone(300, 0.25, 'sawtooth', { gain: 0.08, glideTo: 900 });
+        break;
+    }
+    vibrate(15);
   }
 
   private throttled(key: string, minGapMs: number): boolean {
@@ -195,6 +362,14 @@ export class SoundEngine {
     vibrate(8);
   }
 
+  /** 수리: 망치질 세 번 */
+  repair(): void {
+    for (let i = 0; i < 3; i += 1) {
+      this.noise(0.04, { gain: 0.2, filterFreq: 1800, filterType: 'bandpass', delay: i * 0.1 });
+      this.tone(880, 0.05, 'triangle', { gain: 0.08, delay: i * 0.1 });
+    }
+  }
+
   sell(): void {
     this.tone(420, 0.07, 'square', { gain: 0.13, glideTo: 220 });
   }
@@ -214,26 +389,43 @@ export class SoundEngine {
         this.noise(0.06, { gain: 0.16, filterFreq: 300 });
         this.tone(120, 0.09, 'sine', { gain: 0.13, delay: 0.01 });
         return;
+      case 'shotArrow':
+        // 가장 자주 나는 소리라 짧고 작게 — 시위 튕기는 바람 소리
+        if (!this.throttled('shotArrow', 70)) return;
+        this.noise(0.04, { gain: 0.07, filterFreq: 3000, filterType: 'highpass' });
+        return;
+      case 'buildHit':
+        // 무기가 깎이는 둔탁한 나무 소리 — 여럿이 깎아도 자주 울리지 않게
+        if (!this.throttled('buildHit', 220)) return;
+        this.noise(0.05, { gain: 0.09, filterFreq: 500 });
+        return;
+      case 'buildBroken':
+        // 무기가 부서지는 소리: 나무가 쪼개지고 무너진다
+        this.noise(0.28, { gain: 0.3, filterFreq: 700 });
+        this.tone(160, 0.3, 'sawtooth', { gain: 0.12, glideTo: 60 });
+        vibrate(35);
+        return;
       case 'chain':
         if (!this.throttled('chain', 30)) return;
         this.tone(900 + Math.random() * 200, 0.05, 'sawtooth', { gain: 0.12, glideTo: 500 });
         return;
       case 'kill': {
-        if (!this.throttled('kill', 35)) return;
+        if (!this.throttled('kill', 45)) return;
+        // 최근 0.6초 안에 쓰러진 수만큼 작아진다 — 한꺼번에 몰려 쓰러질 때도 귀가 편하게
+        const now = performance.now();
+        this.recentKills = this.recentKills.filter((t) => now - t < 600);
+        this.recentKills.push(now);
+        const duck = 1 / Math.sqrt(this.recentKills.length);
         const freq = killFrequency(data?.kind);
-        this.tone(freq, 0.08, 'square', { gain: 0.15, glideTo: freq * 0.6 });
+        // 사각파 삑 소리 대신 짧은 타격 잡음 + 부드러운 삼각파
+        this.noise(0.05, { gain: 0.12 * duck, filterFreq: freq * 2, filterType: 'bandpass' });
+        this.tone(freq, 0.07, 'triangle', { gain: 0.11 * duck, glideTo: freq * 0.6 });
         return;
       }
       case 'killBoss':
         this.noise(0.3, { gain: 0.28, filterFreq: 180 });
         this.tone(90, 0.4, 'sine', { gain: 0.2, glideTo: 40 });
         vibrate(50);
-        return;
-      case 'skill':
-        this.tone(520, 0.05, 'square', { gain: 0.16 });
-        this.tone(780, 0.06, 'square', { gain: 0.15, delay: 0.05 });
-        this.tone(1040, 0.09, 'triangle', { gain: 0.14, delay: 0.1 });
-        vibrate(15);
         return;
       case 'leak':
         this.tone(200, 0.09, 'square', { gain: 0.2, glideTo: 120 });

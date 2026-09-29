@@ -27,8 +27,8 @@ export function IntroOverlay({ onStart }: { onStart: () => void }) {
             있습니다.
           </p>
           <p className={styles.introStakes}>
-            이 성문이 열리는 순간, 조선은 이 전쟁에서 패합니다. 쉰 차례 밀려오는 왜군의 공세를
-            끝까지 막아 내십시오.
+            이 성문이 열리는 순간, 조선은 이 전쟁에서 패합니다. 50차례 밀려오는 왜군의 공세를 끝까지
+            막아 내십시오.
           </p>
 
           <div className={styles.introPanel}>
@@ -85,7 +85,7 @@ export function IntroOverlay({ onStart }: { onStart: () => void }) {
 /** 결말 장면이 떠 있는 시간. 그 뒤엔 자동으로 결과창(점수 등록·랭킹)으로 넘어간다. */
 const ENDING_SECONDS = 7;
 
-/** 성문이 무너지거나 쉰 차례의 공세를 다 막았을 때, 공통 결과창에 앞서 보여주는 결말. */
+/** 성문이 무너지거나 50차례의 공세를 다 막았을 때, 공통 결과창에 앞서 보여주는 결말. */
 export function EndingOverlay({ result, onProceed }: { result: RunResult; onProceed: () => void }) {
   useEffect(() => {
     const timer = window.setTimeout(onProceed, ENDING_SECONDS * 1000);
@@ -106,7 +106,7 @@ export function EndingOverlay({ result, onProceed }: { result: RunResult; onProc
         </h2>
         <p className={styles.endingBody}>
           {won
-            ? '쉰 차례의 공세가 모두 이 성벽 앞에서 꺾였습니다. 왜군은 바다로 물러가고, 조선은 다시 일어설 시간을 얻었습니다.'
+            ? '50차례의 공세가 모두 이 성벽 앞에서 꺾였습니다. 왜군은 바다로 물러가고, 조선은 다시 일어설 시간을 얻었습니다.'
             : `마지막 성문이 제${result.wave}차 공세에 열렸습니다. 왜군이 성 안으로 쏟아져 들어오고, 이 전쟁은 여기서 끝이 납니다.`}
         </p>
 
