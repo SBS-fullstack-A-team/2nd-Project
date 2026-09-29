@@ -1,6 +1,17 @@
 /** 힌트 퀴즈 규칙 */
 export const GAME_ID = 'hint-quiz';
 
+/**
+ * 장르 — id 는 시드의 meta.category 와 같아야 한다 (문제 조회 시 category 필터로 사용)
+ * 장르를 추가하면 seeds/hint-quiz*.sql 에 그 장르 문제도 넣을 것
+ */
+export const CATEGORIES = [
+  { id: '축구선수', icon: '⚽', description: '국내외 축구선수 약 1,000명' },
+  { id: '동물', icon: '🐾', description: '신기한 동물 이야기' },
+  { id: '나라', icon: '🌏', description: '세계 여러 나라' },
+  { id: '음식', icon: '🍜', description: '맛있는 음식' },
+] as const;
+
 /** 한 판에 푸는 문제 수 */
 export const QUESTION_COUNT = 5;
 

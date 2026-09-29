@@ -46,6 +46,10 @@ export interface HintQuizMeta {
   hints: HintQuizHint[];
   /** 정답으로 함께 인정할 이름 (선택, 예: 별명·영문 이름) */
   aliases?: string[];
+  /** 자동 생성한 문제의 출처 (예: 'wikidata'). 직접 만든 문제는 없음 */
+  source?: string;
+  /** 출처가 위키데이터일 때 항목 ID (예: 'Q615') — 데이터 확인·갱신용 */
+  wikidata?: string;
 }
 
 /**
