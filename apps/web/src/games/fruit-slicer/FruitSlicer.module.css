@@ -1,0 +1,408 @@
+.root {
+  width: 100%;
+}
+
+/* 캔버스와 오버레이를 겹쳐 놓는 무대 — 모바일 세로 화면에선 더 길쭉하게 */
+.stage {
+  position: relative;
+  width: 100%;
+  aspect-ratio: 8 / 5;
+  border-radius: var(--radius-sm);
+  overflow: hidden;
+  background: #23140a;
+  user-select: none;
+  -webkit-user-select: none;
+}
+@media (max-width: 600px) {
+  .stage {
+    aspect-ratio: 3 / 4;
+  }
+}
+
+.canvas {
+  display: block;
+  width: 100%;
+  height: 100%;
+  /* 스와이프가 스크롤/확대로 먹히지 않게 */
+  touch-action: none;
+  cursor: crosshair;
+}
+
+.overlay {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 16px;
+  background: rgba(20, 10, 4, 0.55);
+  backdrop-filter: blur(2px);
+  overflow-y: auto;
+  animation: fadeIn 0.2s ease-out;
+}
+
+.panel {
+  width: min(440px, 100%);
+  max-height: 100%;
+  overflow-y: auto;
+  margin: auto;
+  padding: 20px;
+  background: var(--surface);
+  border: 3px solid var(--text);
+  border-radius: var(--radius);
+  box-shadow: 5px 5px 0 var(--text);
+  text-align: center;
+  animation: popIn 0.25s ease-out;
+}
+
+.panelTitle {
+  margin: 0 0 12px;
+  font-size: 1.25rem;
+}
+.panelText {
+  margin: 0 0 12px;
+  color: var(--text-muted);
+  font-size: 0.95rem;
+}
+
+/* ---------- 메인 메뉴 ---------- */
+
+.logo {
+  margin: 0 0 4px;
+  font-size: clamp(1.8rem, 6vw, 2.4rem);
+  font-weight: 900;
+  letter-spacing: 0.02em;
+  color: var(--text);
+}
+.logo span {
+  color: var(--accent);
+}
+
+.statRow {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 8px;
+  margin: 0 0 14px;
+}
+.statRow div {
+  padding: 8px 4px;
+  background: var(--bg);
+  border: 2px solid var(--border);
+  border-radius: var(--radius-sm);
+}
+.statRow dt {
+  font-size: 0.72rem;
+  color: var(--text-muted);
+}
+.statRow dd {
+  margin: 2px 0 0;
+  font-weight: 800;
+  font-size: 0.95rem;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 4px;
+}
+
+.inlineSwatch {
+  display: inline-block;
+  width: 14px;
+  height: 14px;
+  border-radius: 50%;
+  border: 1px solid rgba(0, 0, 0, 0.3);
+  flex-shrink: 0;
+}
+
+.startButton {
+  width: 100%;
+  padding: 14px;
+  font-size: 1.15rem;
+  margin-bottom: 10px;
+}
+
+.menuGrid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 8px;
+}
+
+.backButton {
+  margin-top: 14px;
+}
+
+/* ---------- 검 선택 ---------- */
+
+.bladeList {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: grid;
+  gap: 8px;
+}
+.bladeItem {
+  width: 100%;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 10px 12px;
+  font: inherit;
+  text-align: left;
+  color: var(--text);
+  background: var(--surface);
+  border: 2px solid var(--border);
+  border-radius: var(--radius-sm);
+  cursor: pointer;
+  transition:
+    transform 0.1s,
+    border-color 0.1s;
+}
+.bladeItem:hover:not(:disabled) {
+  border-color: var(--text);
+  transform: translateY(-1px);
+}
+.bladeItem:disabled {
+  cursor: not-allowed;
+  opacity: 0.55;
+  filter: grayscale(0.8);
+}
+.bladeSelected {
+  border-color: var(--accent);
+  background: #fff0f4;
+}
+.bladeSwatch {
+  width: 56px;
+  height: 14px;
+  border-radius: 999px;
+  flex-shrink: 0;
+  box-shadow: 0 0 10px rgba(0, 0, 0, 0.15);
+}
+.bladeInfo {
+  display: flex;
+  flex-direction: column;
+  flex: 1;
+  min-width: 0;
+}
+.bladeInfo small {
+  color: var(--text-muted);
+}
+.equipped {
+  font-size: 0.75rem;
+  font-weight: 800;
+  color: #fff;
+  background: var(--accent);
+  padding: 2px 8px;
+  border-radius: 999px;
+}
+
+/* ---------- 퀘스트 ---------- */
+
+.questList {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: grid;
+  gap: 10px;
+  text-align: left;
+}
+.questList li {
+  padding: 10px 12px;
+  border: 2px solid var(--border);
+  border-radius: var(--radius-sm);
+}
+.questList small {
+  color: var(--text-muted);
+}
+.questDone {
+  background: #eefaf4;
+  border-color: var(--success) !important;
+}
+.questHead {
+  display: flex;
+  justify-content: space-between;
+  gap: 8px;
+  font-size: 0.92rem;
+}
+.questHead span {
+  white-space: nowrap;
+  font-weight: 700;
+}
+.progress {
+  height: 8px;
+  margin: 6px 0 4px;
+  background: var(--border);
+  border-radius: 999px;
+  overflow: hidden;
+}
+.progress div {
+  height: 100%;
+  background: linear-gradient(90deg, var(--accent), #ff9a3c);
+  border-radius: inherit;
+  transition: width 0.3s;
+}
+
+/* ---------- 게임 방법 ---------- */
+
+.howto {
+  margin: 0;
+  padding-left: 20px;
+  text-align: left;
+  line-height: 1.6;
+}
+
+/* ---------- 게임 오버 / 이름 입력 ---------- */
+
+.gameOver {
+  margin: 0;
+  font-size: 1.9rem;
+  font-weight: 900;
+  color: var(--danger);
+  letter-spacing: 0.04em;
+}
+.finalScore {
+  margin: 2px 0 6px;
+}
+.finalScore strong {
+  font-size: 2.6rem;
+  color: var(--accent);
+}
+.newBest {
+  margin: 0 0 8px;
+  font-weight: 800;
+  color: var(--success);
+}
+.nameForm {
+  margin-top: 8px;
+}
+.nameForm label {
+  display: block;
+  margin-bottom: 8px;
+}
+.nameRow {
+  display: flex;
+  gap: 8px;
+}
+.input {
+  flex: 1;
+  min-width: 0;
+  padding: 10px 12px;
+  font: inherit;
+  border: 2px solid var(--text);
+  border-radius: var(--radius-sm);
+}
+.error {
+  margin: 8px 0 0;
+  color: var(--danger);
+  font-size: 0.9rem;
+}
+.linkButton {
+  margin-top: 12px;
+  padding: 4px;
+  font: inherit;
+  font-size: 0.88rem;
+  color: var(--text-muted);
+  background: none;
+  border: none;
+  text-decoration: underline;
+  cursor: pointer;
+}
+
+/* ---------- 랭킹 ---------- */
+
+.rankTable {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 0.92rem;
+}
+.rankTable th {
+  padding: 6px 4px;
+  font-size: 0.78rem;
+  color: var(--text-muted);
+  border-bottom: 2px solid var(--border);
+}
+.rankTable td {
+  padding: 8px 4px;
+  border-bottom: 1px solid var(--border);
+}
+.rankName {
+  font-weight: 700;
+  max-width: 120px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.mine td {
+  background: #fff3c4;
+}
+
+.actions {
+  display: flex;
+  justify-content: center;
+  gap: 8px;
+  margin-top: 16px;
+}
+
+/* ---------- 해금 알림 ---------- */
+
+.toasts {
+  position: absolute;
+  left: 50%;
+  top: 12px;
+  transform: translateX(-50%);
+  display: grid;
+  gap: 6px;
+  pointer-events: none;
+  z-index: 2;
+}
+.toast {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 8px 14px;
+  color: #fff;
+  background: rgba(20, 14, 30, 0.92);
+  border: 2px solid var(--yellow);
+  border-radius: 999px;
+  font-size: 0.9rem;
+  white-space: nowrap;
+  box-shadow: 0 0 18px rgba(255, 227, 110, 0.5);
+  animation: toastIn 3s ease-out forwards;
+}
+.toastSwatch {
+  width: 36px;
+  height: 10px;
+  border-radius: 999px;
+}
+
+@keyframes fadeIn {
+  from {
+    opacity: 0;
+  }
+}
+@keyframes popIn {
+  from {
+    opacity: 0;
+    transform: scale(0.92);
+  }
+}
+@keyframes toastIn {
+  0% {
+    opacity: 0;
+    transform: translateY(-12px) scale(0.9);
+  }
+  10%,
+  85% {
+    opacity: 1;
+    transform: none;
+  }
+  100% {
+    opacity: 0;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .overlay,
+  .panel,
+  .toast {
+    animation: none;
+  }
+}

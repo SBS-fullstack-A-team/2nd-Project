@@ -1,6 +1,7 @@
 import { lazy, type ComponentType, type LazyExoticComponent } from 'react';
 import type { GameCategory, GameProps } from '@simsim/shared';
 import chosungQuizThumbnail from './chosung-quiz/thumbnail.svg';
+import fruitSlicerThumbnail from './fruit-slicer/thumbnail.svg';
 
 /**
  * 게임 등록부 — 메인 화면 카드와 /games/:gameId 라우트가 이 목록으로 자동 생성된다.
@@ -27,6 +28,15 @@ export const GAMES: readonly GameMeta[] = [
     thumbnail: chosungQuizThumbnail,
     category: 'quiz',
     component: lazy(() => import('./chosung-quiz')),
+  },
+  // 카드 3 (신영)
+  {
+    id: 'fruit-slicer',
+    name: '과일 슬라이서',
+    description: '날아오는 과일을 베고 폭탄은 피하라! 퀘스트로 검 스킨 해금',
+    thumbnail: fruitSlicerThumbnail,
+    category: 'arcade',
+    component: lazy(() => import('./fruit-slicer')),
   },
 ];
 
