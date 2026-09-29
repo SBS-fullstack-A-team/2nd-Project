@@ -2,7 +2,8 @@
 //
 // 데이터 출처: 위키데이터 (https://www.wikidata.org, CC0 — 자유 이용)
 // 위키백과 문서 수(sitelinks)가 많은 = 유명한 선수 순으로, 한국어 이름이 있고
-// 포지션·신장·생년·국적·소속팀 이력이 모두 있는 선수만 골라 힌트 5개를 만든다.
+// 포지션·신장·생년·국적·소속팀 이력이 모두 있는 선수만 골라 힌트 5~6개를 만든다.
+// (게임이 마지막에 '이름 초성' 힌트를 자동으로 하나 더 붙인다)
 // 선발: 한국 선수 몫(KOREA_TARGET) + 나머지는 전 세계 유명한 순 (한 나라 최대 COUNTRY_CAP 명)
 //
 // 실행: node apps/api/seeds/scripts/hint-quiz-football.mjs [인원수=1000]
@@ -215,7 +216,7 @@ async function collectDetails(candidates) {
   return [...players.values()];
 }
 
-/** 선수 1명 → 힌트 5개 (막연한 것 → 구체적인 것). 정보가 모자라면 null */
+/** 선수 1명 → 힌트 5~6개 (국적 → 출생 → 포지션 → 소속팀 → 신장 → 다른 소속팀). 정보가 모자라면 null */
 function toQuestion(p) {
   const positions = POSITION_ORDER.filter((b) => p.positions.includes(b));
   const heightCm = p.height ? Math.round(p.height * 100) : 0;
@@ -225,24 +226,27 @@ function toQuestion(p) {
   // 한국어 이름이 있는 팀을 먼저, 그 안에서는 유명한 팀 순
   const clubs = [...p.teams.values()]
     .sort((a, b) => Number(b.hasKo) - Number(a.hasKo) || b.links - a.links)
-    .slice(0, 2)
+    .slice(0, 3)
     .map((t) => t.name);
 
   if (!p.ko || positions.length === 0 || countries.length === 0 || clubs.length === 0) return null;
+  // 동명이인 구분 괄호는 정답에서 뺀다 (예: '이종호 (축구 선수)' → '이종호')
+  const answer = p.ko.replace(/\s*\(.*?\)\s*/g, ' ').trim();
   if (heightCm < 150 || heightCm > 210 || !p.birth) return null;
 
   return {
-    answer: p.ko,
+    answer,
     en: p.en,
     koAliases: p.aliases ?? [],
     meta: {
       category: '축구선수',
       hints: [
-        { label: '포지션', value: positions.join(' / ') },
-        { label: '신장', value: `${heightCm}cm` },
-        { label: '출생', value: `${p.birth}년` },
         { label: '국적', value: countries.join(' / ') },
-        { label: '대표 소속팀', value: clubs.join(', ') },
+        { label: '출생 연도', value: `${p.birth}년` },
+        { label: '포지션', value: positions.join(' / ') },
+        { label: '소속팀', value: clubs[0] },
+        { label: '신장', value: `${heightCm}cm` },
+        ...(clubs.length > 1 ? [{ label: '다른 소속팀', value: clubs.slice(1).join(', ') }] : []),
       ],
       source: 'wikidata',
       wikidata: p.id,
@@ -331,7 +335,8 @@ for (const p of players.sort((a, b) => b.links - a.links)) {
   seen.add(q.answer);
   pool.push({ q, links: p.links });
 }
-const isKorean = ({ q }) => q.meta.hints[3].value.split(' / ').includes(KOREA);
+const countriesOf = (q) => q.meta.hints.find((h) => h.label === '국적').value.split(' / ');
+const isKorean = ({ q }) => countriesOf(q).includes(KOREA);
 
 // 한국 선수 몫을 먼저 채우고, 나머지는 나라별 상한을 지키며 유명한 순으로
 const picked = new Set(pool.filter(isKorean).slice(0, KOREA_TARGET));
@@ -339,7 +344,7 @@ const perCountry = new Map();
 for (const item of pool) {
   if (picked.size >= TARGET) break;
   if (picked.has(item) || isKorean(item)) continue;
-  const country = item.q.meta.hints[3].value.split(' / ')[0];
+  const country = countriesOf(item.q)[0];
   if ((perCountry.get(country) ?? 0) >= COUNTRY_CAP) continue;
   perCountry.set(country, (perCountry.get(country) ?? 0) + 1);
   picked.add(item);

@@ -16,13 +16,13 @@ export const CATEGORIES = [
 export const QUESTION_COUNT = 5;
 
 /** 힌트 하나가 열려 있는 시간(초) — 지나면 다음 힌트가 자동으로 열린다 */
-export const HINT_TIME_SEC = 10;
+export const HINT_TIME_SEC = 20;
 
 /**
- * 열린 힌트 개수별 점수 — 힌트 1개만 보고 맞히면 100점, 5개 다 보고 맞히면 20점.
- * 길이 = 한 문제의 최대 힌트 수
+ * 열린 힌트 개수별 점수 — 힌트 1개만 보고 맞히면 100점, 7개 다 보고 맞히면 10점.
+ * 길이 = 한 문제의 최대 힌트 수 (문제 힌트 최대 6개 + 마지막 '이름 초성' 힌트)
  */
-export const POINTS_BY_HINT = [100, 80, 60, 40, 20] as const;
+export const POINTS_BY_HINT = [100, 85, 70, 55, 40, 25, 10] as const;
 
 export const MAX_HINTS = POINTS_BY_HINT.length;
 
