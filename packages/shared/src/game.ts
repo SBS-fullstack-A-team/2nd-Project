@@ -59,7 +59,7 @@ export interface HintQuizMeta {
 export const MAX_SCORE_BY_GAME: Record<string, number> = {
   'chosung-quiz': 100,
   'fruit-slicer': 100_000,
-  'hint-quiz': 500,
+  'hint-quiz': 1000,
 };
 
 export const DEFAULT_MAX_SCORE = 1_000_000;
