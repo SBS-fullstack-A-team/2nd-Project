@@ -6,8 +6,10 @@ import {
   EXIT,
   MAX_LEVEL,
   PRE_WAVE_SECONDS,
+  REPAIR_RATE,
   ROWS,
   SCORE,
+  SIEGE,
   SKILLS,
   START_GOLD,
   START_LIVES,
@@ -16,7 +18,10 @@ import {
   comboMultiplier,
   hpScale,
   isBossWave,
+  maxDurability,
   rewardScale,
+  siegeScale,
+  speedScale,
   towerChain,
   towerDamage,
   towerRange,
@@ -53,6 +58,9 @@ export type Phase = 'break' | 'wave' | 'over' | 'win';
  *  frame by whoever is listening. */
 export type SimEvent =
   | { type: 'shotCannon' }
+  | { type: 'shotArrow' }
+  | { type: 'buildHit' }
+  | { type: 'buildBroken'; kind: BuildKind }
   | { type: 'chain' }
   | { type: 'kill'; kind: EnemyKind }
   | { type: 'skill'; kind: BuildKind }
@@ -115,6 +123,12 @@ export interface Build {
   angle: number;
   pulse: number;
   muzzle: number;
+  /** 남은 내구도 (목책은 0 으로 두고 쓰지 않는다) */
+  durability: number;
+  /** 내구도가 0 이 되어 사격을 멈춘 상태 — 정비 시간에 수리해야 다시 쏜다 */
+  broken: boolean;
+  /** 적에게 깎이는 중일 때 잠깐 켜지는 표시 (그림 전용) */
+  hurt: number;
 }
 
 export interface Shot {
@@ -245,7 +259,8 @@ export interface RunResult {
   victory: boolean;
 }
 
-export type BuildRefusal = 'occupied' | 'reserved' | 'funds' | 'seal' | 'trap' | 'closed';
+export type BuildRefusal =
+  'occupied' | 'reserved' | 'funds' | 'seal' | 'trap' | 'closed' | 'broken' | 'repairTime';
 
 export const REFUSAL_TEXT: Record<BuildRefusal, string> = {
   occupied: '그 칸에는 이미 무언가 있습니다.',
@@ -254,6 +269,8 @@ export const REFUSAL_TEXT: Record<BuildRefusal, string> = {
   seal: '길을 완전히 막는 배치입니다. 한 칸은 비워 두세요.',
   trap: '이미 들어온 왜군의 길이 끊깁니다.',
   closed: '이번 판은 끝났습니다.',
+  broken: '파손된 무기입니다. 정비 시간에 먼저 수리하세요.',
+  repairTime: '수리는 공세 사이 정비 시간에만 할 수 있습니다.',
 };
 
 const ENTRY_CELL = index(ENTRY.col, ENTRY.row);
@@ -498,6 +515,9 @@ export class Engine {
       angle: -Math.PI / 2,
       pulse: 1,
       muzzle: 0,
+      durability: maxDurability(kind, 1),
+      broken: false,
+      hurt: 0,
     });
     this.selected = cell;
     this.pending = null;
@@ -511,12 +531,19 @@ export class Engine {
     const build = this.buildAt(col, row);
     if (!build || this.finished) return false;
     if (!BUILDS[build.kind].upgradable || build.level >= MAX_LEVEL) return false;
+    if (build.broken) {
+      this.refusal = 'broken';
+      return false;
+    }
     const cost = upgradeCost(build.kind, build.level);
     if (this.gold < cost) {
       this.refusal = 'funds';
       return false;
     }
     this.gold -= cost;
+    // 늘어난 최대 내구도만큼 더해 준다 (깎인 만큼은 그대로 남는다)
+    build.durability +=
+      maxDurability(build.kind, build.level + 1) - maxDurability(build.kind, build.level);
     build.level += 1;
     build.invested += cost;
     build.pulse = 1;
@@ -529,6 +556,10 @@ export class Engine {
     const build = this.buildAt(col, row);
     if (!build || this.finished) return false;
     if (build.level < MAX_LEVEL || build.skillUnlocked) return false;
+    if (build.broken) {
+      this.refusal = 'broken';
+      return false;
+    }
     const cost = SKILLS[build.kind].cost;
     if (this.gold < cost) {
       this.refusal = 'funds';
@@ -542,12 +573,94 @@ export class Engine {
     return true;
   }
 
+  /** 내구도가 남은 비율 (내구도가 없는 목책은 1) */
+  durabilityRatio(build: Build): number {
+    const max = maxDurability(build.kind, build.level);
+    return max > 0 ? Math.max(0, build.durability) / max : 1;
+  }
+
+  /** 지금 수리하면 드는 군자금 (깎이지 않았으면 0) */
+  repairCost(build: Build): number {
+    const missing = 1 - this.durabilityRatio(build);
+    return missing <= 0 ? 0 : Math.max(1, Math.ceil(build.invested * REPAIR_RATE * missing));
+  }
+
+  /** 해체 환급 — 투자액의 60%, 깎인 무기는 그만큼 덜 돌려받는다 (최소 절반) */
+  refund(build: Build): number {
+    return Math.floor(build.invested * 0.6 * (0.5 + 0.5 * this.durabilityRatio(build)));
+  }
+
+  /** 정비 시간에 군자금을 들여 내구도를 가득 채우고 파손을 고친다 */
+  repair(col: number, row: number): boolean {
+    this.refusal = null;
+    const build = this.buildAt(col, row);
+    if (!build || this.finished) return false;
+    const cost = this.repairCost(build);
+    if (cost === 0) return false;
+    if (this.phase !== 'break') {
+      this.refusal = 'repairTime';
+      return false;
+    }
+    if (this.gold < cost) {
+      this.refusal = 'funds';
+      return false;
+    }
+    this.gold -= cost;
+    build.durability = maxDurability(build.kind, build.level);
+    build.broken = false;
+    build.pulse = 1;
+    return true;
+  }
+
+  /** 적이 옆 무기를 깎는다 — 닿는 거리 안에서 가장 가까운 성한 무기 하나만 */
+  private siege(enemy: Enemy, dt: number): void {
+    const siege = SIEGE[enemy.kind];
+    if (siege.dps <= 0 || siegeScale(this.wave) <= 0) return;
+    let target: Build | null = null;
+    let best = siege.reach * siege.reach;
+    for (const build of this.builds.values()) {
+      if (build.broken || build.kind === 'wall') continue;
+      const dx = build.col + 0.5 - enemy.x;
+      const dy = build.row + 0.5 - enemy.y;
+      const d = dx * dx + dy * dy;
+      if (d <= best) {
+        best = d;
+        target = build;
+      }
+    }
+    if (!target) return;
+    target.durability -= siege.dps * siegeScale(this.wave) * dt;
+    target.hurt = 0.25;
+    this.emit({ type: 'buildHit' });
+    if (target.durability <= 0) {
+      target.durability = 0;
+      target.broken = true;
+      target.muzzle = 0;
+      const x = target.col + 0.5;
+      const y = target.row + 0.5;
+      this.burst(x, y, 10, 'debris', FX.wood, {
+        speed: [1, 2.4],
+        size: [0.04, 0.08],
+        life: [0.35, 0.6],
+        drag: 3,
+        lift: 0.6,
+      });
+      this.burst(x, y, 4, 'smoke', FX.dirtLit, {
+        speed: [0.2, 0.6],
+        size: [0.12, 0.2],
+        life: [0.6, 1],
+      });
+      this.pushNote(x, y - 0.5, BUILDS[target.kind].name + ' 파손!', ENEMIES.boss.color, true);
+      this.emit({ type: 'buildBroken', kind: target.kind });
+    }
+  }
+
   sell(col: number, row: number): boolean {
     this.refusal = null;
     const cell = index(col, row);
     const build = this.builds.get(cell);
     if (!build || this.finished) return false;
-    this.gold += Math.floor(build.invested * 0.6);
+    this.gold += this.refund(build);
     this.builds.delete(cell);
     this.blocked[cell] = 0;
     if (this.selected === cell) this.selected = null;
@@ -589,7 +702,7 @@ export class Engine {
       kind,
       hp,
       maxHp: hp,
-      baseSpeed: def.speed,
+      baseSpeed: def.speed * speedScale(this.wave),
       armor: def.armor,
       reward: Math.round(def.reward * rewardScale(this.wave)),
       leak: def.leak,
@@ -867,6 +980,7 @@ export class Engine {
     const dx = target.x - cx;
     const dy = target.y - cy;
     const len = Math.max(0.0001, Math.hypot(dx, dy));
+    if (build.kind !== 'cannon') this.emit({ type: 'shotArrow' });
     if (build.kind === 'cannon') {
       this.emit({ type: 'shotCannon' });
       // 포구 화염과 화약 연기
@@ -1104,6 +1218,7 @@ export class Engine {
       const def = BUILDS[build.kind];
       build.pulse = Math.max(0, build.pulse - dt * 4);
       build.muzzle = Math.max(0, build.muzzle - dt * 8);
+      build.hurt = Math.max(0, build.hurt - dt);
 
       if (build.kind === 'wall') {
         const thorn = wallThorn(build.level);
@@ -1143,7 +1258,7 @@ export class Engine {
         continue;
       }
 
-      if (def.damage === 0) continue;
+      if (def.damage === 0 || build.broken) continue;
       const range = towerRange(build.kind, build.level);
 
       if (def.rate === 0) {
@@ -1228,6 +1343,7 @@ export class Engine {
       enemy.hitFlash = Math.max(0, enemy.hitFlash - dt);
       const slow = enemy.slow * (1 - enemy.slowResist);
       this.advance(enemy, enemy.baseSpeed * (1 - slow) * dt);
+      if (!enemy.dead) this.siege(enemy, dt);
     }
 
     this.enemies = this.enemies.filter((enemy) => !enemy.dead);

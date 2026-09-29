@@ -11,7 +11,7 @@ import {
   towerRange,
 } from './config';
 import type { Beam, Build, Engine, Enemy, Particle, Scorch, Shot } from './engine';
-import { ENEMIES } from './config';
+import { ENEMIES, maxDurability } from './config';
 import type { BuildKind, EnemyKind } from './config';
 import { colOf, isBuildable, rowOf } from './maze';
 
@@ -965,6 +965,56 @@ function drawBuild(ctx: CanvasRenderingContext2D, build: Build, time: number): v
       ctx.fill();
     }
   }
+
+  drawDurability(ctx, build, x, y, time);
+}
+
+/** 무기 내구도: 깎인 무기 위에 막대를, 파손된 무기에는 그을린 덮개와 금 간 표시를 그린다 */
+function drawDurability(
+  ctx: CanvasRenderingContext2D,
+  build: Build,
+  x: number,
+  y: number,
+  time: number,
+): void {
+  const max = maxDurability(build.kind, build.level);
+  if (max <= 0) return;
+  const ratio = Math.max(0, Math.min(1, build.durability / max));
+
+  if (build.broken) {
+    // 그을려 멈춘 무기: 어둡게 덮고 X 자 금, 수리가 필요하다는 뜻으로 천천히 깜빡인다
+    ctx.fillStyle = 'rgba(12,9,6,0.62)';
+    roundRect(ctx, x - 0.45, y - 0.4, 0.9, 0.82, 0.1);
+    ctx.fill();
+    ctx.strokeStyle = PALETTE.cinnabar;
+    ctx.globalAlpha = 0.55 + 0.35 * Math.sin(time * 4);
+    ctx.lineWidth = 0.05;
+    ctx.lineCap = 'round';
+    ctx.beginPath();
+    ctx.moveTo(x - 0.2, y - 0.2);
+    ctx.lineTo(x + 0.2, y + 0.2);
+    ctx.moveTo(x + 0.2, y - 0.2);
+    ctx.lineTo(x - 0.2, y + 0.2);
+    ctx.stroke();
+    ctx.globalAlpha = 1;
+    return;
+  }
+
+  if (ratio >= 1) return;
+  // 깎이는 중엔 막대를 붉게 번쩍인다
+  const w = 0.7;
+  const top = y - 0.52;
+  ctx.fillStyle = 'rgba(10,8,4,0.75)';
+  ctx.fillRect(x - w / 2, top, w, 0.08);
+  ctx.fillStyle =
+    build.hurt > 0
+      ? PALETTE.cinnabar
+      : ratio > 0.5
+        ? PALETTE.celadon
+        : ratio > 0.25
+          ? PALETTE.ochre
+          : PALETTE.cinnabar;
+  ctx.fillRect(x - w / 2 + 0.01, top + 0.01, (w - 0.02) * ratio, 0.06);
 }
 
 function drawEnemy(ctx: CanvasRenderingContext2D, enemy: Enemy, time: number): void {
@@ -1646,6 +1696,9 @@ export function drawBuildPreview(
       angle: -Math.PI / 2,
       pulse: 0,
       muzzle: 0,
+      durability: 0,
+      broken: false,
+      hurt: 0,
     },
     time,
   );
