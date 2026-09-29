@@ -139,6 +139,7 @@ pnpm dev
   - `config.ts`(규칙 상수), `*.module.css`, `thumbnail.svg`(16:9) 도 이 폴더에 둡니다.
   - 점수 등록·결과창·랭킹은 공통 페이지가 처리하므로 게임에서 만들지 않습니다.
   - 공통 UI 가 필요하면 `components/` 의 `Timer` 등을 가져다 씁니다.
+  - 색·모서리는 직접 쓰지 말고 **테마 토큰**(`var(--accent)` 등)을 씁니다. 그래야 XP·클래식 두 테마에서 모두 자연스럽습니다 (아래 "디자인 테마" 참고).
 - [ ] **2. registry 등록** — `apps/web/src/games/registry.ts` 의 `GAMES` 에 **내 카드 번호 위치**에 추가
   ```ts
   {
@@ -163,6 +164,32 @@ pnpm dev
   - 문제는 직접 만든 것만 사용합니다 (방송 프로그램 이름·로고·실제 방송 문제 금지).
 - [ ] **5. 확인** — `pnpm typecheck && pnpm lint && pnpm build` 통과, `pnpm dev` 로 한 판 끝까지 플레이 → 점수 등록 → 랭킹 확인
 - [ ] **6. PR** — 새 테이블이나 API 는 필요 없습니다. 필요해 보이면 먼저 팀과 상의하세요.
+
+## 디자인 테마 (XP / 클래식)
+
+사이트는 두 가지 테마를 버튼 하나로 바꿔 가며 쓸 수 있습니다. 기본은 **XP** 입니다.
+
+| 테마   | 모습                                                               | 전환 버튼 위치        |
+| ------ | ------------------------------------------------------------------ | --------------------- |
+| XP     | 추억의 윈도우 XP 느낌 — 바탕화면, 파란 제목 표시줄 창, 작업 표시줄 | 작업 표시줄 오른쪽 🎨 |
+| 클래식 | 처음 디자인 — 크림색 배경, 두꺼운 테두리 카드                      | 헤더 오른쪽 🎨        |
+
+- 선택한 테마는 브라우저(`localStorage` 의 `simsim:theme`)에 저장되어 다음 방문에도 유지됩니다.
+- 테마는 `<html data-theme="xp|classic">` 로 적용되고, 로딩 중 깜빡이지 않도록 `index.html` 에서 먼저 적용합니다.
+- 게임 도중 테마를 바꾸면 화면 틀이 바뀌면서 게임이 처음부터 다시 시작됩니다.
+
+**게임 담당자:** 게임 폴더의 CSS 에서는 색·모서리를 직접 적지 말고 `styles/global.css` 의 토큰을 쓰세요.
+`--bg`, `--surface`, `--surface-strong`, `--on-strong`, `--text`, `--text-muted`, `--border`, `--accent`, `--yellow`, `--success`, `--danger`, `--radius`, `--radius-sm`
+→ 토큰 값이 테마마다 달라서 따로 작업하지 않아도 두 테마를 따라갑니다. 공통 버튼은 `className="btn"` / `"btn btn-primary"` 를 쓰면 됩니다.
+
+**공통 UI 담당자:** 구조
+
+- 테마 상태: `lib/theme.ts` (`useTheme`, `useThemeStyles`), `components/ThemeProvider.tsx`, `components/ThemeToggle.tsx`
+- 테마별 토큰·공통 버튼: `styles/global.css` (`:root` = 클래식, `:root[data-theme='xp']` = XP)
+- 공통 컴포넌트·페이지 스타일은 테마별 파일로 나눕니다: `Xxx.classic.module.css` / `Xxx.xp.module.css`
+  - 구조가 같으면 `useThemeStyles({ classic, xp })` 로 스타일만 바꿔 끼우고 (`GameCard`, `RankingList`, `Timer`)
+  - 구조가 다르면 테마별로 화면 틀만 나눕니다 (`Layout`, `HomePage`, `GamePage`, `ResultModal`)
+- XP 창 틀은 `components/Window.tsx` 공통 컴포넌트를 씁니다.
 
 ## CI (GitHub Actions)
 

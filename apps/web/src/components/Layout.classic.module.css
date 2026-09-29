@@ -4,7 +4,11 @@
   flex-direction: column;
 }
 .header {
-  padding: 14px 16px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 10px 16px;
   border-bottom: 3px solid var(--text);
   background: var(--surface);
 }

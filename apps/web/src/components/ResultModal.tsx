@@ -3,7 +3,10 @@ import { Link } from 'react-router';
 import { NICKNAME_MAX_LENGTH, type SubmitScoreResponse } from '@simsim/shared';
 import { api, getErrorMessage } from '../lib/api';
 import { RankingList } from './RankingList';
-import styles from './ResultModal.module.css';
+import { useTheme } from '../lib/theme';
+import { Window } from './Window';
+import classicStyles from './ResultModal.classic.module.css';
+import xpStyles from './ResultModal.xp.module.css';
 
 const NICKNAME_STORAGE_KEY = 'simsim:nickname';
 
@@ -36,6 +39,8 @@ export function ResultModal({ gameId, gameName, score, onRetry }: ResultModalPro
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [submitted, setSubmitted] = useState<SubmitScoreResponse | null>(null);
+  const { theme } = useTheme();
+  const styles = theme === 'xp' ? xpStyles : classicStyles;
 
   async function handleSubmit(e: FormEvent) {
     e.preventDefault();
@@ -57,58 +62,68 @@ export function ResultModal({ gameId, gameName, score, onRetry }: ResultModalPro
     }
   }
 
+  const content = (
+    <>
+      <h2 id="result-title" className={styles.title}>
+        게임 종료!
+      </h2>
+      <p className={styles.score}>
+        <strong>{score}</strong>점
+      </p>
+
+      {submitted ? (
+        <p className={styles.registered}>🎉 {submitted.rank}위로 등록됐어요!</p>
+      ) : (
+        <form className={styles.form} onSubmit={handleSubmit}>
+          <input
+            className={styles.input}
+            value={nickname}
+            onChange={(e) => setNickname(e.target.value)}
+            maxLength={NICKNAME_MAX_LENGTH}
+            placeholder={`닉네임 (최대 ${NICKNAME_MAX_LENGTH}자)`}
+            aria-label="닉네임"
+            autoFocus
+          />
+          <button type="submit" className="btn btn-primary" disabled={submitting}>
+            {submitting ? '등록 중…' : '점수 등록'}
+          </button>
+        </form>
+      )}
+      {error && (
+        <p className={styles.error} role="alert">
+          {error}
+        </p>
+      )}
+
+      <h3 className={styles.rankingTitle}>랭킹 TOP 10</h3>
+      <div className={styles.ranking}>
+        <RankingList gameId={gameId} highlightId={submitted?.id} refreshKey={submitted?.id ?? 0} />
+      </div>
+
+      <div className={styles.actions}>
+        <button type="button" className="btn btn-primary" onClick={onRetry}>
+          다시 하기
+        </button>
+        <Link to="/" className="btn">
+          다른 게임
+        </Link>
+      </div>
+    </>
+  );
+
   return (
     <div className={styles.backdrop}>
       <div className={styles.modal} role="dialog" aria-modal="true" aria-labelledby="result-title">
-        <p className={styles.gameName}>{gameName}</p>
-        <h2 id="result-title" className={styles.title}>
-          게임 종료!
-        </h2>
-        <p className={styles.score}>
-          <strong>{score}</strong>점
-        </p>
-
-        {submitted ? (
-          <p className={styles.registered}>🎉 {submitted.rank}위로 등록됐어요!</p>
+        {theme === 'xp' ? (
+          <Window title={gameName} icon="🏁" bodyClassName={xpStyles.body}>
+            {content}
+          </Window>
         ) : (
-          <form className={styles.form} onSubmit={handleSubmit}>
-            <input
-              className={styles.input}
-              value={nickname}
-              onChange={(e) => setNickname(e.target.value)}
-              maxLength={NICKNAME_MAX_LENGTH}
-              placeholder={`닉네임 (최대 ${NICKNAME_MAX_LENGTH}자)`}
-              aria-label="닉네임"
-              autoFocus
-            />
-            <button type="submit" className="btn btn-primary" disabled={submitting}>
-              {submitting ? '등록 중…' : '점수 등록'}
-            </button>
-          </form>
+          <>
+            <p className={classicStyles.gameName}>{gameName}</p>
+            {content}
+          </>
         )}
-        {error && (
-          <p className={styles.error} role="alert">
-            {error}
-          </p>
-        )}
-
-        <h3 className={styles.rankingTitle}>랭킹 TOP 10</h3>
-        <div className={styles.ranking}>
-          <RankingList
-            gameId={gameId}
-            highlightId={submitted?.id}
-            refreshKey={submitted?.id ?? 0}
-          />
-        </div>
-
-        <div className={styles.actions}>
-          <button type="button" className="btn btn-primary" onClick={onRetry}>
-            다시 하기
-          </button>
-          <Link to="/" className="btn">
-            다른 게임
-          </Link>
-        </div>
       </div>
     </div>
   );

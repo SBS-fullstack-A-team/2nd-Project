@@ -1,0 +1,75 @@
+.backdrop {
+  position: fixed;
+  inset: 0;
+  background: rgb(0 20 60 / 0.45);
+  display: grid;
+  place-items: center;
+  padding: 16px;
+  z-index: 10;
+}
+.modal {
+  width: 100%;
+  max-width: 420px;
+  max-height: calc(100vh - 32px);
+  overflow-y: auto;
+}
+.body {
+  padding: 20px;
+  text-align: center;
+}
+.title {
+  margin: 0;
+  font-size: 1.4rem;
+}
+.score {
+  margin: 8px 0 16px;
+  font-size: 1.1rem;
+}
+.score strong {
+  font-size: 2.8rem;
+  color: var(--accent);
+}
+.form {
+  display: flex;
+  gap: 8px;
+}
+.input {
+  flex: 1;
+  min-width: 0;
+  font: inherit;
+  padding: 6px 8px;
+  border: 1px solid var(--border);
+  border-radius: 0;
+  background: var(--surface);
+  color: var(--text);
+}
+.input:focus {
+  outline: none;
+  border-color: var(--accent);
+}
+.registered {
+  font-weight: 700;
+  margin: 0;
+}
+.error {
+  color: var(--danger);
+  margin: 8px 0 0;
+  font-size: 0.9rem;
+}
+.rankingTitle {
+  margin: 20px 0 6px;
+  font-size: 0.95rem;
+  text-align: left;
+}
+.ranking {
+  text-align: left;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  padding: 4px;
+}
+.actions {
+  display: flex;
+  gap: 8px;
+  justify-content: center;
+  margin-top: 20px;
+}
