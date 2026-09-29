@@ -4,6 +4,7 @@ import { useFetch } from '../lib/useFetch';
 import { useThemeStyles } from '../lib/theme';
 import classicStyles from './RankingList.classic.module.css';
 import xpStyles from './RankingList.xp.module.css';
+import win98Styles from './RankingList.win98.module.css';
 
 interface RankingListProps {
   gameId: string;
@@ -21,7 +22,7 @@ export function RankingList({
   highlightId,
   refreshKey = 0,
 }: RankingListProps) {
-  const styles = useThemeStyles({ classic: classicStyles, xp: xpStyles });
+  const styles = useThemeStyles({ classic: classicStyles, xp: xpStyles, win98: win98Styles });
   const ranking = useFetch(`${gameId}:${limit}:${refreshKey}`, () => api.getRanking(gameId, limit));
 
   if (ranking.status === 'loading') return <p className={styles.message}>랭킹 불러오는 중…</p>;

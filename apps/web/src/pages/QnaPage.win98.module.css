@@ -1,0 +1,73 @@
+/* 98 "도움말" 창 느낌 */
+.body {
+  padding: 4px;
+}
+.title {
+  margin: 0;
+  padding: 12px 16px;
+  background: linear-gradient(90deg, #000080, #1084d0);
+  color: #fff;
+  font-size: clamp(1.2rem, 4.5vw, 1.6rem);
+}
+.intro {
+  margin: 10px 8px 6px;
+  color: var(--text-muted);
+  font-size: 0.85rem;
+}
+.list {
+  padding: 2px;
+  background: #fff;
+  box-shadow: var(--bevel-sunken);
+}
+.item + .item {
+  border-top: 1px solid #dfdfdf;
+}
+.question {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 7px 10px;
+  font-weight: 700;
+  cursor: pointer;
+  list-style: none;
+}
+.question::-webkit-details-marker {
+  display: none;
+}
+.question::before {
+  content: '▸';
+  color: var(--text-muted);
+}
+.item[open] .question::before {
+  content: '▾';
+}
+.question:hover {
+  background: var(--selection);
+  color: #fff;
+}
+.mark {
+  display: grid;
+  place-items: center;
+  width: 18px;
+  height: 18px;
+  background: #ffff80;
+  color: #000;
+  font-size: 0.7rem;
+  box-shadow: var(--bevel-raised);
+  flex-shrink: 0;
+}
+.answer {
+  padding: 6px 12px 10px 42px;
+  font-size: 0.9rem;
+  line-height: 1.7;
+}
+.answer a,
+.contact a {
+  color: #0000ee;
+}
+.contact {
+  margin: 0;
+  padding: 10px 8px 6px;
+  font-size: 0.85rem;
+  color: var(--text-muted);
+}

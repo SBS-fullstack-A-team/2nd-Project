@@ -35,3 +35,8 @@
   color: var(--text-muted);
   font-size: 0.8rem;
 }
+
+.themeSelect {
+  padding: 8px 12px;
+  appearance: auto;
+}
