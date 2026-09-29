@@ -226,3 +226,32 @@
   font-size: 0.8rem;
   color: var(--text-muted);
 }
+
+/* 못 맞힌 문제 — 정답 공개 */
+.reveal {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 6px;
+  padding: 14px;
+  border: 2px dashed var(--border);
+  border-radius: var(--radius);
+  background: var(--surface);
+  animation: reveal 0.35s ease-out;
+}
+.revealLabel {
+  margin: 0;
+  font-size: 0.85rem;
+  color: var(--text-muted);
+}
+.revealAnswer {
+  margin: 0 0 8px;
+  font-size: clamp(1.4rem, 6vw, 2rem);
+  font-weight: 900;
+  color: var(--accent);
+}
+@media (prefers-reduced-motion: reduce) {
+  .reveal {
+    animation: none;
+  }
+}
