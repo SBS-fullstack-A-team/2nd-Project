@@ -27,7 +27,14 @@ function toCount(v: unknown): number {
 
 function defaultSave(): SaveData {
   return {
-    stats: { totalSliced: 0, totalCombos: 0, bestSwipe: 0, highScore: 0 },
+    stats: {
+      totalSliced: 0,
+      totalCombos: 0,
+      bestSwipe: 0,
+      highScore: 0,
+      bestCombo: 0,
+      totalFevers: 0,
+    },
     unlocked: ['basic'],
     selected: 'basic',
   };
@@ -46,6 +53,9 @@ function load(): SaveData {
       totalCombos: toCount(stats.totalCombos),
       bestSwipe: toCount(stats.bestSwipe),
       highScore: toCount(stats.highScore),
+      // 새로 생긴 기록 — 예전 저장 데이터에는 없으므로 0 부터 시작
+      bestCombo: toCount(stats.bestCombo),
+      totalFevers: toCount(stats.totalFevers),
     };
     if (Array.isArray(parsed.unlocked)) {
       data.unlocked = [
@@ -102,9 +112,16 @@ export class QuestManager {
     return this.checkUnlocks();
   }
 
-  /** 콤보(3개 이상 연속)가 성립할 때마다 호출 */
-  recordCombo(): BladeDef[] {
+  /** 콤보(3개 이상 연속)가 성립할 때마다 호출. count = 이번 콤보에서 벤 과일 수 */
+  recordCombo(count: number): BladeDef[] {
     this.data.stats.totalCombos += 1;
+    this.data.stats.bestCombo = Math.max(this.data.stats.bestCombo, count);
+    return this.checkUnlocks();
+  }
+
+  /** 피버 타임이 발동할 때마다 호출 */
+  recordFever(): BladeDef[] {
+    this.data.stats.totalFevers += 1;
     return this.checkUnlocks();
   }
 

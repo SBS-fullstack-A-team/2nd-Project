@@ -39,9 +39,10 @@ export const GAMES: readonly GameMeta[] = [
   {
     id: 'fruit-slicer',
     name: '과일 슬라이서',
-    description: '날아오는 과일을 베고 폭탄은 피하라! 퀘스트로 검 스킨 해금',
+    description: '날아오는 과일을 베고 폭탄은 피하라! 검 스킨 10종 해금과 피버 타임',
     thumbnail: fruitSlicerThumbnail,
     category: 'arcade',
+    card: 3,
     component: lazy(() => import('./fruit-slicer')),
   },
 ];

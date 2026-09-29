@@ -263,20 +263,25 @@ function BladeInventory({
           const unlocked = snapshot.unlocked.has(blade.id);
           const selected = snapshot.selected === blade.id;
           const quest = QUESTS.find((q) => q.reward === blade.id);
+          const legend = blade.tier === 'legend';
           return (
             <li key={blade.id}>
               <button
                 type="button"
-                className={`${styles.bladeItem} ${selected ? styles.bladeSelected : ''}`}
+                className={`${styles.bladeItem} ${legend ? styles.bladeLegend : ''} ${selected ? styles.bladeSelected : ''}`}
                 disabled={!unlocked}
                 aria-pressed={selected}
                 onClick={() => onSelect(blade.id)}
               >
-                <span className={styles.bladeSwatch} style={{ background: blade.preview }} />
+                <span
+                  className={`${styles.bladeSwatch} ${legend ? styles.swatchShine : ''}`}
+                  style={{ background: blade.preview }}
+                />
                 <span className={styles.bladeInfo}>
                   <strong>
                     {unlocked ? '' : '🔒 '}
                     {blade.name}
+                    {legend && <span className={styles.legendBadge}>전설</span>}
                   </strong>
                   <small>
                     {unlocked ? blade.description : `해금 조건: ${quest?.title ?? '-'}`}

@@ -8,7 +8,19 @@ export const pick = <T>(list: readonly T[]): T => list[Math.floor(Math.random() 
  * Particle — 과즙, 불꽃, 연기, 꽃잎, 별 등 모든 입자
  * ========================================================= */
 export type ParticleKind =
-  'juice' | 'spark' | 'neon' | 'fire' | 'smoke' | 'petal' | 'star' | 'debris';
+  | 'juice'
+  | 'spark'
+  | 'neon'
+  | 'fire'
+  | 'smoke'
+  | 'petal'
+  | 'star'
+  | 'debris'
+  | 'snow'
+  | 'shard'
+  | 'wisp'
+  | 'nebula'
+  | 'ring';
 
 export interface ParticleOptions {
   x: number;
@@ -143,6 +155,86 @@ export class Particle {
         ctx.rotate(this.rot);
         ctx.fillRect(-this.size / 2, -this.size / 2, this.size, this.size * 0.6);
         ctx.restore();
+        break;
+      }
+      case 'snow': {
+        // 6갈래 눈꽃 결정
+        ctx.globalCompositeOperation = 'lighter';
+        ctx.lineWidth = 1.3;
+        ctx.lineCap = 'round';
+        ctx.save();
+        ctx.translate(this.x, this.y);
+        ctx.rotate(this.rot * 0.3);
+        const s = this.size;
+        ctx.beginPath();
+        for (let i = 0; i < 6; i++) {
+          const a = (i / 6) * TAU;
+          const cx = Math.cos(a);
+          const cy = Math.sin(a);
+          ctx.moveTo(0, 0);
+          ctx.lineTo(cx * s, cy * s);
+          // 가지 끝의 작은 V
+          const bx = cx * s * 0.6;
+          const by = cy * s * 0.6;
+          ctx.moveTo(bx, by);
+          ctx.lineTo(bx + Math.cos(a + 0.7) * s * 0.3, by + Math.sin(a + 0.7) * s * 0.3);
+          ctx.moveTo(bx, by);
+          ctx.lineTo(bx + Math.cos(a - 0.7) * s * 0.3, by + Math.sin(a - 0.7) * s * 0.3);
+        }
+        ctx.stroke();
+        ctx.restore();
+        break;
+      }
+      case 'shard': {
+        // 반짝이는 결정 조각 (길쭉한 삼각형)
+        ctx.globalCompositeOperation = 'lighter';
+        ctx.save();
+        ctx.translate(this.x, this.y);
+        ctx.rotate(this.rot);
+        const s = this.size * (0.7 + 0.3 * Math.sin(this.age * 30));
+        ctx.beginPath();
+        ctx.moveTo(0, -s);
+        ctx.lineTo(s * 0.45, s * 0.6);
+        ctx.lineTo(-s * 0.45, s * 0.6);
+        ctx.closePath();
+        ctx.fill();
+        ctx.restore();
+        break;
+      }
+      case 'wisp': {
+        // 빛을 삼키는 검은 구체 + 보랏빛 테두리
+        const s = this.size * (1 - t * 0.6);
+        ctx.fillStyle = '#0c0018';
+        ctx.beginPath();
+        ctx.arc(this.x, this.y, s, 0, TAU);
+        ctx.fill();
+        ctx.globalCompositeOperation = 'lighter';
+        ctx.lineWidth = 1.4;
+        ctx.stroke();
+        break;
+      }
+      case 'nebula': {
+        // 부드럽게 번지는 성운 구름
+        const s = this.size * (1 + t * 1.5);
+        const g = ctx.createRadialGradient(this.x, this.y, 0, this.x, this.y, s);
+        g.addColorStop(0, this.color);
+        g.addColorStop(1, 'rgba(0,0,0,0)');
+        ctx.globalCompositeOperation = 'lighter';
+        ctx.globalAlpha = alpha * 0.45;
+        ctx.fillStyle = g;
+        ctx.beginPath();
+        ctx.arc(this.x, this.y, s, 0, TAU);
+        ctx.fill();
+        break;
+      }
+      case 'ring': {
+        // 퍼져 나가는 충격파 고리 (size = 최종 반지름)
+        const ease = 1 - (1 - t) ** 3;
+        ctx.globalCompositeOperation = 'lighter';
+        ctx.lineWidth = 4 * (1 - t) + 0.5;
+        ctx.beginPath();
+        ctx.arc(this.x, this.y, this.size * ease, 0, TAU);
+        ctx.stroke();
         break;
       }
     }
@@ -360,10 +452,13 @@ interface TrailPoint {
 
 interface TrailLayer {
   width: number;
+  /** 'rainbow' 이면 구간마다 색상(hue)이 흐른다 */
   color: string;
   alpha: number;
   glow: boolean;
 }
+
+const RAINBOW = 'rainbow';
 
 /** 스킨별 궤적 레이어 (바깥 광채 → 본체 → 가운데 심) */
 const TRAIL_LAYERS: Record<BladeId, TrailLayer[]> = {
@@ -392,7 +487,39 @@ const TRAIL_LAYERS: Record<BladeId, TrailLayer[]> = {
     { width: 1.2, color: '#ffd700', alpha: 0.95, glow: true },
     { width: 0.4, color: '#fffbe0', alpha: 1, glow: false },
   ],
+  // ----- 전설 등급 -----
+  frost: [
+    { width: 3.2, color: '#3fb8ff', alpha: 0.3, glow: true },
+    { width: 1.6, color: '#9fe8ff', alpha: 0.55, glow: true },
+    { width: 0.9, color: '#e6fbff', alpha: 0.95, glow: false },
+    { width: 0.3, color: '#ffffff', alpha: 1, glow: false },
+  ],
+  thunder: [
+    { width: 3.4, color: '#3a48ff', alpha: 0.35, glow: true },
+    { width: 1.2, color: '#9aa6ff', alpha: 0.9, glow: true },
+    { width: 0.4, color: '#ffffff', alpha: 1, glow: false },
+  ],
+  void: [
+    // 보랏빛 광채 안에 검은 심 — 빛을 삼키는 느낌
+    { width: 3.6, color: '#6b21ff', alpha: 0.45, glow: true },
+    { width: 1.7, color: '#c77dff', alpha: 0.8, glow: true },
+    { width: 1.0, color: '#0a0014', alpha: 1, glow: false },
+  ],
+  prism: [
+    { width: 3.2, color: RAINBOW, alpha: 0.35, glow: true },
+    { width: 1.3, color: RAINBOW, alpha: 0.9, glow: true },
+    { width: 0.4, color: '#ffffff', alpha: 1, glow: false },
+  ],
+  galaxy: [
+    { width: 3.8, color: '#4b1fd6', alpha: 0.4, glow: true },
+    { width: 2.0, color: '#ff5ec8', alpha: 0.45, glow: true },
+    { width: 1.0, color: '#7dd8ff', alpha: 0.7, glow: true },
+    { width: 0.35, color: '#ffffff', alpha: 1, glow: false },
+  ],
 };
+
+/** 피버 타임 중 칼날 바깥에 한 겹 더 두르는 무지개 광채 */
+const FEVER_LAYER: TrailLayer = { width: 4.5, color: RAINBOW, alpha: 0.3, glow: true };
 
 const TRAIL_LIFE = 0.16;
 const TRAIL_WIDTH = 9;
@@ -426,6 +553,8 @@ function smooth(points: TrailPoint[], steps: number): TrailPoint[] {
 
 export class Blade {
   skin: BladeId = 'basic';
+  /** 피버 타임 중이면 무지개 광채가 더해진다 */
+  fever = false;
   /** 손을 뗐다 다시 누르면 새 획(stroke)으로 따로 그린다 */
   private strokes: TrailPoint[][] = [];
 
@@ -455,9 +584,11 @@ export class Blade {
       const pts = smooth(stroke, stroke.length > 20 ? 2 : 4);
       const n = pts.length;
       ctx.lineCap = 'round';
-      for (const layer of TRAIL_LAYERS[this.skin]) {
+      const layers = TRAIL_LAYERS[this.skin];
+      for (const layer of this.fever ? [FEVER_LAYER, ...layers] : layers) {
         ctx.globalCompositeOperation = layer.glow ? 'lighter' : 'source-over';
-        ctx.strokeStyle = layer.color;
+        const rainbow = layer.color === RAINBOW;
+        if (!rainbow) ctx.strokeStyle = layer.color;
         for (let i = 1; i < n; i++) {
           const a = pts[i - 1]!;
           const b = pts[i]!;
@@ -467,6 +598,8 @@ export class Blade {
           let w = TRAIL_WIDTH * layer.width * taper * (0.35 + 0.65 * fade);
           if (this.skin === 'flame') w *= 0.8 + Math.random() * 0.4;
           if (w < 0.3) continue;
+          // 무지개: 시간이 지나며 색이 궤적을 따라 흐른다
+          if (rainbow) ctx.strokeStyle = `hsl(${(time * 360 + i * 9) % 360}, 100%, 62%)`;
           ctx.globalAlpha = layer.alpha * fade;
           ctx.lineWidth = w;
           ctx.beginPath();
@@ -476,9 +609,75 @@ export class Blade {
         }
       }
       if (this.skin === 'neon') this.drawLightning(ctx, pts, time);
+      if (this.skin === 'thunder') this.drawBranchingBolt(ctx, pts, time);
+      if (this.skin === 'galaxy') this.drawStarDust(ctx, pts, time);
     }
     ctx.globalAlpha = 1;
     ctx.globalCompositeOperation = 'source-over';
+  }
+
+  /** 뇌신의 검 — 궤적을 따라 치는 굵은 번개 + 옆으로 갈라지는 가지 */
+  private drawBranchingBolt(ctx: CanvasRenderingContext2D, pts: TrailPoint[], time: number) {
+    const nodes: { x: number; y: number; fade: number }[] = [];
+    for (let i = 0; i < pts.length; i += 4) {
+      const p = pts[i]!;
+      const fade = Math.max(0, 1 - (time - p.t) / TRAIL_LIFE);
+      if (fade > 0) nodes.push({ x: p.x + rand(-9, 9) * fade, y: p.y + rand(-9, 9) * fade, fade });
+    }
+    if (nodes.length < 2) return;
+    ctx.globalCompositeOperation = 'lighter';
+    ctx.lineJoin = 'miter';
+    const strokePath = (width: number, color: string, alpha: number) => {
+      ctx.strokeStyle = color;
+      ctx.lineWidth = width;
+      ctx.globalAlpha = alpha;
+      ctx.beginPath();
+      ctx.moveTo(nodes[0]!.x, nodes[0]!.y);
+      for (const nd of nodes) ctx.lineTo(nd.x, nd.y);
+      ctx.stroke();
+    };
+    strokePath(7, '#4b5cff', 0.35);
+    strokePath(2.4, '#e8ecff', 0.95);
+
+    // 갈라지는 가지 (매 프레임 새로 — 지직거리는 느낌)
+    ctx.strokeStyle = '#fff6a8';
+    ctx.lineWidth = 1.3;
+    for (const nd of nodes) {
+      if (Math.random() > 0.35) continue;
+      let x = nd.x;
+      let y = nd.y;
+      const dir = rand(0, TAU);
+      ctx.globalAlpha = 0.8 * nd.fade;
+      ctx.beginPath();
+      ctx.moveTo(x, y);
+      for (let k = 0; k < 3; k++) {
+        x += Math.cos(dir + rand(-0.8, 0.8)) * rand(8, 16);
+        y += Math.sin(dir + rand(-0.8, 0.8)) * rand(8, 16);
+        ctx.lineTo(x, y);
+      }
+      ctx.stroke();
+    }
+    ctx.lineJoin = 'round';
+  }
+
+  /** 갤럭시 세이버 — 궤적 주변에 반짝이는 작은 별무리 */
+  private drawStarDust(ctx: CanvasRenderingContext2D, pts: TrailPoint[], time: number) {
+    ctx.globalCompositeOperation = 'lighter';
+    ctx.fillStyle = '#ffffff';
+    for (let i = 0; i < pts.length; i += 2) {
+      const p = pts[i]!;
+      const fade = Math.max(0, 1 - (time - p.t) / TRAIL_LIFE);
+      if (fade <= 0) continue;
+      // 점의 시간값으로 위치를 고정해 별이 제자리에서 반짝이게 한다
+      const seed = p.t * 1000 + i;
+      const ox = Math.sin(seed * 12.9898) * 14;
+      const oy = Math.cos(seed * 78.233) * 14;
+      const twinkle = 0.5 + 0.5 * Math.sin(time * 30 + seed);
+      ctx.globalAlpha = fade * twinkle;
+      ctx.beginPath();
+      ctx.arc(p.x + ox, p.y + oy, 0.8 + twinkle * 1.4, 0, TAU);
+      ctx.fill();
+    }
   }
 
   /** 네온 사이버 — 궤적을 따라 지글거리는 번개 2줄 (파랑·핑크) */
@@ -623,6 +822,119 @@ export class Blade {
           );
         }
         break;
+      // ----- 전설 등급 -----
+      case 'frost':
+        if (Math.random() < 0.55) {
+          add({
+            x: x + rand(-5, 5),
+            y: y + rand(-5, 5),
+            vx: rand(-30, 30),
+            vy: rand(-20, 30),
+            life: rand(0.7, 1.2),
+            size: rand(4, 7),
+            color: pick(['#dff8ff', '#9fe8ff']),
+            kind: 'snow',
+            gravity: 0.06,
+            drag: 1.5,
+          });
+        }
+        if (Math.random() < 0.4) {
+          add({
+            x,
+            y,
+            vx: rand(-15, 15),
+            vy: rand(-10, 20),
+            life: rand(0.6, 1),
+            size: rand(5, 9),
+            color: '#bfeaff',
+            kind: 'smoke',
+            gravity: 0.02,
+            drag: 1.5,
+          });
+        }
+        break;
+      case 'thunder':
+        for (let i = 0; i < 2; i++) {
+          add({
+            x,
+            y,
+            vx: rand(-260, 260),
+            vy: rand(-260, 260),
+            life: rand(0.12, 0.25),
+            size: 1.6,
+            color: pick(['#ffffff', '#fff6a8', '#9aa6ff']),
+            kind: 'spark',
+            gravity: 0,
+            drag: 4,
+          });
+        }
+        break;
+      case 'void':
+        if (Math.random() < 0.6) {
+          add({
+            x: x + rand(-4, 4),
+            y: y + rand(-4, 4),
+            vx: back.vx * 0.2 + rand(-25, 25),
+            vy: back.vy * 0.2 + rand(-25, 25),
+            life: rand(0.4, 0.7),
+            size: rand(3, 6),
+            color: pick(['#9d4dff', '#c77dff']),
+            kind: 'wisp',
+            gravity: -0.05,
+            drag: 2.5,
+          });
+        }
+        break;
+      case 'prism':
+        if (Math.random() < 0.7) {
+          add({
+            x,
+            y,
+            vx: rand(-90, 90),
+            vy: rand(-90, 40),
+            life: rand(0.4, 0.8),
+            size: rand(3, 6),
+            color: `hsl(${Math.floor(rand(0, 360))}, 100%, 65%)`,
+            kind: 'shard',
+            gravity: 0.25,
+            drag: 1.8,
+          });
+        }
+        break;
+      case 'galaxy':
+        if (Math.random() < 0.5) {
+          add({
+            x,
+            y,
+            vx: rand(-20, 20),
+            vy: rand(-20, 20),
+            life: rand(0.6, 1),
+            size: rand(8, 14),
+            color: pick(['rgba(123,77,255,0.9)', 'rgba(255,94,200,0.9)', 'rgba(125,216,255,0.9)']),
+            kind: 'nebula',
+            gravity: 0,
+            drag: 2,
+          });
+        }
+        if (Math.random() < 0.4) {
+          add({
+            x: x + rand(-8, 8),
+            y: y + rand(-8, 8),
+            vx: rand(-30, 30),
+            vy: rand(-30, 30),
+            life: rand(0.5, 0.9),
+            size: rand(2.5, 4.5),
+            color: '#ffffff',
+            kind: 'star',
+            gravity: 0,
+            drag: 2,
+          });
+        }
+        break;
+    }
+
+    function add(o: ParticleOptions) {
+      out.push(new Particle(o));
     }
   }
 
@@ -684,6 +996,96 @@ export class Blade {
           drag: 2,
         }));
         break;
+      // ----- 전설 등급: 입자 + 충격파 고리 -----
+      case 'frost':
+        ring('#9fe8ff', 70);
+        burst(10, 0.6, () => ({
+          life: rand(0.8, 1.3),
+          size: rand(5, 9),
+          color: pick(['#dff8ff', '#9fe8ff']),
+          kind: 'snow',
+          gravity: 0.15,
+          drag: 2,
+        }));
+        burst(8, 1.2, () => ({
+          life: 0.5,
+          size: rand(3, 6),
+          color: '#e6fbff',
+          kind: 'shard',
+          gravity: 0.6,
+          drag: 1.5,
+        }));
+        break;
+      case 'thunder':
+        ring('#9aa6ff', 80);
+        ring('#ffffff', 45);
+        burst(18, 1.6, () => ({
+          life: rand(0.15, 0.3),
+          size: 2,
+          color: pick(['#ffffff', '#fff6a8', '#9aa6ff']),
+          kind: 'spark',
+          gravity: 0,
+          drag: 3,
+        }));
+        break;
+      case 'void':
+        ring('#9d4dff', 75);
+        burst(12, 0.5, () => ({
+          life: rand(0.5, 0.9),
+          size: rand(4, 8),
+          color: pick(['#9d4dff', '#c77dff']),
+          kind: 'wisp',
+          gravity: -0.1,
+          drag: 2.5,
+        }));
+        break;
+      case 'prism':
+        ring('#ffffff', 70);
+        burst(16, 1, () => ({
+          life: rand(0.5, 0.9),
+          size: rand(4, 8),
+          color: `hsl(${Math.floor(rand(0, 360))}, 100%, 65%)`,
+          kind: 'shard',
+          gravity: 0.4,
+          drag: 1.8,
+        }));
+        break;
+      case 'galaxy':
+        ring('#ff5ec8', 85);
+        burst(6, 0.3, () => ({
+          life: rand(0.7, 1.1),
+          size: rand(14, 22),
+          color: pick(['rgba(123,77,255,0.9)', 'rgba(255,94,200,0.9)', 'rgba(125,216,255,0.9)']),
+          kind: 'nebula',
+          gravity: 0,
+          drag: 2,
+        }));
+        burst(14, 0.9, () => ({
+          life: rand(0.6, 1),
+          size: rand(3, 6),
+          color: '#ffffff',
+          kind: 'star',
+          gravity: 0,
+          drag: 2,
+        }));
+        break;
+    }
+    if (this.fever) ring('#ffe36e', 95);
+
+    function ring(color: string, radius: number) {
+      out.push(
+        new Particle({
+          x,
+          y,
+          vx: 0,
+          vy: 0,
+          life: 0.45,
+          size: radius,
+          color,
+          kind: 'ring',
+          gravity: 0,
+        }),
+      );
     }
   }
 }

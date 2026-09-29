@@ -20,9 +20,20 @@ export const MAX_SCORE = 100_000;
 /** 랭킹 모달에 보여줄 개수 */
 export const RANKING_SIZE = 5;
 
+// ---------- 피버 타임 ----------
+
+/** 한 판에서 콤보를 이 횟수만큼 달성할 때마다 피버 타임 발동 */
+export const FEVER_COMBO_GOAL = 20;
+export const FEVER_DURATION_SEC = 10;
+/** 피버 중 과일 점수 배율 */
+export const FEVER_SCORE_MULTIPLIER = 2;
+/** 피버 중 폭탄을 베면 얻는 점수 */
+export const FEVER_BOMB_POINTS = 30;
+
 // ---------- 과일 ----------
 
-export type FruitKind = 'apple' | 'banana' | 'watermelon' | 'orange' | 'coconut' | 'kiwi';
+export type FruitKind =
+  'apple' | 'banana' | 'watermelon' | 'orange' | 'coconut' | 'kiwi' | 'strawberry';
 
 export interface FruitType {
   kind: FruitKind;
@@ -92,6 +103,15 @@ export const FRUIT_TYPES: readonly FruitType[] = [
     flesh: '#8fd14f',
     juice: '#9be15d',
   },
+  {
+    kind: 'strawberry',
+    label: '딸기',
+    radius: 25,
+    skinLight: '#ff5a6e',
+    skinDark: '#c0102a',
+    flesh: '#ff9aa8',
+    juice: '#ff2d55',
+  },
 ];
 
 // ---------- 난이도 ----------
@@ -108,7 +128,17 @@ export const GRAVITY = 900;
 
 // ---------- 검(Blade) 스킨 ----------
 
-export type BladeId = 'basic' | 'flame' | 'neon' | 'sakura' | 'golden';
+export type BladeId =
+  | 'basic'
+  | 'flame'
+  | 'neon'
+  | 'sakura'
+  | 'golden'
+  | 'frost'
+  | 'thunder'
+  | 'void'
+  | 'prism'
+  | 'galaxy';
 
 export interface BladeDef {
   id: BladeId;
@@ -116,6 +146,8 @@ export interface BladeDef {
   description: string;
   /** 선택창 미리보기 색 (CSS gradient) */
   preview: string;
+  /** 상급 검 — 선택창에서 등급 표시 */
+  tier: 'normal' | 'legend';
 }
 
 export const BLADES: readonly BladeDef[] = [
@@ -124,30 +156,71 @@ export const BLADES: readonly BladeDef[] = [
     name: '기본 검',
     description: '은색 궤적과 단순한 불꽃',
     preview: 'linear-gradient(90deg, #7a8391, #ffffff, #7a8391)',
+    tier: 'normal',
   },
   {
     id: 'flame',
     name: '화염 검',
     description: '주황·빨강 불꽃 궤적과 연기',
     preview: 'linear-gradient(90deg, #7a0b00, #ff5a1f, #ffd23f)',
+    tier: 'normal',
   },
   {
     id: 'neon',
     name: '네온 사이버',
     description: '네온 블루·핑크 번개와 잔상',
     preview: 'linear-gradient(90deg, #00e5ff, #6a5cff, #ff2bd6)',
+    tier: 'normal',
   },
   {
     id: 'sakura',
     name: '사쿠라 블레이드',
     description: '핑크빛 궤적과 흩날리는 꽃잎',
     preview: 'linear-gradient(90deg, #ffd1e3, #ff7eb6, #ffd1e3)',
+    tier: 'normal',
   },
   {
     id: 'golden',
     name: '황금의 칼날',
     description: '찬란한 금빛 궤적과 반짝이는 별',
     preview: 'linear-gradient(90deg, #8a6a00, #ffd700, #fff6c2, #ffd700)',
+    tier: 'normal',
+  },
+  // ----- 상급 검 (전설 등급) -----
+  {
+    id: 'frost',
+    name: '서리 여왕의 검',
+    description: '얼음빛 궤적, 눈꽃 결정과 차가운 서리 안개',
+    preview: 'linear-gradient(90deg, #e8fbff, #7fdcff, #2a7bd8, #e8fbff)',
+    tier: 'legend',
+  },
+  {
+    id: 'thunder',
+    name: '뇌신의 검',
+    description: '갈라지는 번개 가지와 튀는 전격 스파크',
+    preview: 'linear-gradient(90deg, #1b1f5e, #6c7bff, #ffffff, #ffe95c)',
+    tier: 'legend',
+  },
+  {
+    id: 'void',
+    name: '공허의 검',
+    description: '빛을 삼키는 검은 칼날과 보랏빛 공허 파편',
+    preview: 'linear-gradient(90deg, #0a0014, #6b21ff, #1a0030, #c77dff)',
+    tier: 'legend',
+  },
+  {
+    id: 'prism',
+    name: '프리즘 블레이드',
+    description: '색이 흐르는 무지개 궤적과 빛의 결정 조각',
+    preview: 'linear-gradient(90deg, #ff4d4d, #ffd23f, #4dff88, #4dc3ff, #b84dff)',
+    tier: 'legend',
+  },
+  {
+    id: 'galaxy',
+    name: '갤럭시 세이버',
+    description: '성운이 소용돌이치는 궤적과 반짝이는 별무리',
+    preview: 'linear-gradient(90deg, #120a3a, #5b2bff, #ff5ec8, #7dd8ff, #120a3a)',
+    tier: 'legend',
   },
 ];
 
@@ -159,6 +232,10 @@ export interface PlayerStats {
   totalCombos: number;
   bestSwipe: number;
   highScore: number;
+  /** 한 번의 콤보에서 벤 최대 과일 수 */
+  bestCombo: number;
+  /** 누적 피버 타임 발동 횟수 */
+  totalFevers: number;
 }
 
 export interface QuestDef {
@@ -198,6 +275,42 @@ export const QUESTS: readonly QuestDef[] = [
     goal: 20,
     progress: (s) => s.totalCombos,
   },
+  // ----- 상급 퀘스트 → 전설 검 -----
+  {
+    id: 'q5',
+    title: '누적 과일 500개 슬라이스',
+    reward: 'frost',
+    goal: 500,
+    progress: (s) => s.totalSliced,
+  },
+  {
+    id: 'q6',
+    title: '한 번의 스와이프로 과일 5개 베기',
+    reward: 'thunder',
+    goal: 5,
+    progress: (s) => s.bestSwipe,
+  },
+  {
+    id: 'q7',
+    title: '한 번의 콤보로 과일 7개 베기',
+    reward: 'void',
+    goal: 7,
+    progress: (s) => s.bestCombo,
+  },
+  {
+    id: 'q8',
+    title: '최고 점수 2000점 달성',
+    reward: 'prism',
+    goal: 2000,
+    progress: (s) => s.highScore,
+  },
+  {
+    id: 'q9',
+    title: '피버 타임 3회 발동',
+    reward: 'galaxy',
+    goal: 3,
+    progress: (s) => s.totalFevers,
+  },
 ];
 
 // ---------- 게임 설명 (메뉴 화면 · 나중에 카드 "게임 설명" 버튼에서도 사용) ----------
@@ -207,5 +320,6 @@ export const HOW_TO_PLAY: readonly string[] = [
   `과일 1개당 ${POINTS_PER_FRUIT}점, ${COMBO_WINDOW_SEC}초 안에 연속으로 ${COMBO_MIN}개 이상 베면 콤보 보너스!`,
   `과일을 놓쳐 바닥에 떨어뜨리면 목숨이 1개 줄어요. (목숨 ${START_LIVES}개)`,
   '💣 폭탄을 베면 그 즉시 게임 오버!',
-  '퀘스트를 달성하면 새로운 검 스킨이 열려요.',
+  `🔥 한 판에서 콤보 ${FEVER_COMBO_GOAL}회를 달성하면 ${FEVER_DURATION_SEC}초간 피버 타임! 폭탄까지 전부 벨 수 있고 점수 ${FEVER_SCORE_MULTIPLIER}배, 과일을 놓쳐도 목숨이 줄지 않아요.`,
+  '퀘스트를 달성하면 새로운 검 스킨이 열려요. 상급 퀘스트로 전설 검 5종을 모아 보세요!',
 ];
