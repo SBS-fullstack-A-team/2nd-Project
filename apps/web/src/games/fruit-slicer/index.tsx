@@ -1,4 +1,11 @@
-import { useEffect, useRef, useState, type FormEvent } from 'react';
+import {
+  useEffect,
+  useRef,
+  useState,
+  type FormEvent,
+  type KeyboardEvent as ReactKeyboardEvent,
+  type PointerEvent as ReactPointerEvent,
+} from 'react';
 import { NICKNAME_MAX_LENGTH, type GameProps, type SubmitScoreResponse } from '@simsim/shared';
 import { api, getErrorMessage } from '../../lib/api';
 import { useFetch } from '../../lib/useFetch';
@@ -8,11 +15,20 @@ import {
   HOW_TO_PLAY,
   QUESTS,
   RANKING_SIZE,
+  TIER_LABEL,
   type BladeDef,
   type BladeId,
 } from './config';
 import { FruitSlicerEngine } from './engine';
 import { QuestManager, type QuestSnapshot } from './QuestManager';
+import { SoundManager } from './SoundManager';
+import {
+  BRIGHTNESS_MAX,
+  BRIGHTNESS_MIN,
+  loadSettings,
+  saveSettings,
+  type GameSettings,
+} from './settings';
 import styles from './FruitSlicer.module.css';
 
 type MenuView = 'main' | 'blades' | 'quests' | 'howto';
@@ -37,10 +53,24 @@ export default function FruitSlicer(_props: GameProps) {
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const engineRef = useRef<FruitSlicerEngine | null>(null);
   const [quests] = useState(() => new QuestManager());
+  const [sound] = useState(() => new SoundManager());
   const [snapshot, setSnapshot] = useState<QuestSnapshot>(() => quests.snapshot());
   const [screen, setScreen] = useState<Screen>({ name: 'menu', view: 'main' });
   const [toasts, setToasts] = useState<Toast[]>([]);
   const [engineError, setEngineError] = useState<string | null>(null);
+  const [settings, setSettings] = useState<GameSettings>(loadSettings);
+  const [settingsOpen, setSettingsOpen] = useState(false);
+
+  /** 설정 창이 게임 도중에 열렸는지 (= 일시정지 상태) */
+  const pausedInGame = settingsOpen && screen.name === 'playing';
+
+  // 설정이 바뀌면 사운드에 반영하고 저장한다
+  useEffect(() => {
+    sound.apply(settings);
+    saveSettings(settings);
+  }, [sound, settings]);
+
+  useEffect(() => () => sound.destroy(), [sound]);
 
   useEffect(() => {
     const canvas = canvasRef.current;
@@ -49,8 +79,9 @@ export default function FruitSlicer(_props: GameProps) {
     let toastId = 0;
     let engine: FruitSlicerEngine;
     try {
-      engine = new FruitSlicerEngine(canvas, quests, {
+      engine = new FruitSlicerEngine(canvas, quests, sound, {
         onUnlock: (blades) => {
+          sound.play('unlock');
           setSnapshot(quests.snapshot());
           const added = blades.map((blade) => ({ id: ++toastId, blade }));
           setToasts((prev) => [...prev, ...added]);
@@ -74,21 +105,80 @@ export default function FruitSlicer(_props: GameProps) {
     return () => {
       engine.destroy();
       engineRef.current = null;
+      sound.stopBgm();
       for (const t of timers) window.clearTimeout(t);
       quests.save();
     };
-  }, [quests]);
+  }, [quests, sound]);
 
   function startGame() {
+    sound.unlock(); // 브라우저 자동재생 정책 — 클릭 안에서 오디오를 깨운다
+    sound.resume();
+    setSettingsOpen(false);
     engineRef.current?.start();
     setScreen({ name: 'playing' });
   }
 
   function goMenu(view: MenuView = 'main') {
     engineRef.current?.idle();
+    sound.resume();
+    setSettingsOpen(false);
     setSnapshot(quests.snapshot());
     setScreen({ name: 'menu', view });
   }
+
+  /** 설정 열기 — 게임 중이면 일시정지 */
+  function openSettings() {
+    sound.unlock();
+    if (screen.name === 'playing') {
+      engineRef.current?.pause();
+      sound.pause();
+    }
+    setSettingsOpen(true);
+  }
+
+  /** 설정 닫기 — 게임 중이었으면 이어서 진행 */
+  function closeSettings() {
+    setSettingsOpen(false);
+    if (screen.name === 'playing') {
+      engineRef.current?.resume();
+      sound.resume();
+    }
+  }
+
+  function updateSettings(patch: Partial<GameSettings>) {
+    setSettings((prev) => ({ ...prev, ...patch }));
+  }
+
+  // Esc 로 일시정지/계속하기 (메뉴에서는 설정 창 열고 닫기)
+  useEffect(() => {
+    if (screen.name !== 'playing' && screen.name !== 'menu') return;
+    function onKey(e: KeyboardEvent) {
+      if (e.key !== 'Escape' || e.repeat) return;
+      e.preventDefault();
+      if (settingsOpen) closeSettings();
+      else openSettings();
+    }
+    window.addEventListener('keydown', onKey);
+    return () => window.removeEventListener('keydown', onKey);
+  });
+
+  // 다른 탭·창으로 전환하면 자동 일시정지 (돌아왔을 때 과일을 놓쳐 있지 않도록)
+  useEffect(() => {
+    if (screen.name !== 'playing' || settingsOpen) return;
+    function onVisibility() {
+      if (document.visibilityState === 'hidden') openSettings();
+    }
+    function onBlur() {
+      openSettings();
+    }
+    document.addEventListener('visibilitychange', onVisibility);
+    window.addEventListener('blur', onBlur);
+    return () => {
+      document.removeEventListener('visibilitychange', onVisibility);
+      window.removeEventListener('blur', onBlur);
+    };
+  });
 
   function selectBlade(id: BladeId) {
     if (!quests.select(id)) return;
@@ -99,7 +189,14 @@ export default function FruitSlicer(_props: GameProps) {
   return (
     <div className={styles.root}>
       <div className={styles.stage}>
-        <canvas ref={canvasRef} className={styles.canvas} aria-label="과일 슬라이서 게임 화면" />
+        <canvas
+          ref={canvasRef}
+          className={styles.canvas}
+          aria-label="과일 슬라이서 게임 화면"
+          style={
+            settings.brightness !== 1 ? { filter: `brightness(${settings.brightness})` } : undefined
+          }
+        />
 
         {engineError && (
           <div className={styles.overlay}>
@@ -166,6 +263,55 @@ export default function FruitSlicer(_props: GameProps) {
               </div>
             </div>
           </div>
+        )}
+
+        {settingsOpen && (
+          <div className={`${styles.overlay} ${styles.settingsOverlay}`}>
+            <div
+              className={styles.panel}
+              role="dialog"
+              aria-modal="true"
+              aria-labelledby="fruit-slicer-settings-title"
+            >
+              <SettingsPanel
+                settings={settings}
+                inGame={pausedInGame}
+                onChange={updateSettings}
+                onPreviewSfx={() => sound.play('click')}
+                onClose={closeSettings}
+                onRestart={startGame}
+                onHome={() => goMenu()}
+              />
+            </div>
+          </div>
+        )}
+
+        {/* 오른쪽 위 설정(일시정지) 버튼 — 메뉴·게임 중에만 */}
+        {!settingsOpen && !engineError && (screen.name === 'menu' || screen.name === 'playing') && (
+          <button
+            type="button"
+            className={styles.settingsButton}
+            onClick={openSettings}
+            aria-label={screen.name === 'playing' ? '일시정지 및 설정' : '설정'}
+            title={screen.name === 'playing' ? '일시정지 (Esc)' : '설정 (Esc)'}
+          >
+            {/* 톱니바퀴: 가운데가 뚫린 고리 + 톱니 8개 */}
+            <svg viewBox="0 0 24 24" aria-hidden="true">
+              <circle cx="12" cy="12" r="5.6" fill="none" stroke="currentColor" strokeWidth="3.6" />
+              {[0, 45, 90, 135, 180, 225, 270, 315].map((deg) => (
+                <rect
+                  key={deg}
+                  x="10.4"
+                  y="1.6"
+                  width="3.2"
+                  height="5"
+                  rx="1"
+                  fill="currentColor"
+                  transform={`rotate(${deg} 12 12)`}
+                />
+              ))}
+            </svg>
+          </button>
         )}
 
         <div className={styles.toasts} aria-live="polite">
@@ -263,25 +409,36 @@ function BladeInventory({
           const unlocked = snapshot.unlocked.has(blade.id);
           const selected = snapshot.selected === blade.id;
           const quest = QUESTS.find((q) => q.reward === blade.id);
-          const legend = blade.tier === 'legend';
+          const tierClass =
+            blade.tier === 'legend'
+              ? styles.bladeLegend
+              : blade.tier === 'epic'
+                ? styles.bladeEpic
+                : '';
           return (
             <li key={blade.id}>
               <button
                 type="button"
-                className={`${styles.bladeItem} ${legend ? styles.bladeLegend : ''} ${selected ? styles.bladeSelected : ''}`}
+                className={`${styles.bladeItem} ${tierClass} ${selected ? styles.bladeSelected : ''}`}
                 disabled={!unlocked}
                 aria-pressed={selected}
                 onClick={() => onSelect(blade.id)}
               >
                 <span
-                  className={`${styles.bladeSwatch} ${legend ? styles.swatchShine : ''}`}
+                  className={`${styles.bladeSwatch} ${blade.tier !== 'normal' ? styles.swatchShine : ''}`}
                   style={{ background: blade.preview }}
                 />
                 <span className={styles.bladeInfo}>
                   <strong>
                     {unlocked ? '' : '🔒 '}
                     {blade.name}
-                    {legend && <span className={styles.legendBadge}>전설</span>}
+                    {blade.tier !== 'normal' && (
+                      <span
+                        className={blade.tier === 'legend' ? styles.legendBadge : styles.epicBadge}
+                      >
+                        {TIER_LABEL[blade.tier]}
+                      </span>
+                    )}
                   </strong>
                   <small>
                     {unlocked ? blade.description : `해금 조건: ${quest?.title ?? '-'}`}
@@ -321,7 +478,10 @@ function QuestList({ snapshot }: { snapshot: QuestSnapshot }) {
               >
                 <div style={{ width: `${((done ? quest.goal : value) / quest.goal) * 100}%` }} />
               </div>
-              <small>보상: {reward?.name}</small>
+              <small>
+                보상: {reward?.name}
+                {reward && reward.tier !== 'normal' && ` (${TIER_LABEL[reward.tier]})`}
+              </small>
             </li>
           );
         })}
@@ -340,6 +500,251 @@ function HowToPlay() {
         ))}
       </ul>
     </>
+  );
+}
+
+/* ---------------- 설정 / 일시정지 ---------------- */
+
+type PendingAction = 'restart' | 'home' | null;
+
+function SettingsPanel({
+  settings,
+  inGame,
+  onChange,
+  onPreviewSfx,
+  onClose,
+  onRestart,
+  onHome,
+}: {
+  settings: GameSettings;
+  /** 게임 도중 열었으면 true (일시정지 화면) */
+  inGame: boolean;
+  onChange: (patch: Partial<GameSettings>) => void;
+  onPreviewSfx: () => void;
+  onClose: () => void;
+  onRestart: () => void;
+  onHome: () => void;
+}) {
+  // 다시 시작·홈으로는 진행 중인 판이 사라지므로 한 번 더 확인한다
+  const [pending, setPending] = useState<PendingAction>(null);
+  const soundOff = settings.muted;
+
+  return (
+    <>
+      <h2 id="fruit-slicer-settings-title" className={styles.panelTitle}>
+        {inGame ? '⏸ 일시정지' : '⚙️ 설정'}
+      </h2>
+
+      <div className={styles.settingsBody}>
+        <section className={styles.settingsSound} aria-label="사운드 설정">
+          <div className={styles.settingRow}>
+            <span className={styles.settingLabel}>사운드</span>
+            <button
+              type="button"
+              className={`${styles.toggle} ${soundOff ? '' : styles.toggleOn}`}
+              aria-pressed={!soundOff}
+              onClick={() => onChange({ muted: !soundOff })}
+            >
+              {soundOff ? '🔇 꺼짐' : '🔊 켜짐'}
+            </button>
+          </div>
+
+          <label className={styles.settingRow}>
+            <span className={styles.settingLabel}>효과음</span>
+            <input
+              type="range"
+              className={styles.range}
+              min={0}
+              max={100}
+              step={5}
+              value={Math.round(settings.sfxVolume * 100)}
+              disabled={soundOff}
+              onChange={(e) => onChange({ sfxVolume: Number(e.target.value) / 100 })}
+              onPointerUp={onPreviewSfx}
+              onKeyUp={onPreviewSfx}
+            />
+            <span className={styles.settingValue}>{Math.round(settings.sfxVolume * 100)}</span>
+          </label>
+
+          <label className={styles.settingRow}>
+            <span className={styles.settingLabel}>배경음악</span>
+            <input
+              type="range"
+              className={styles.range}
+              min={0}
+              max={100}
+              step={5}
+              value={Math.round(settings.bgmVolume * 100)}
+              disabled={soundOff}
+              onChange={(e) => onChange({ bgmVolume: Number(e.target.value) / 100 })}
+            />
+            <span className={styles.settingValue}>{Math.round(settings.bgmVolume * 100)}</span>
+          </label>
+        </section>
+
+        <section className={styles.settingsBrightness} aria-label="밝기 설정">
+          <span className={styles.settingLabel}>밝기</span>
+          <span aria-hidden="true">☀️</span>
+          <VerticalSlider
+            label="화면 밝기"
+            value={settings.brightness}
+            min={BRIGHTNESS_MIN}
+            max={BRIGHTNESS_MAX}
+            step={0.05}
+            format={(v) => `${Math.round(v * 100)}%`}
+            onChange={(brightness) => onChange({ brightness })}
+          />
+          <span aria-hidden="true">🌙</span>
+          <span className={styles.settingValue}>{Math.round(settings.brightness * 100)}%</span>
+          <button
+            type="button"
+            className={styles.linkButton}
+            onClick={() => onChange({ brightness: 1 })}
+            disabled={settings.brightness === 1}
+          >
+            기본값
+          </button>
+        </section>
+      </div>
+
+      {pending ? (
+        <div className={styles.confirm} role="alertdialog" aria-live="assertive">
+          <p className={styles.panelText}>
+            진행 중인 게임은 기록되지 않아요.{' '}
+            {pending === 'home' ? '과일 슬라이서 홈으로 갈까요?' : '처음부터 다시 할까요?'}
+          </p>
+          <div className={styles.actions}>
+            <button
+              type="button"
+              className="btn btn-primary"
+              autoFocus
+              onClick={pending === 'home' ? onHome : onRestart}
+            >
+              {pending === 'home' ? '홈으로 이동' : '다시 시작'}
+            </button>
+            <button type="button" className="btn" onClick={() => setPending(null)}>
+              취소
+            </button>
+          </div>
+        </div>
+      ) : (
+        <div className={styles.actions}>
+          <button type="button" className="btn btn-primary" autoFocus onClick={onClose}>
+            {inGame ? '▶ 계속하기' : '닫기'}
+          </button>
+          {inGame && (
+            <>
+              <button type="button" className="btn" onClick={() => setPending('restart')}>
+                ↻ 다시 시작
+              </button>
+              <button type="button" className="btn" onClick={() => setPending('home')}>
+                🏠 홈으로
+              </button>
+            </>
+          )}
+        </div>
+      )}
+    </>
+  );
+}
+
+/**
+ * 세로 슬라이더 — 위로 올리면 값이 커지고 내리면 작아진다.
+ * 브라우저마다 다른 세로 input[type=range] 대신 직접 만들어 마우스·터치·키보드 모두 같게 동작한다.
+ */
+function VerticalSlider({
+  label,
+  value,
+  min,
+  max,
+  step,
+  format,
+  onChange,
+}: {
+  label: string;
+  value: number;
+  min: number;
+  max: number;
+  step: number;
+  format: (v: number) => string;
+  onChange: (v: number) => void;
+}) {
+  const trackRef = useRef<HTMLDivElement>(null);
+  const [dragging, setDragging] = useState(false);
+  const ratio = (value - min) / (max - min);
+
+  const snap = (v: number) => {
+    const stepped = Math.round((v - min) / step) * step + min;
+    // 부동소수 오차 정리 (예: 1.0000000002)
+    return Math.min(max, Math.max(min, Number(stepped.toFixed(4))));
+  };
+
+  function valueAt(clientY: number) {
+    const rect = trackRef.current?.getBoundingClientRect();
+    if (!rect || rect.height === 0) return value;
+    const r = 1 - (clientY - rect.top) / rect.height; // 위쪽일수록 1
+    return snap(min + Math.min(1, Math.max(0, r)) * (max - min));
+  }
+
+  function handlePointerDown(e: ReactPointerEvent<HTMLDivElement>) {
+    e.preventDefault();
+    e.currentTarget.setPointerCapture(e.pointerId);
+    e.currentTarget.focus();
+    setDragging(true);
+    onChange(valueAt(e.clientY));
+  }
+
+  function handlePointerMove(e: ReactPointerEvent<HTMLDivElement>) {
+    if (!dragging) return;
+    onChange(valueAt(e.clientY));
+  }
+
+  function handlePointerEnd(e: ReactPointerEvent<HTMLDivElement>) {
+    if (e.currentTarget.hasPointerCapture(e.pointerId)) {
+      e.currentTarget.releasePointerCapture(e.pointerId);
+    }
+    setDragging(false);
+  }
+
+  function handleKeyDown(e: ReactKeyboardEvent<HTMLDivElement>) {
+    const big = step * 5;
+    const next: Record<string, number> = {
+      ArrowUp: value + step,
+      ArrowRight: value + step,
+      ArrowDown: value - step,
+      ArrowLeft: value - step,
+      PageUp: value + big,
+      PageDown: value - big,
+      Home: min,
+      End: max,
+    };
+    const target = next[e.key];
+    if (target === undefined) return;
+    e.preventDefault();
+    onChange(snap(target));
+  }
+
+  return (
+    <div
+      ref={trackRef}
+      className={`${styles.vSlider} ${dragging ? styles.vSliderActive : ''}`}
+      role="slider"
+      tabIndex={0}
+      aria-label={label}
+      aria-orientation="vertical"
+      aria-valuemin={min}
+      aria-valuemax={max}
+      aria-valuenow={value}
+      aria-valuetext={format(value)}
+      onPointerDown={handlePointerDown}
+      onPointerMove={handlePointerMove}
+      onPointerUp={handlePointerEnd}
+      onPointerCancel={handlePointerEnd}
+      onKeyDown={handleKeyDown}
+    >
+      <div className={styles.vSliderFill} style={{ height: `${ratio * 100}%` }} />
+      <div className={styles.vSliderThumb} style={{ bottom: `${ratio * 100}%` }} />
+    </div>
   );
 }
 
