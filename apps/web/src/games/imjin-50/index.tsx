@@ -10,16 +10,24 @@ import {
   towerSlow,
   towerSplash,
   upgradeCost,
+  wallSlow,
+  wallThorn,
   type BuildKind,
 } from './engine/config';
-import { Engine, REFUSAL_TEXT, type SimEvent, type Snapshot } from './engine/engine';
+import {
+  Engine,
+  REFUSAL_TEXT,
+  type RunResult,
+  type SimEvent,
+  type Snapshot,
+} from './engine/engine';
 import { colOf, index, isBuildable, rowOf } from './engine/maze';
 import { cellFromPoint, drawGame, layout, type View } from './engine/render';
 import { SoundEngine, mapSimEvent } from './engine/audio';
 
 import { GameDock, type DockSelection } from './game-dock';
 import { GameHud } from './game-hud';
-import { IntroOverlay, PauseOverlay } from './game-overlays';
+import { EndingOverlay, IntroOverlay, PauseOverlay } from './game-overlays';
 import styles from './Imjin50.module.css';
 
 /* eslint-disable react-hooks/refs --
@@ -66,14 +74,25 @@ function playSimEvents(sound: SoundEngine, events: SimEvent[]): void {
 
 /** 그 시설만의 고유 능력치 — 업그레이드가 데미지·사거리 말고 무엇을 사는지 보여준다. */
 function traitOf(kind: BuildKind, level: number): string | null {
-  if (kind === 'hwacha') return '연쇄 ' + towerChain(kind, level) + '명';
+  if (kind === 'wall') {
+    const thorn = wallThorn(level);
+    if (thorn === 0) return null;
+    const slow = wallSlow(level);
+    return (
+      '옆 적에게 초당 체력 ' +
+      (thorn * 100).toFixed(1) +
+      '%' +
+      (slow > 0 ? ' · 둔화 ' + Math.round(slow * 100) + '%' : '')
+    );
+  }
+  if (kind === 'hwacha') return '불길 ' + towerChain(kind, level) + '명';
   if (kind === 'cannon') return '폭발 ' + towerSplash(kind, level).toFixed(2) + '칸';
   if (kind === 'caltrop') return '둔화 ' + Math.round(towerSlow(kind, level) * 100) + '%';
   return null;
 }
 
 /**
- * 임진 50 — 벽으로 길을 접어 쉰 번의 파도를 막는 미로형 타워디펜스.
+ * 임진 50 — 벽으로 길을 접어 쉰 차례의 공세를 막는 미로형 타워디펜스.
  * 점수 등록·랭킹은 공통 GamePage 가 처리하므로, 여기서는 게임이 끝났을 때
  * onFinish(score) 를 한 번만 호출한다.
  */
@@ -91,6 +110,9 @@ export default function Imjin50({ onFinish }: GameProps) {
   const viewRef = useRef<View | null>(null);
   const noticeTimer = useRef<number | null>(null);
   const finishedRef = useRef(false);
+  // 아직 세우지 않은 자리에 무기를 얹어 보는 미리보기용 — 무기줄의 버튼을
+  // 마우스로 훑을 때만 잠깐 바뀌는 값이라 리렌더가 필요 없어 ref 로 둔다.
+  const hoverKindRef = useRef<BuildKind | null>(null);
 
   const [stats, setStats] = useState<Snapshot>(() => engine.snapshot());
   const [selection, setSelection] = useState<DockSelection | null>(null);
@@ -100,6 +122,9 @@ export default function Imjin50({ onFinish }: GameProps) {
   const [mode, setMode] = useState<Mode>('intro');
   const [notice, setNotice] = useState<string | null>(null);
   const [muted, setMuted] = useState(false);
+  const [result, setResult] = useState<RunResult | null>(null);
+  // 결과창으로 넘긴 뒤에는 결말 장면을 걷어서 두 화면이 겹치지 않게 한다
+  const [recorded, setRecorded] = useState(false);
 
   const modeRef = useRef(mode);
   const pausedRef = useRef(paused);
@@ -128,6 +153,12 @@ export default function Imjin50({ onFinish }: GameProps) {
   useEffect(() => {
     setMuted(sound.isMuted);
   }, [sound]);
+
+  // 선택 칸이 바뀌면 이전 호버 미리보기는 더 이상 맞지 않으므로 지운다.
+  // (버튼이 마우스 아래에서 그대로 사라지는 경우 mouseleave 가 안 올 수 있다.)
+  useEffect(() => {
+    hoverKindRef.current = null;
+  }, [selection]);
 
   const toggleMute = useCallback(() => {
     setMuted(sound.toggleMuted());
@@ -180,6 +211,13 @@ export default function Imjin50({ onFinish }: GameProps) {
     [onFinish],
   );
 
+  // 결말 장면에서 "전과 기록하기"를 누르거나 시간이 지나면 공통 결과창으로 넘긴다
+  const proceed = useCallback(() => {
+    if (!result) return;
+    finish(result.score);
+    setRecorded(true);
+  }, [finish, result]);
+
   useEffect(() => {
     const canvas = canvasRef.current;
     const wrap = wrapRef.current;
@@ -215,10 +253,14 @@ export default function Imjin50({ onFinish }: GameProps) {
         engine.update(dt * speedRef.current);
         const events = engine.drainEvents();
         if (events.length) playSimEvents(sound, events);
+      } else if (modeRef.current === 'finished') {
+        // 끝난 뒤에도 연기·불길 같은 효과는 가라앉을 때까지 흘려보낸다 (시뮬레이션은 멈춰 있다)
+        engine.update(dt);
+        engine.drainEvents();
       }
 
       const view = viewRef.current;
-      if (view) drawGame(ctx, engine, view, now / 1000);
+      if (view) drawGame(ctx, engine, view, now / 1000, hoverKindRef.current);
 
       tick += dt;
       if (tick >= 0.1) {
@@ -229,8 +271,8 @@ export default function Imjin50({ onFinish }: GameProps) {
         else sound.stopHeartbeat();
         if (engine.finished && modeRef.current === 'playing') {
           sound.stopHeartbeat();
+          setResult(engine.result());
           setMode('finished');
-          finish(engine.result().score);
         }
       }
 
@@ -243,7 +285,7 @@ export default function Imjin50({ onFinish }: GameProps) {
       observer.disconnect();
       sound.stopHeartbeat();
     };
-  }, [engine, sound, finish]);
+  }, [engine, sound]);
 
   const start = useCallback(() => {
     sound.unlock();
@@ -252,6 +294,8 @@ export default function Imjin50({ onFinish }: GameProps) {
     setPending(null);
     setSelection(null);
     setPaused(false);
+    setResult(null);
+    setRecorded(false);
     setStats(engine.snapshot());
     flash(null);
     setMode('playing');
@@ -324,71 +368,83 @@ export default function Imjin50({ onFinish }: GameProps) {
   );
 
   return (
-    <div className={styles.root}>
-      <GameHud stats={stats} />
+    <div className={styles.shell}>
+      <div className={styles.root}>
+        <GameHud stats={stats} />
 
-      <div ref={wrapRef} className={styles.canvasWrap}>
-        <canvas ref={canvasRef} onPointerDown={handlePointer} className={styles.canvas} />
+        <div className={styles.body}>
+          <div ref={wrapRef} className={styles.canvasWrap}>
+            <canvas ref={canvasRef} onPointerDown={handlePointer} className={styles.canvas} />
 
-        {notice && mode === 'playing' && !paused ? (
-          <div className={styles.notice}>
-            <p role="status" className={styles.noticeText}>
-              {notice}
-            </p>
+            {notice && mode === 'playing' && !paused ? (
+              <div className={styles.notice}>
+                <p role="status" className={styles.noticeText}>
+                  {notice}
+                </p>
+              </div>
+            ) : null}
           </div>
-        ) : null}
 
+          <GameDock
+            stats={stats}
+            selection={selection}
+            pending={pending}
+            speed={speed}
+            paused={paused}
+            muted={muted}
+            onPick={pick}
+            onToggleMute={toggleMute}
+            onHoverKind={(kind) => {
+              hoverKindRef.current = kind;
+            }}
+            onUpgrade={() => {
+              if (!selection) return;
+              if (engine.upgrade(selection.col, selection.row)) {
+                const build = engine.buildAt(selection.col, selection.row);
+                sound.upgrade(build?.level ?? 1);
+              } else if (engine.refusal) {
+                flash(REFUSAL_TEXT[engine.refusal]);
+                sound.refuse();
+              }
+              syncSelection();
+            }}
+            onSell={() => {
+              if (!selection) return;
+              if (engine.sell(selection.col, selection.row)) sound.sell();
+              engine.selected = null;
+              syncSelection();
+            }}
+            onClose={() => {
+              sound.ui();
+              engine.selected = null;
+              engine.pending = null;
+              setPending(null);
+              syncSelection();
+            }}
+            onCallWave={() => {
+              if (engine.callWave()) sound.callWave();
+            }}
+            onSpeed={() => {
+              sound.ui();
+              setSpeed((value) => (value === 1 ? 2 : 1));
+            }}
+            onPause={() => {
+              sound.ui();
+              setPaused((value) => !value);
+            }}
+          />
+
+          {mode === 'playing' && paused ? (
+            <PauseOverlay stats={stats} onResume={() => setPaused(false)} onRestart={start} />
+          ) : null}
+          {mode === 'finished' && result && !recorded ? (
+            <EndingOverlay result={result} onProceed={proceed} />
+          ) : null}
+        </div>
+
+        {/* 인트로는 아직 의미 없는 점수판까지 덮는다 (점수판은 자리를 지켜 시작할 때 판이 들썩이지 않게) */}
         {mode === 'intro' ? <IntroOverlay onStart={start} /> : null}
-        {mode === 'playing' && paused ? (
-          <PauseOverlay onResume={() => setPaused(false)} onRestart={start} />
-        ) : null}
       </div>
-
-      <GameDock
-        stats={stats}
-        selection={selection}
-        pending={pending}
-        speed={speed}
-        paused={paused}
-        muted={muted}
-        onPick={pick}
-        onToggleMute={toggleMute}
-        onUpgrade={() => {
-          if (!selection) return;
-          if (engine.upgrade(selection.col, selection.row)) {
-            const build = engine.buildAt(selection.col, selection.row);
-            sound.upgrade(build?.level ?? 1);
-          } else if (engine.refusal) {
-            flash(REFUSAL_TEXT[engine.refusal]);
-            sound.refuse();
-          }
-          syncSelection();
-        }}
-        onSell={() => {
-          if (!selection) return;
-          if (engine.sell(selection.col, selection.row)) sound.sell();
-          engine.selected = null;
-          syncSelection();
-        }}
-        onClose={() => {
-          sound.ui();
-          engine.selected = null;
-          engine.pending = null;
-          setPending(null);
-          syncSelection();
-        }}
-        onCallWave={() => {
-          if (engine.callWave()) sound.callWave();
-        }}
-        onSpeed={() => {
-          sound.ui();
-          setSpeed((value) => (value === 1 ? 2 : 1));
-        }}
-        onPause={() => {
-          sound.ui();
-          setPaused((value) => !value);
-        }}
-      />
     </div>
   );
 }

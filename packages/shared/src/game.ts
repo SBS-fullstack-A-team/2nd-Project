@@ -38,8 +38,8 @@ export interface ChosungQuizMeta {
  */
 export const MAX_SCORE_BY_GAME: Record<string, number> = {
   'chosung-quiz': 100,
-  // 완전 방어(50파 클리어) + 최대 연쇄 기준 이론상 최고점보다 넉넉한 상한
-  'imjin-50': 2_000_000,
+  // 시뮬레이션상 무피해 완전 방어가 약 201만 점 — 더 잘하는 플레이어를 위해 넉넉히 잡은 상한
+  'imjin-50': 3_000_000,
 };
 
 export const DEFAULT_MAX_SCORE = 1_000_000;

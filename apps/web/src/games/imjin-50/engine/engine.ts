@@ -23,6 +23,10 @@ import {
   towerSlow,
   towerSplash,
   upgradeCost,
+  WALL_BOSS_FACTOR,
+  WALL_REACH,
+  wallSlow,
+  wallThorn,
   waveClearGold,
   type BuildKind,
   type EnemyKind,
@@ -83,6 +87,13 @@ export interface Enemy {
   travelled: number;
   slow: number;
   hitFlash: number;
+  /** 화차 불길이 붙어 타오르는 남은 시간(초). 그림 전용, 피해와는 무관하다. */
+  burn: number;
+  /** 불길이 이 적에게 옮겨 오기까지 남은 시간 — 그 뒤에 타오르기 시작한다. */
+  burnDelay: number;
+  /** 맞은 반동으로 그림만 밀려난 거리 (실제 위치·경로는 그대로) */
+  kickX: number;
+  kickY: number;
   dead: boolean;
 }
 
@@ -125,6 +136,12 @@ export interface Beam {
   bx: number;
   by: number;
   life: number;
+  /** 처음 life — 불길이 자라나고 사그라드는 진행도를 계산한다. */
+  span: number;
+  /** 이 줄기가 나타나기까지 남은 시간. 옮겨붙는 불길을 차례로 보이게 한다. */
+  delay: number;
+  /** 0 이면 발사대에서 첫 적까지, 1 이상이면 적에서 적으로 옮겨붙은 불길 */
+  hop: number;
   seed: number;
   /** The 화차's level: a bigger rack sends a broader volley. */
   level: number;
@@ -146,6 +163,51 @@ export interface Note {
   life: number;
   color: string;
   big: boolean;
+}
+
+/**
+ * 타격감을 위한 입자(그림 전용 — 판정과 점수에는 전혀 관여하지 않는다).
+ * spark: 속도 방향으로 그어지는 불똥 / debris: 튀는 파편 / smoke: 부풀며 옅어지는 연기 /
+ * flash: 한순간 번쩍이는 섬광.
+ */
+export interface Particle {
+  kind: 'spark' | 'debris' | 'smoke' | 'flash';
+  x: number;
+  y: number;
+  vx: number;
+  vy: number;
+  life: number;
+  span: number;
+  size: number;
+  color: string;
+  /** 초당 속도 감쇠 계수 */
+  drag: number;
+}
+
+/** 포탄이 떨어진 자리에 잠시 남는 그을음 (그림 전용) */
+export interface Scorch {
+  x: number;
+  y: number;
+  r: number;
+  life: number;
+  span: number;
+}
+
+const FX = {
+  dirt: '#6a5238',
+  dirtLit: '#b39668',
+  clod: '#d8c49a',
+  smoke: '#8f887a',
+  ember: '#e08a3c',
+  flash: '#ffd894',
+  steel: '#c8d5da',
+  wood: '#8a6a44',
+  white: '#fff4dc',
+} as const;
+const MAX_PARTICLES = 500;
+
+function rand(min: number, max: number): number {
+  return min + Math.random() * (max - min);
 }
 
 export interface Snapshot {
@@ -190,6 +252,9 @@ const ENTRY_CELL = index(ENTRY.col, ENTRY.row);
 const EXIT_CELL = index(EXIT.col, EXIT.row);
 const OFF_EXIT: Point = { x: EXIT.col + 0.5, y: ROWS + 0.6 };
 
+/** 화차 불길이 다음 적으로 옮겨붙는 사이의 간격(초, 그림 전용) */
+const HOP_DELAY = 0.07;
+
 function targetCell(leg: number): number {
   return leg < CHECKPOINT_CELLS.length ? CHECKPOINT_CELLS[leg]! : EXIT_CELL;
 }
@@ -215,6 +280,8 @@ export class Engine {
   beams: Beam[] = [];
   rings: Ring[] = [];
   notes: Note[] = [];
+  particles: Particle[] = [];
+  scorches: Scorch[] = [];
 
   route: Point[] = [];
   events: SimEvent[] = [];
@@ -251,6 +318,8 @@ export class Engine {
     this.beams = [];
     this.rings = [];
     this.notes = [];
+    this.particles = [];
+    this.scorches = [];
     this.events = [];
     this.selected = null;
     this.pending = null;
@@ -500,6 +569,10 @@ export class Engine {
       travelled: 0,
       slow: 0,
       hitFlash: 0,
+      burn: 0,
+      burnDelay: 0,
+      kickX: 0,
+      kickY: 0,
       dead: false,
     };
     if (enemy.ignoresWalls) {
@@ -517,14 +590,85 @@ export class Engine {
     this.notes.push({ x, y, text, life: big ? 1.6 : 1, color, big });
   }
 
-  private hit(enemy: Enemy, amount: number, pierceArmor: boolean): void {
+  /** 한 점에서 입자를 흩뿌린다. dir 을 주면 그 방향 ±arc 안으로만 튄다. */
+  private burst(
+    x: number,
+    y: number,
+    count: number,
+    kind: Particle['kind'],
+    color: string,
+    opts: {
+      speed: [number, number];
+      size: [number, number];
+      life: [number, number];
+      drag?: number;
+      dir?: number;
+      arc?: number;
+      lift?: number;
+    },
+  ): void {
+    for (let i = 0; i < count; i += 1) {
+      const a =
+        opts.dir === undefined ? rand(0, Math.PI * 2) : opts.dir + rand(-1, 1) * (opts.arc ?? 0.6);
+      const speed = rand(...opts.speed);
+      const life = rand(...opts.life);
+      this.particles.push({
+        kind,
+        x,
+        y,
+        vx: Math.cos(a) * speed,
+        vy: Math.sin(a) * speed - (opts.lift ?? 0),
+        life,
+        span: life,
+        size: rand(...opts.size),
+        color,
+        drag: opts.drag ?? 3,
+      });
+    }
+    const excess = this.particles.length - MAX_PARTICLES;
+    if (excess > 0) this.particles.splice(0, excess);
+  }
+
+  /** 맞은 적을 그림에서만 살짝 밀어낸다 (반동). */
+  private kick(enemy: Enemy, dirX: number, dirY: number, amount: number): void {
+    const len = Math.hypot(dirX, dirY) || 1;
+    enemy.kickX += (dirX / len) * amount;
+    enemy.kickY += (dirY / len) * amount;
+  }
+
+  /** flash: 한 방씩 맞을 때만 번쩍인다. 마름쇠·녹채처럼 매 프레임 조금씩 깎는 지속
+   *  피해까지 번쩍이면 적이 늘 하얗게 떠서 정작 화살·포탄의 타격이 묻힌다. */
+  private hit(enemy: Enemy, amount: number, pierceArmor: boolean, flash = true): void {
     if (enemy.dead) return;
     const effective = pierceArmor ? amount : Math.max(1, amount - enemy.armor);
     enemy.hp -= effective;
-    enemy.hitFlash = 0.14;
+    if (flash) enemy.hitFlash = 0.14;
     if (enemy.hp > 0) return;
 
     enemy.dead = true;
+    // 쓰러지는 순간: 몸빛 파편이 터지고 흙먼지가 인다
+    const boss = enemy.kind === 'boss';
+    const ex = enemy.x + enemy.kickX;
+    const ey = enemy.y + enemy.kickY;
+    this.burst(ex, ey, boss ? 18 : 8, 'debris', ENEMIES[enemy.kind].color, {
+      speed: [1.2, boss ? 3.4 : 2.6],
+      size: [0.04, boss ? 0.1 : 0.075],
+      life: [0.3, 0.55],
+      drag: 4,
+    });
+    this.burst(ex, ey, boss ? 6 : 3, 'smoke', FX.dirtLit, {
+      speed: [0.2, 0.5],
+      size: [0.1, boss ? 0.24 : 0.15],
+      life: [0.45, 0.8],
+      drag: 2,
+    });
+    if (boss) {
+      this.burst(ex, ey, 1, 'flash', FX.white, {
+        speed: [0, 0],
+        size: [0.9, 0.9],
+        life: [0.22, 0.22],
+      });
+    }
     this.kills += 1;
     this.combo += 1;
     this.score += Math.round(enemy.reward * SCORE.perKill * comboMultiplier(this.combo));
@@ -580,15 +724,20 @@ export class Engine {
       const struck: Enemy[] = [target];
       let current = target;
       let power = damage;
+      const burnFor = 0.5 + build.level * 0.25;
       this.beams.push({
         ax: cx,
         ay: cy,
         bx: target.x,
         by: target.y,
-        life: 0.16,
+        life: 0.24,
+        span: 0.24,
+        delay: 0,
+        hop: 0,
         seed: Math.random(),
         level: build.level,
       });
+      this.ignite(target, burnFor, 0);
       this.hit(target, power, true);
       this.emit({ type: 'chain' });
       const chain = towerChain(build.kind, build.level);
@@ -605,15 +754,21 @@ export class Engine {
         }
         if (!next) break;
         power *= 0.7;
+        // 피해는 바로 들어가지만, 그림은 한 마리씩 차례로 옮겨붙는 것처럼 늦춰 보여준다.
+        const delay = hop * HOP_DELAY;
         this.beams.push({
           ax: current.x,
           ay: current.y,
           bx: next.x,
           by: next.y,
-          life: 0.16,
+          life: 0.3,
+          span: 0.3,
+          delay,
+          hop,
           seed: Math.random(),
           level: build.level,
         });
+        this.ignite(next, burnFor, delay);
         this.hit(next, power, true);
         this.emit({ type: 'chain' });
         struck.push(next);
@@ -622,11 +777,30 @@ export class Engine {
       return;
     }
 
-    if (build.kind === 'cannon') this.emit({ type: 'shotCannon' });
     const speed = build.kind === 'cannon' ? 7 : 11;
     const dx = target.x - cx;
     const dy = target.y - cy;
     const len = Math.max(0.0001, Math.hypot(dx, dy));
+    if (build.kind === 'cannon') {
+      this.emit({ type: 'shotCannon' });
+      // 포구 화염과 화약 연기
+      const mx = cx + (dx / len) * 0.38;
+      const my = cy + (dy / len) * 0.38;
+      const dir = Math.atan2(dy, dx);
+      this.burst(mx, my, 1, 'flash', FX.flash, {
+        speed: [0, 0],
+        size: [0.32 + build.level * 0.05, 0.32 + build.level * 0.05],
+        life: [0.1, 0.1],
+      });
+      this.burst(mx, my, 3 + build.level, 'smoke', FX.smoke, {
+        speed: [0.4, 1.1],
+        size: [0.1, 0.17],
+        life: [0.5, 0.9],
+        drag: 2.5,
+        dir,
+        arc: 0.5,
+      });
+    }
     this.shots.push({
       kind: build.kind,
       level: build.level,
@@ -722,6 +896,39 @@ export class Engine {
       const def = BUILDS[build.kind];
       build.pulse = Math.max(0, build.pulse - dt * 4);
       build.muzzle = Math.max(0, build.muzzle - dt * 8);
+
+      if (build.kind === 'wall') {
+        const thorn = wallThorn(build.level);
+        if (thorn === 0) continue;
+        const slow = wallSlow(build.level);
+        const cx = build.col + 0.5;
+        const cy = build.row + 0.5;
+        let touched = false;
+        for (const enemy of this.enemies) {
+          if (enemy.dead) continue;
+          const dx = enemy.x - cx;
+          const dy = enemy.y - cy;
+          if (dx * dx + dy * dy > WALL_REACH * WALL_REACH) continue;
+          touched = true;
+          if (enemy.slow < slow) enemy.slow = slow;
+          const factor = enemy.kind === 'boss' ? WALL_BOSS_FACTOR : 1;
+          this.hit(enemy, enemy.maxHp * thorn * factor * dt, true, false);
+          // 가시에 걸린 자리에서 나무 부스러기가 튄다
+          if (Math.random() < dt * 4) {
+            this.burst(enemy.x + enemy.kickX, enemy.y + enemy.kickY, 2, 'debris', FX.wood, {
+              speed: [0.7, 1.5],
+              size: [0.026, 0.042],
+              life: [0.2, 0.35],
+              dir: Math.atan2(enemy.y - cy, enemy.x - cx),
+              arc: 0.8,
+              drag: 5,
+            });
+          }
+        }
+        if (touched) build.pulse = Math.max(build.pulse, 0.4);
+        continue;
+      }
+
       if (def.damage === 0) continue;
       const range = towerRange(build.kind, build.level);
 
@@ -737,7 +944,25 @@ export class Engine {
           touched = true;
           const slow = towerSlow(build.kind, build.level);
           if (enemy.slow < slow) enemy.slow = slow;
-          this.hit(enemy, towerDamage(build.kind, build.level) * dt, def.pierceArmor);
+          this.hit(enemy, towerDamage(build.kind, build.level) * dt, def.pierceArmor, false);
+          // 쇠가시를 밟은 발밑에서 쇳빛 불똥이 튄다
+          if (Math.random() < dt * 5) {
+            this.burst(
+              enemy.x + enemy.kickX,
+              enemy.y + enemy.kickY + enemy.radius * 0.5,
+              1 + build.level,
+              'spark',
+              FX.steel,
+              {
+                speed: [0.6, 1.5],
+                size: [0.024, 0.036],
+                life: [0.14, 0.26],
+                dir: -Math.PI / 2,
+                arc: 1.2,
+                drag: 5,
+              },
+            );
+          }
         }
         if (touched) build.pulse = Math.max(build.pulse, 0.4);
         continue;
@@ -796,7 +1021,7 @@ export class Engine {
       this.pushNote(
         EXIT.col + 0.5,
         EXIT.row - 1.2,
-        this.wave + '파 방어 +' + waveClearGold(this.wave),
+        this.wave + '차 공세 격퇴 +' + waveClearGold(this.wave),
         BUILDS.caltrop.color,
         true,
       );
@@ -815,7 +1040,10 @@ export class Engine {
   }
 
   private impact(shot: Shot, target: Enemy): void {
+    const heading = Math.atan2(shot.vy, shot.vx);
     if (shot.splash > 0) {
+      // 천자총통 착탄: 섬광 → 충격파 → 흙파편·불똥·연기, 그리고 그을음 자국
+      const lv = shot.level;
       this.rings.push({
         x: shot.x,
         y: shot.y,
@@ -824,21 +1052,103 @@ export class Engine {
         life: 0.3,
         color: shot.color,
       });
+      this.burst(shot.x, shot.y, 1, 'flash', FX.flash, {
+        speed: [0, 0],
+        size: [shot.splash * 0.9, shot.splash * 0.9],
+        life: [0.16, 0.16],
+      });
+      this.burst(shot.x, shot.y, 6 + lv * 2, 'debris', FX.dirtLit, {
+        speed: [1.4, 3.2],
+        size: [0.07, 0.12],
+        life: [0.35, 0.6],
+        drag: 3.5,
+        lift: 0.6,
+      });
+      this.burst(shot.x, shot.y, 4 + lv, 'debris', FX.clod, {
+        speed: [1, 2.6],
+        size: [0.08, 0.13],
+        life: [0.4, 0.65],
+        drag: 3,
+        lift: 0.8,
+      });
+      this.burst(shot.x, shot.y, 6 + lv * 2, 'spark', FX.flash, {
+        speed: [2.2, 4.6],
+        size: [0.035, 0.055],
+        life: [0.18, 0.34],
+        drag: 4,
+      });
+      this.burst(shot.x, shot.y, 3 + lv, 'smoke', FX.smoke, {
+        speed: [0.2, 0.7],
+        size: [0.18, 0.28],
+        life: [0.7, 1.1],
+        drag: 2,
+      });
+      this.scorches.push({ x: shot.x, y: shot.y, r: shot.splash * 0.5, life: 1.8, span: 1.8 });
+      if (this.scorches.length > 24) this.scorches.shift();
+      this.shake = Math.max(this.shake, 0.1 + lv * 0.04);
+
       for (const enemy of this.enemies) {
         if (enemy.dead || enemy.ignoresWalls) continue;
         const d = Math.hypot(enemy.x - shot.x, enemy.y - shot.y);
         if (d > shot.splash) continue;
+        this.kick(
+          enemy,
+          enemy.x - shot.x || 0.01,
+          enemy.y - shot.y,
+          0.05 + 0.12 * (1 - d / shot.splash),
+        );
         this.hit(enemy, shot.damage * (1 - (d / shot.splash) * 0.45), shot.pierceArmor);
       }
       return;
     }
-    this.rings.push({ x: shot.x, y: shot.y, r: 0.05, max: 0.22, life: 0.16, color: shot.color });
+    // 궁수대 명중: 흰 섬광, 뒤로 튀는 화살대 조각, 맞은 방향으로 밀리는 반동
+    this.rings.push({ x: shot.x, y: shot.y, r: 0.06, max: 0.3, life: 0.18, color: shot.color });
+    this.burst(shot.x, shot.y, 1, 'flash', FX.white, {
+      speed: [0, 0],
+      size: [0.22 + shot.level * 0.03, 0.22 + shot.level * 0.03],
+      life: [0.08, 0.08],
+    });
+    this.burst(shot.x, shot.y, 2 + shot.level, 'debris', FX.wood, {
+      speed: [1, 2.2],
+      size: [0.03, 0.05],
+      life: [0.25, 0.4],
+      drag: 4,
+      dir: heading + Math.PI,
+      arc: 0.9,
+    });
+    this.kick(target, shot.vx, shot.vy, 0.06 + shot.level * 0.015);
     this.hit(target, shot.damage, shot.pierceArmor);
   }
 
+  private ignite(enemy: Enemy, duration: number, delay: number): void {
+    enemy.burnDelay = enemy.burn > 0 ? 0 : delay;
+    enemy.burn = Math.max(enemy.burn, duration);
+  }
+
   private decay(dt: number): void {
-    for (const beam of this.beams) beam.life -= dt;
+    for (const beam of this.beams) {
+      if (beam.delay > 0) beam.delay -= dt;
+      else beam.life -= dt;
+    }
     this.beams = this.beams.filter((beam) => beam.life > 0);
+    const settle = Math.exp(-14 * dt);
+    for (const enemy of this.enemies) {
+      if (enemy.burnDelay > 0) enemy.burnDelay -= dt;
+      else if (enemy.burn > 0) enemy.burn -= dt;
+      enemy.kickX *= settle;
+      enemy.kickY *= settle;
+    }
+    for (const p of this.particles) {
+      const damp = Math.exp(-p.drag * dt);
+      p.vx *= damp;
+      p.vy *= damp;
+      p.x += p.vx * dt;
+      p.y += p.vy * dt;
+      p.life -= dt;
+    }
+    this.particles = this.particles.filter((p) => p.life > 0);
+    for (const scorch of this.scorches) scorch.life -= dt;
+    this.scorches = this.scorches.filter((scorch) => scorch.life > 0);
     for (const ring of this.rings) {
       ring.life -= dt;
       ring.r += (ring.max - ring.r) * Math.min(1, dt * 9);

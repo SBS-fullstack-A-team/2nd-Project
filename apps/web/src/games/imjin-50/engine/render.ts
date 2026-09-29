@@ -9,7 +9,7 @@ import {
   START_LIVES,
   towerRange,
 } from './config';
-import type { Beam, Build, Engine, Enemy, Shot } from './engine';
+import type { Beam, Build, Engine, Enemy, Particle, Scorch, Shot } from './engine';
 import { ENEMIES } from './config';
 import type { BuildKind } from './config';
 import { colOf, isBuildable, rowOf } from './maze';
@@ -42,22 +42,6 @@ export function cellFromPoint(view: View, px: number, py: number): { col: number
   };
 }
 
-function hexPath(
-  ctx: CanvasRenderingContext2D,
-  x: number,
-  y: number,
-  r: number,
-  rot: number,
-): void {
-  ctx.beginPath();
-  for (let i = 0; i < 6; i += 1) {
-    const a = rot + (i / 6) * Math.PI * 2;
-    if (i === 0) ctx.moveTo(x + Math.cos(a) * r, y + Math.sin(a) * r);
-    else ctx.lineTo(x + Math.cos(a) * r, y + Math.sin(a) * r);
-  }
-  ctx.closePath();
-}
-
 function roundRect(
   ctx: CanvasRenderingContext2D,
   x: number,
@@ -81,8 +65,8 @@ function roundRect(
 const SHADE = {
   cast: 'rgba(6,10,8,0.5)',
   castSoft: 'rgba(6,10,8,0.32)',
-  earth: '#182a1f',
-  earthRim: '#22382a',
+  earth: '#332c1d',
+  earthRim: '#453b28',
   woodLit: '#7d6040',
   woodMid: '#5a4430',
   woodDark: '#38291b',
@@ -167,6 +151,82 @@ function drawRank(
   ctx.globalAlpha = 1;
 }
 
+/** 들판. 칸마다 좌표로 고정된 흙 얼룩과 풀포기를 흩어, 격자판이 아니라 전장
+ *  위에 칸이 나뉜 것처럼 보이게 한다. 좌표로만 정해지므로 프레임마다 흔들리지 않고,
+ *  색별로 경로를 하나로 모아 칠해 매 프레임 그려도 가볍다. */
+function drawTerrain(ctx: CanvasRenderingContext2D): void {
+  const blotches = (lit: boolean) => {
+    ctx.beginPath();
+    for (let row = 0; row < ROWS; row += 1) {
+      for (let col = 0; col < COLS; col += 1) {
+        const seed = row * COLS + col + 1;
+        if (jitter(seed, 1) > 0.5 !== lit) continue;
+        const cx = col + 0.2 + jitter(seed, 2) * 0.6;
+        const cy = row + 0.2 + jitter(seed, 3) * 0.6;
+        ctx.moveTo(cx + 0.34, cy);
+        ctx.ellipse(cx, cy, 0.34, 0.2, 0, 0, Math.PI * 2);
+      }
+    }
+    ctx.fill();
+  };
+
+  ctx.globalAlpha = 0.7;
+  ctx.fillStyle = PALETTE.groundAlt;
+  blotches(false);
+  ctx.globalAlpha = 0.5;
+  ctx.fillStyle = PALETTE.groundLit;
+  blotches(true);
+
+  ctx.globalAlpha = 0.6;
+  ctx.strokeStyle = PALETTE.grass;
+  ctx.lineWidth = 0.022;
+  ctx.lineCap = 'round';
+  ctx.beginPath();
+  for (let row = 0; row < ROWS; row += 1) {
+    for (let col = 0; col < COLS; col += 1) {
+      const seed = row * COLS + col + 1;
+      const tufts = Math.floor(jitter(seed, 4) * 3);
+      for (let t = 0; t < tufts; t += 1) {
+        const tx = col + 0.15 + jitter(seed, 5 + t) * 0.7;
+        const ty = row + 0.25 + jitter(seed, 9 + t) * 0.6;
+        for (const b of [-1, 0, 1]) {
+          ctx.moveTo(tx + b * 0.03, ty);
+          ctx.lineTo(tx + b * 0.07, ty - (b === 0 ? 0.12 : 0.09));
+        }
+      }
+    }
+  }
+  ctx.stroke();
+  ctx.globalAlpha = 1;
+}
+
+/** 판 맨 위: 왜군이 건너온 바다와 모래사장. */
+function drawCoast(ctx: CanvasRenderingContext2D, time: number): void {
+  const sand = ctx.createLinearGradient(0, 0, 0, 1.2);
+  sand.addColorStop(0, 'rgba(190,164,112,0.5)');
+  sand.addColorStop(1, 'rgba(190,164,112,0)');
+  ctx.fillStyle = sand;
+  ctx.fillRect(0, 0, COLS, 1.2);
+
+  const surf = (x: number) => 0.2 + Math.sin(x * 2.6 + time * 1.3) * 0.03;
+  ctx.fillStyle = PALETTE.sea;
+  ctx.beginPath();
+  ctx.moveTo(0, 0);
+  ctx.lineTo(COLS, 0);
+  for (let x = COLS; x >= 0; x -= 0.25) ctx.lineTo(x, surf(x));
+  ctx.closePath();
+  ctx.fill();
+
+  ctx.strokeStyle = 'rgba(226,232,214,0.55)';
+  ctx.lineWidth = 0.025;
+  ctx.beginPath();
+  for (let x = 0; x <= COLS; x += 0.25) {
+    if (x === 0) ctx.moveTo(x, surf(x) + 0.02);
+    else ctx.lineTo(x, surf(x) + 0.02);
+  }
+  ctx.stroke();
+}
+
 function drawGrid(ctx: CanvasRenderingContext2D): void {
   ctx.strokeStyle = PALETTE.grid;
   ctx.lineWidth = 0.02;
@@ -201,101 +261,327 @@ export function strokeRoute(
   dash: number,
 ): void {
   if (points.length < 2) return;
+  const trace = () => {
+    ctx.beginPath();
+    ctx.moveTo(points[0]!.x, points[0]!.y);
+    for (let i = 1; i < points.length; i += 1) ctx.lineTo(points[i]!.x, points[i]!.y);
+  };
+
+  ctx.save();
   ctx.lineJoin = 'round';
   ctx.lineCap = 'round';
 
+  // 밟아 다진 흙길: 넓은 노반 위에 한가운데가 더 닳아 밝은 바퀴자국
+  trace();
   ctx.strokeStyle = PALETTE.route;
-  ctx.globalAlpha = 0.34;
-  ctx.lineWidth = 0.46;
-  ctx.beginPath();
-  ctx.moveTo(points[0]!.x, points[0]!.y);
-  for (let i = 1; i < points.length; i += 1) ctx.lineTo(points[i]!.x, points[i]!.y);
+  ctx.globalAlpha = 0.6;
+  ctx.lineWidth = 0.62;
   ctx.stroke();
-  ctx.globalAlpha = 1;
+  ctx.strokeStyle = PALETTE.routeLit;
+  ctx.globalAlpha = 0.35;
+  ctx.lineWidth = 0.28;
+  ctx.stroke();
 
-  ctx.save();
-  ctx.strokeStyle = PALETTE.celadon;
-  ctx.globalAlpha = 0.55;
-  ctx.lineWidth = 0.07;
-  ctx.setLineDash([0.26, 0.4]);
+  // 행군 발자국: 진행 방향으로 흘러가며 적이 갈 길을 알려준다
+  ctx.strokeStyle = PALETTE.footprint;
+  ctx.globalAlpha = 0.5;
+  ctx.lineWidth = 0.06;
+  ctx.setLineDash([0.1, 0.23]);
   ctx.lineDashOffset = -dash;
-  ctx.beginPath();
-  ctx.moveTo(points[0]!.x, points[0]!.y);
-  for (let i = 1; i < points.length; i += 1) ctx.lineTo(points[i]!.x, points[i]!.y);
   ctx.stroke();
   ctx.restore();
 }
 
-function drawGate(ctx: CanvasRenderingContext2D, time: number): void {
-  const x = ENTRY.col + 0.5;
-  const y = ENTRY.row + 0.5;
+/** 왜군 상륙 지점: 파도에 걸친 왜선 뱃머리와 양옆의 노보리(왜군 깃발). */
+function drawLanding(ctx: CanvasRenderingContext2D, time: number): void {
   const pulse = 0.5 + 0.5 * Math.sin(time * 2.2);
+  ctx.save();
+  ctx.translate(ENTRY.col + 0.5, ENTRY.row + 0.5);
 
-  ctx.fillStyle = 'rgba(232,71,111,0.14)';
-  ctx.fillRect(ENTRY.col, ENTRY.row, 1, 1);
-  ctx.strokeStyle = 'rgba(232,71,111,' + (0.4 + pulse * 0.45).toFixed(3) + ')';
-  ctx.lineWidth = 0.07;
+  ctx.fillStyle = 'rgba(207,74,44,' + (0.1 + pulse * 0.08).toFixed(3) + ')';
+  ctx.fillRect(-0.5, -0.5, 1, 1);
+
+  const bob = Math.sin(time * 1.6) * 0.015;
+  ctx.save();
+  ctx.translate(0, bob);
+  ctx.strokeStyle = SHADE.woodDark;
+  ctx.lineWidth = 0.035;
   ctx.beginPath();
-  ctx.arc(x, y - 0.1, 0.42, Math.PI * 0.06, Math.PI * 0.94);
+  ctx.moveTo(0, -0.46);
+  ctx.lineTo(0, -0.02);
   ctx.stroke();
-  ctx.strokeStyle = 'rgba(232,71,111,0.45)';
-  ctx.lineWidth = 0.05;
+  // 멍석 돛
+  ctx.fillStyle = 'rgba(206,190,146,0.92)';
+  ctx.fillRect(-0.2, -0.42, 0.4, 0.3);
+  ctx.strokeStyle = 'rgba(110,90,58,0.8)';
+  ctx.lineWidth = 0.018;
   ctx.beginPath();
-  ctx.moveTo(x - 0.26, y + 0.36);
-  ctx.lineTo(x, y + 0.12);
-  ctx.lineTo(x + 0.26, y + 0.36);
+  for (let k = 1; k <= 3; k += 1) {
+    ctx.moveTo(-0.2, -0.42 + k * 0.075);
+    ctx.lineTo(0.2, -0.42 + k * 0.075);
+  }
   ctx.stroke();
+  // 선체
+  ctx.fillStyle = SHADE.woodDark;
+  ctx.beginPath();
+  ctx.moveTo(-0.44, -0.06);
+  ctx.lineTo(0.44, -0.06);
+  ctx.lineTo(0.3, 0.16);
+  ctx.quadraticCurveTo(0, 0.24, -0.3, 0.16);
+  ctx.closePath();
+  ctx.fill();
+  ctx.strokeStyle = SHADE.woodLit;
+  ctx.lineWidth = 0.025;
+  ctx.beginPath();
+  ctx.moveTo(-0.4, -0.04);
+  ctx.lineTo(0.4, -0.04);
+  ctx.stroke();
+  ctx.restore();
+
+  for (const side of [-1, 1]) {
+    const px = side * 0.4;
+    const flutter = Math.sin(time * 3 + side) * 0.02;
+    const bx = (side > 0 ? px - 0.1 : px) + flutter;
+    ctx.strokeStyle = SHADE.woodDark;
+    ctx.lineWidth = 0.025;
+    ctx.beginPath();
+    ctx.moveTo(px, 0.44);
+    ctx.lineTo(px, -0.46);
+    ctx.stroke();
+    ctx.fillStyle = PALETTE.paper;
+    ctx.fillRect(bx, -0.4, 0.1, 0.42);
+    ctx.fillStyle = PALETTE.cinnabar;
+    ctx.fillRect(bx, -0.4, 0.1, 0.08);
+  }
+
+  ctx.strokeStyle = 'rgba(207,74,44,' + (0.35 + pulse * 0.4).toFixed(3) + ')';
+  ctx.lineWidth = 0.04;
+  ctx.strokeRect(-0.47, -0.47, 0.94, 0.94);
+  ctx.restore();
+}
+
+/** 경유지: 돌무더기에 꽂은 조선군 군기. 불꽃 모양 테두리(화염각)가 바람에 날린다.
+ *  깃발 위 숫자(一二三四)는 drawGame 이 화면 좌표에서 따로 쓴다. */
+const CHECKPOINT_NUMERALS = ['一', '二', '三', '四'];
+
+function checkpointWave(time: number, i: number): number {
+  return Math.sin(time * 2.4 + i * 1.3) * 0.04;
 }
 
 function drawCheckpoints(ctx: CanvasRenderingContext2D, time: number): void {
   CHECKPOINTS.forEach((cell, i) => {
     const x = cell.col + 0.5;
     const y = cell.row + 0.5;
-    ctx.fillStyle = 'rgba(242,180,65,0.12)';
+    const wave = checkpointWave(time, i);
+
+    ctx.fillStyle = 'rgba(217,164,65,0.1)';
     ctx.fillRect(cell.col, cell.row, 1, 1);
-    ctx.strokeStyle = PALETTE.ochre;
-    ctx.globalAlpha = 0.85;
-    ctx.lineWidth = 0.055;
-    hexPath(ctx, x, y, 0.34, time * 0.25 + i);
+
+    ctx.fillStyle = PALETTE.stone;
+    ctx.beginPath();
+    ctx.ellipse(x - 0.18, y + 0.34, 0.2, 0.08, 0, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.fillStyle = PALETTE.stoneLit;
+    ctx.beginPath();
+    ctx.ellipse(x - 0.22, y + 0.3, 0.1, 0.05, 0, 0, Math.PI * 2);
+    ctx.fill();
+
+    ctx.strokeStyle = SHADE.woodMid;
+    ctx.lineWidth = 0.05;
+    ctx.beginPath();
+    ctx.moveTo(x - 0.22, y + 0.34);
+    ctx.lineTo(x - 0.22, y - 0.44);
     ctx.stroke();
-    ctx.globalAlpha = 1;
+
+    ctx.fillStyle = PALETTE.ochre;
+    ctx.beginPath();
+    ctx.moveTo(x - 0.2, y - 0.4);
+    ctx.lineTo(x + 0.28, y - 0.4 + wave);
+    for (let k = 0; k < 3; k += 1) {
+      const top = y - 0.4 + wave + k * 0.14;
+      ctx.lineTo(x + 0.38, top + 0.07);
+      ctx.lineTo(x + 0.28, top + 0.14);
+    }
+    ctx.lineTo(x - 0.2, y + 0.02);
+    ctx.closePath();
+    ctx.fill();
+    ctx.strokeStyle = PALETTE.cinnabar;
+    ctx.lineWidth = 0.025;
+    ctx.stroke();
+
+    ctx.fillStyle = PALETTE.cinnabar;
+    ctx.beginPath();
+    ctx.arc(x - 0.22, y - 0.46, 0.04, 0, Math.PI * 2);
+    ctx.fill();
   });
 }
 
-function drawExit(ctx: CanvasRenderingContext2D, engine: Engine, time: number): void {
-  const x = EXIT.col + 0.5;
-  const y = EXIT.row + 0.5;
+/** 성문: 판 아래를 가로지르는 석축 성벽과 여장, 그 한가운데 홍예문 위 기와지붕 문루.
+ *  지붕 위 게이지가 남은 성문 내구도이고, 무너질 즈음엔 문루에 불이 붙는다. */
+function drawFortress(ctx: CanvasRenderingContext2D, engine: Engine, time: number): void {
   const ratio = Math.max(0, engine.lives) / START_LIVES;
   const flash = engine.coreFlash;
-  const breathe = 1 + Math.sin(time * 1.8) * 0.03;
+  const fallen = engine.lives <= 0;
 
-  const glow = ctx.createRadialGradient(x, y, 0.1, x, y, 1.6);
-  glow.addColorStop(0, flash > 0 ? 'rgba(255,46,86,0.4)' : 'rgba(127,212,232,0.24)');
-  glow.addColorStop(1, 'rgba(127,212,232,0)');
+  ctx.fillStyle = PALETTE.stone;
+  ctx.fillRect(0, ROWS - 0.14, COLS, 0.14);
+  for (let c = 0.05; c < COLS; c += 0.42) ctx.fillRect(c, ROWS - 0.22, 0.28, 0.09);
+  ctx.strokeStyle = 'rgba(0,0,0,0.35)';
+  ctx.lineWidth = 0.012;
+  ctx.beginPath();
+  ctx.moveTo(0, ROWS - 0.07);
+  ctx.lineTo(COLS, ROWS - 0.07);
+  for (let c = 0.2; c < COLS; c += 0.35) {
+    ctx.moveTo(c, ROWS - 0.14);
+    ctx.lineTo(c, ROWS - 0.07);
+    ctx.moveTo(c + 0.17, ROWS - 0.07);
+    ctx.lineTo(c + 0.17, ROWS);
+  }
+  ctx.stroke();
+
+  ctx.save();
+  ctx.translate(EXIT.col + 0.5, EXIT.row + 0.5);
+
+  const glow = ctx.createRadialGradient(0, 0.1, 0.05, 0, 0.1, 1.3);
+  glow.addColorStop(0, flash > 0 ? 'rgba(232,69,47,0.45)' : 'rgba(224,160,80,0.2)');
+  glow.addColorStop(1, 'rgba(224,160,80,0)');
   ctx.fillStyle = glow;
   ctx.beginPath();
-  ctx.arc(x, y, 1.6, 0, Math.PI * 2);
+  ctx.arc(0, 0.1, 1.3, 0, Math.PI * 2);
   ctx.fill();
 
-  ctx.strokeStyle = flash > 0 ? PALETTE.boss : PALETTE.celadon;
-  ctx.lineWidth = 0.07;
-  hexPath(ctx, x, y, 0.42 * breathe, time * 0.35);
+  // 육축: 다듬은 돌을 엇갈려 쌓은 기단
+  ctx.fillStyle = PALETTE.stoneLit;
+  ctx.fillRect(-0.46, -0.06, 0.92, 0.56);
+  ctx.strokeStyle = 'rgba(20,18,12,0.45)';
+  ctx.lineWidth = 0.014;
+  ctx.beginPath();
+  for (let r = 0; r < 4; r += 1) {
+    const yy = -0.06 + r * 0.14;
+    ctx.moveTo(-0.46, yy);
+    ctx.lineTo(0.46, yy);
+    for (let xx = -0.26 + (r % 2) * 0.1; xx < 0.46; xx += 0.2) {
+      ctx.moveTo(xx, yy);
+      ctx.lineTo(xx, yy + 0.14);
+    }
+  }
   ctx.stroke();
-  ctx.fillStyle = flash > 0 ? 'rgba(255,46,86,0.32)' : 'rgba(127,212,232,0.2)';
-  hexPath(ctx, x, y, 0.32 * breathe, -time * 0.5);
-  ctx.fill();
 
-  ctx.strokeStyle = 'rgba(9,24,35,0.85)';
-  ctx.lineWidth = 0.12;
+  // 홍예문과 문짝 (피격 순간 붉게 달아오른다)
+  const arch = (r: number) => {
+    ctx.beginPath();
+    ctx.moveTo(-r, 0.5);
+    ctx.lineTo(-r, 0.16);
+    ctx.arc(0, 0.16, r, Math.PI, 0);
+    ctx.lineTo(r, 0.5);
+    ctx.closePath();
+  };
+  ctx.fillStyle = '#140e09';
+  arch(0.21);
+  ctx.fill();
+  if (fallen) {
+    // 함락: 문짝은 부서져 나뒹굴고 홍예문은 뻥 뚫렸다
+    ctx.fillStyle = '#5a2415';
+    for (const [px, py, rot] of [
+      [-0.2, 0.42, -0.5],
+      [0.18, 0.45, 0.35],
+      [0.02, 0.36, 1.2],
+    ] as const) {
+      ctx.save();
+      ctx.translate(px, py);
+      ctx.rotate(rot);
+      ctx.fillRect(-0.1, -0.025, 0.2, 0.05);
+      ctx.restore();
+    }
+  } else {
+    ctx.fillStyle = flash > 0 ? '#a33a22' : '#6e2a1a';
+    arch(0.17);
+    ctx.fill();
+    ctx.strokeStyle = 'rgba(0,0,0,0.5)';
+    ctx.lineWidth = 0.015;
+    ctx.beginPath();
+    ctx.moveTo(0, -0.01);
+    ctx.lineTo(0, 0.5);
+    ctx.stroke();
+    ctx.fillStyle = PALETTE.ochre;
+    for (const sx of [-0.09, 0.09]) {
+      for (const sy of [0.14, 0.26, 0.38]) {
+        ctx.beginPath();
+        ctx.arc(sx, sy, 0.014, 0, Math.PI * 2);
+        ctx.fill();
+      }
+    }
+  }
+
+  // 문루: 붉은 기둥, 단청 띠, 처마가 들린 기와지붕
+  ctx.fillStyle = '#8a3322';
+  ctx.fillRect(-0.34, -0.3, 0.05, 0.24);
+  ctx.fillRect(0.29, -0.3, 0.05, 0.24);
+  ctx.fillStyle = SHADE.woodDark;
+  ctx.fillRect(-0.38, -0.1, 0.76, 0.04);
+  ctx.fillStyle = PALETTE.celadon;
+  ctx.fillRect(-0.4, -0.33, 0.8, 0.04);
+
   ctx.beginPath();
-  ctx.arc(x, y, 0.58, 0, Math.PI * 2);
+  ctx.moveTo(-0.6, -0.28);
+  ctx.quadraticCurveTo(0, -0.38, 0.6, -0.28);
+  ctx.lineTo(0.38, -0.5);
+  ctx.quadraticCurveTo(0, -0.54, -0.38, -0.5);
+  ctx.closePath();
+  ctx.fillStyle = PALETTE.roof;
+  ctx.fill();
+  ctx.strokeStyle = 'rgba(236,227,207,0.45)';
+  ctx.lineWidth = 0.025;
   ctx.stroke();
-  ctx.strokeStyle = ratio > 0.5 ? PALETTE.celadon : ratio > 0.25 ? PALETTE.ochre : PALETTE.boss;
-  ctx.lineWidth = 0.1;
-  ctx.lineCap = 'round';
+  ctx.save();
+  ctx.clip();
+  ctx.strokeStyle = 'rgba(255,255,255,0.1)';
+  ctx.lineWidth = 0.012;
   ctx.beginPath();
-  ctx.arc(x, y, 0.58, -Math.PI / 2, -Math.PI / 2 + Math.PI * 2 * ratio);
+  for (let tx = -0.56; tx <= 0.56; tx += 0.07) {
+    ctx.moveTo(tx, -0.26);
+    ctx.lineTo(tx * 0.7, -0.54);
+  }
   ctx.stroke();
+  ctx.restore();
+  ctx.fillStyle = '#1d1c1b';
+  ctx.fillRect(-0.3, -0.55, 0.6, 0.04);
+
+  if (fallen || ratio < 0.35) {
+    // 성문이 약해지면 문루에 불이 붙고, 함락되면 지붕 전체가 불길에 휩싸인다
+    const tongues = fallen ? 6 : 3;
+    const spread = fallen ? 0.5 : 0.2;
+    for (let k = 0; k < tongues; k += 1) {
+      const flick = 0.5 + 0.5 * Math.sin(time * 9 + k * 2.1);
+      const fx = -spread + (k / (tongues - 1)) * spread * 2;
+      const tall = fallen ? 0.18 + flick * 0.1 : 0.1 + flick * 0.05;
+      ctx.globalAlpha = 0.55 + flick * 0.35;
+      ctx.fillStyle = k % 2 === 1 ? SHADE.flash : SHADE.ember;
+      ctx.beginPath();
+      ctx.ellipse(
+        fx,
+        -0.5 - flick * 0.05 - (fallen ? 0.06 : 0),
+        fallen ? 0.08 : 0.06,
+        tall,
+        0,
+        0,
+        Math.PI * 2,
+      );
+      ctx.fill();
+    }
+    ctx.globalAlpha = 1;
+  }
+
+  const barW = 0.84;
+  ctx.fillStyle = 'rgba(12,10,6,0.8)';
+  roundRect(ctx, -barW / 2, -0.68, barW, 0.08, 0.04);
+  ctx.fill();
+  if (ratio > 0) {
+    ctx.fillStyle = ratio > 0.5 ? PALETTE.celadon : ratio > 0.25 ? PALETTE.ochre : PALETTE.boss;
+    roundRect(ctx, -barW / 2, -0.68, Math.max(0.08, barW * ratio), 0.08, 0.04);
+    ctx.fill();
+  }
+  ctx.restore();
 }
 
 function drawBuild(ctx: CanvasRenderingContext2D, build: Build, time: number): void {
@@ -323,10 +609,48 @@ function drawBuild(ctx: CanvasRenderingContext2D, build: Build, time: number): v
   ctx.stroke();
   ctx.globalAlpha = 1;
 
-  // 마름쇠 burns no powder, so it gets the halo but never the embers.
-  drawRank(ctx, build, def.color, time, build.kind !== 'caltrop');
+  // 마름쇠와 목책은 화약을 쓰지 않으니 후광만 두르고 불티는 없다.
+  drawRank(ctx, build, def.color, time, build.kind !== 'caltrop' && build.kind !== 'wall');
 
   if (build.kind === 'wall') {
+    if (build.level >= 2) {
+      // 녹채: 사슴뿔처럼 끝을 벌린 가지를 사방으로 꽂아, 옆을 스치는 적을 찌른다.
+      // 3단계는 가지 끝에 쇠촉을 박았다.
+      ctx.lineCap = 'round';
+      const spikes = build.level >= 3 ? 8 : 6;
+      for (let i = 0; i < spikes; i += 1) {
+        const a = (i / spikes) * Math.PI * 2 + jitter(build.id, 30 + i) * 0.35;
+        const len = 0.54 + jitter(build.id, 40 + i) * 0.06;
+        const x0 = Math.cos(a) * 0.18;
+        const y0 = Math.sin(a) * 0.16 + 0.04;
+        const x1 = Math.cos(a) * len;
+        const y1 = Math.sin(a) * len * 0.88 + 0.04;
+        const mx = (x0 + x1) / 2;
+        const my = (y0 + y1) / 2;
+        const fork = a + 0.6;
+        ctx.strokeStyle = SHADE.woodLit;
+        ctx.lineWidth = 0.06;
+        ctx.beginPath();
+        ctx.moveTo(x0, y0);
+        ctx.lineTo(x1, y1);
+        ctx.moveTo(mx, my);
+        ctx.lineTo(mx + Math.cos(fork) * 0.14, my + Math.sin(fork) * 0.12);
+        ctx.stroke();
+        ctx.strokeStyle = 'rgba(239,228,204,0.55)';
+        ctx.lineWidth = 0.02;
+        ctx.beginPath();
+        ctx.moveTo(x0, y0 - 0.01);
+        ctx.lineTo(x1, y1 - 0.01);
+        ctx.stroke();
+        if (build.level >= 3) {
+          ctx.fillStyle = SHADE.steelLit;
+          ctx.beginPath();
+          ctx.arc(x1, y1, 0.026, 0, Math.PI * 2);
+          ctx.fill();
+        }
+      }
+    }
+
     // 목책: sharpened stakes of uneven height, lashed with two rails.
     for (let i = 0; i < 4; i += 1) {
       const sx = -0.3 + i * 0.2;
@@ -645,7 +969,7 @@ function drawEnemy(ctx: CanvasRenderingContext2D, enemy: Enemy, time: number): v
   const body = flash ? PALETTE.paper : def.color;
 
   ctx.save();
-  ctx.translate(enemy.x, enemy.y);
+  ctx.translate(enemy.x + enemy.kickX, enemy.y + enemy.kickY);
 
   // Contact shadow. The scout goes over what you build, so it carries a longer
   // shadow and rides higher than the rest.
@@ -823,25 +1147,53 @@ function drawEnemy(ctx: CanvasRenderingContext2D, enemy: Enemy, time: number): v
   }
   ctx.restore();
 
+  if (enemy.burn > 0 && enemy.burnDelay <= 0) drawBurn(ctx, enemy, time);
+
   const ratio = Math.max(0, enemy.hp / enemy.maxHp);
   if (ratio < 1) {
     const w = enemy.kind === 'boss' ? 1 : 0.58;
-    const barY = enemy.y - r - (enemy.ignoresWalls ? 0.36 : 0.24);
+    const barX = enemy.x + enemy.kickX;
+    const barY = enemy.y + enemy.kickY - r - (enemy.ignoresWalls ? 0.36 : 0.24);
     ctx.fillStyle = 'rgba(12,20,16,0.85)';
-    roundRect(ctx, enemy.x - w / 2, barY, w, 0.09, 0.045);
+    roundRect(ctx, barX - w / 2, barY, w, 0.09, 0.045);
     ctx.fill();
     ctx.fillStyle = enemy.kind === 'boss' ? PALETTE.boss : PALETTE.paper;
-    roundRect(ctx, enemy.x - w / 2, barY, w * ratio, 0.09, 0.045);
+    roundRect(ctx, barX - w / 2, barY, w * ratio, 0.09, 0.045);
     ctx.fill();
   }
 }
 
-function drawSelection(ctx: CanvasRenderingContext2D, engine: Engine): void {
+// 배치 전 미리보기용 실루엣. drawBuild 내부가 자기 alpha 를 직접 정하는 부분이
+// 많아 바깥에서 globalAlpha 를 씌워도 먹히지 않으므로, 오프스크린 캔버스에 한
+// 번 그려 두고 그 결과 이미지를 옅게 겹쳐 찍는다 — 레벨 1 렌더는 시간에 따라
+// 변하지 않으므로(강화 이펙트는 레벨 2 이상에서만 붙는다) 종류별로 한 번만
+// 그리면 되고, 매 프레임 다시 그릴 필요가 없다.
+const ghostCanvasCache = new Map<BuildKind, HTMLCanvasElement>();
+
+function getGhostCanvas(kind: BuildKind): HTMLCanvasElement | null {
+  let canvas = ghostCanvasCache.get(kind);
+  if (canvas) return canvas;
+  if (typeof document === 'undefined') return null;
+  canvas = document.createElement('canvas');
+  canvas.width = 128;
+  canvas.height = 128;
+  const ctx = canvas.getContext('2d');
+  if (!ctx) return null;
+  drawBuildPreview(ctx, kind, 1, 128);
+  ghostCanvasCache.set(kind, canvas);
+  return canvas;
+}
+
+function drawSelection(
+  ctx: CanvasRenderingContext2D,
+  engine: Engine,
+  previewKind: BuildKind | null,
+): void {
   if (engine.selected === null) return;
   const col = colOf(engine.selected);
   const row = rowOf(engine.selected);
   const build = engine.buildAt(col, row);
-  const kind = build ? build.kind : engine.pending;
+  const kind = build ? build.kind : (previewKind ?? engine.pending);
   if (!kind) {
     ctx.strokeStyle = PALETTE.celadon;
     ctx.lineWidth = 0.05;
@@ -868,6 +1220,18 @@ function drawSelection(ctx: CanvasRenderingContext2D, engine: Engine): void {
     ctx.arc(col + 0.5, row + 0.5, range, 0, Math.PI * 2);
     ctx.stroke();
     ctx.restore();
+  }
+
+  // 아직 세우지 않은 자리라면(호버 중이거나 선택만 된 상태) 그 무기의 그림자를
+  // 얹어서 무엇이 어디에 들어갈지 미리 보여준다.
+  if (!build) {
+    const ghost = getGhostCanvas(kind);
+    if (ghost) {
+      ctx.save();
+      ctx.globalAlpha = 0.5;
+      ctx.drawImage(ghost, col, row, 1, 1);
+      ctx.restore();
+    }
   }
 
   ctx.strokeStyle = color;
@@ -1003,18 +1367,158 @@ function drawShot(ctx: CanvasRenderingContext2D, shot: Shot): void {
   ctx.restore();
 }
 
+/**
+ * 옮겨붙는 불길: 앞 적에서 다음 적까지 휘어진 불줄기가 앞으로 자라나고, 끝에 불덩이가
+ * 달려 간다. 곧은 발사선과 모양을 달리해서 "번진다"는 게 한눈에 보이게 한다.
+ */
+function drawCatch(ctx: CanvasRenderingContext2D, beam: Beam, fade: number): void {
+  const dx = beam.bx - beam.ax;
+  const dy = beam.by - beam.ay;
+  const len = Math.max(0.001, Math.hypot(dx, dy));
+  const side = beam.seed < 0.5 ? -1 : 1;
+  const bend = len * (0.28 + beam.seed * 0.12) * side;
+  const cx = (beam.ax + beam.bx) / 2 - (dy / len) * bend;
+  const cy = (beam.ay + beam.by) / 2 + (dx / len) * bend;
+  const at = (t: number) => {
+    const u = 1 - t;
+    return {
+      x: u * u * beam.ax + 2 * u * t * cx + t * t * beam.bx,
+      y: u * u * beam.ay + 2 * u * t * cy + t * t * beam.by,
+    };
+  };
+  const grow = Math.min(1, (beam.span - beam.life) / 0.08);
+  const heavy = beam.level - 1;
+
+  const trace = () => {
+    ctx.beginPath();
+    for (let i = 0; i <= 10; i += 1) {
+      const p = at((grow * i) / 10);
+      if (i === 0) ctx.moveTo(p.x, p.y);
+      else ctx.lineTo(p.x, p.y);
+    }
+  };
+  ctx.lineCap = 'round';
+  trace();
+  ctx.globalAlpha = fade * 0.5;
+  ctx.strokeStyle = SHADE.ember;
+  ctx.lineWidth = 0.12 + heavy * 0.035;
+  ctx.stroke();
+  ctx.globalAlpha = fade;
+  ctx.strokeStyle = SHADE.flash;
+  ctx.lineWidth = 0.04 + heavy * 0.01;
+  ctx.stroke();
+
+  const head = at(grow);
+  ctx.fillStyle = SHADE.flash;
+  ctx.beginPath();
+  ctx.arc(head.x, head.y, 0.07 + heavy * 0.02, 0, Math.PI * 2);
+  ctx.fill();
+  ctx.globalAlpha = 1;
+}
+
+/** 포탄 자리의 그을음: 가운데가 짙은 검댕이 서서히 옅어진다. */
+function drawScorches(ctx: CanvasRenderingContext2D, scorches: readonly Scorch[]): void {
+  for (const s of scorches) {
+    const k = s.life / s.span;
+    const g = ctx.createRadialGradient(s.x, s.y, 0, s.x, s.y, s.r);
+    g.addColorStop(0, 'rgba(12,9,6,' + (0.55 * k).toFixed(3) + ')');
+    g.addColorStop(0.6, 'rgba(24,18,11,' + (0.3 * k).toFixed(3) + ')');
+    g.addColorStop(1, 'rgba(24,18,11,0)');
+    ctx.fillStyle = g;
+    ctx.beginPath();
+    ctx.ellipse(s.x, s.y, s.r, s.r * 0.8, 0, 0, Math.PI * 2);
+    ctx.fill();
+  }
+}
+
+function drawParticles(ctx: CanvasRenderingContext2D, particles: readonly Particle[]): void {
+  ctx.lineCap = 'round';
+  for (const p of particles) {
+    const k = Math.max(0, p.life / p.span);
+    if (p.kind === 'flash') {
+      const r = p.size * (0.55 + (1 - k) * 0.6);
+      const g = ctx.createRadialGradient(p.x, p.y, 0, p.x, p.y, r);
+      g.addColorStop(0, 'rgba(255,248,225,' + (0.95 * k).toFixed(3) + ')');
+      g.addColorStop(0.35, 'rgba(255,200,110,' + (0.6 * k).toFixed(3) + ')');
+      g.addColorStop(1, 'rgba(255,150,60,0)');
+      ctx.globalAlpha = 1;
+      ctx.fillStyle = g;
+      ctx.beginPath();
+      ctx.arc(p.x, p.y, r, 0, Math.PI * 2);
+      ctx.fill();
+      continue;
+    }
+    if (p.kind === 'smoke') {
+      ctx.globalAlpha = 0.32 * k;
+      ctx.fillStyle = p.color;
+      ctx.beginPath();
+      ctx.arc(p.x, p.y, p.size * (1 + (1 - k) * 1.4), 0, Math.PI * 2);
+      ctx.fill();
+      continue;
+    }
+    if (p.kind === 'spark') {
+      ctx.globalAlpha = k;
+      ctx.strokeStyle = p.color;
+      ctx.lineWidth = p.size;
+      ctx.beginPath();
+      ctx.moveTo(p.x, p.y);
+      ctx.lineTo(p.x - p.vx * 0.05, p.y - p.vy * 0.05);
+      ctx.stroke();
+      continue;
+    }
+    ctx.globalAlpha = Math.min(1, k * 1.6);
+    ctx.fillStyle = p.color;
+    ctx.fillRect(p.x - p.size / 2, p.y - p.size / 2, p.size, p.size);
+  }
+  ctx.globalAlpha = 1;
+}
+
+/** 불이 붙은 적: 몸 위로 일렁이는 불꽃 세 가닥. 꺼질 즈음 작아지며 사라진다. */
+function drawBurn(ctx: CanvasRenderingContext2D, enemy: Enemy, time: number): void {
+  const k = Math.min(1, enemy.burn / 0.35);
+  const r = enemy.radius;
+  ctx.save();
+  for (let i = 0; i < 3; i += 1) {
+    const flick = 0.5 + 0.5 * Math.sin(time * 18 + enemy.id * 1.7 + i * 2.1);
+    const fx = enemy.x + enemy.kickX + (i - 1) * r * 0.55;
+    const fy = enemy.y + enemy.kickY - r * 0.15;
+    const h = r * (0.9 + flick * 0.6) * (0.5 + k * 0.5);
+    const w = r * 0.34;
+    for (const [color, scale] of [
+      [SHADE.ember, 1],
+      [SHADE.flash, 0.55],
+    ] as const) {
+      ctx.globalAlpha = (0.55 + flick * 0.35) * k;
+      ctx.fillStyle = color;
+      ctx.beginPath();
+      ctx.moveTo(fx - w * scale, fy);
+      ctx.quadraticCurveTo(fx - w * scale * 0.6, fy - h * scale * 0.6, fx, fy - h * scale);
+      ctx.quadraticCurveTo(fx + w * scale * 0.6, fy - h * scale * 0.6, fx + w * scale, fy);
+      ctx.closePath();
+      ctx.fill();
+    }
+  }
+  ctx.restore();
+}
+
 /** One 신기전 volley, likewise shared with the codex. */
 function drawBeam(ctx: CanvasRenderingContext2D, beam: Beam): void {
-  const fade = Math.min(1, beam.life * 7);
+  if (beam.delay > 0) return;
+  // 처음 절반은 또렷하게 머물고 나머지 동안 사그라든다.
+  const fade = Math.min(1, (beam.life / beam.span) * 2);
+  if (beam.hop > 0) {
+    drawCatch(ctx, beam, fade);
+    return;
+  }
   const along = Math.atan2(beam.by - beam.ay, beam.bx - beam.ax);
   // A wider rack sends more 신기전 down the same line, fanned across it.
   const nx = -Math.sin(along);
   const ny = Math.cos(along);
   const shafts = beam.level;
 
-  ctx.globalAlpha = fade * 0.45;
+  ctx.globalAlpha = fade * 0.5;
   ctx.strokeStyle = SHADE.ember;
-  ctx.lineWidth = 0.075 + (beam.level - 1) * 0.03;
+  ctx.lineWidth = 0.1 + (beam.level - 1) * 0.04;
   ctx.beginPath();
   ctx.moveTo(beam.ax, beam.ay);
   ctx.lineTo(beam.bx, beam.by);
@@ -1022,7 +1526,7 @@ function drawBeam(ctx: CanvasRenderingContext2D, beam: Beam): void {
 
   ctx.globalAlpha = fade;
   ctx.strokeStyle = SHADE.flash;
-  ctx.lineWidth = 0.026;
+  ctx.lineWidth = 0.034;
   for (let i = 0; i < shafts; i += 1) {
     const off = (i - (shafts - 1) / 2) * 0.07;
     ctx.beginPath();
@@ -1121,6 +1625,9 @@ export function drawMunitionPreview(
       bx: across - 0.14,
       by: 0.29,
       life: 1,
+      span: 1,
+      delay: 0,
+      hop: 0,
       seed: 0.3,
       level,
     });
@@ -1150,6 +1657,7 @@ export function drawGame(
   engine: Engine,
   view: View,
   time: number,
+  previewKind: BuildKind | null = null,
 ): void {
   const { tile, ox, oy, width, height, dpr } = view;
 
@@ -1169,13 +1677,16 @@ export function drawGame(
   ctx.fillStyle = PALETTE.ground;
   ctx.fillRect(0, 0, COLS, ROWS);
 
+  drawTerrain(ctx);
+  drawCoast(ctx, time);
   drawGrid(ctx);
   strokeRoute(ctx, engine.route, (time * 1.1) % 0.66);
   drawPads(ctx, engine);
-  drawGate(ctx, time);
+  drawLanding(ctx, time);
   drawCheckpoints(ctx, time);
-  drawSelection(ctx, engine);
-  drawExit(ctx, engine, time);
+  drawSelection(ctx, engine, previewKind);
+  drawFortress(ctx, engine, time);
+  drawScorches(ctx, engine.scorches);
 
   for (const build of engine.builds.values()) drawBuild(ctx, build, time);
 
@@ -1197,6 +1708,7 @@ export function drawGame(
   for (const shot of engine.shots) drawShot(ctx, shot);
 
   for (const beam of engine.beams) drawBeam(ctx, beam);
+  drawParticles(ctx, engine.particles);
   ctx.restore();
 
   ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
@@ -1204,13 +1716,13 @@ export function drawGame(
   ctx.textAlign = 'center';
   ctx.textBaseline = 'middle';
 
-  ctx.fillStyle = PALETTE.ochre;
-  ctx.font = '700 ' + Math.round(tile * 0.38) + "px 'IBM Plex Mono', ui-monospace, monospace";
+  ctx.fillStyle = PALETTE.ink;
+  ctx.font = Math.round(tile * 0.32) + "px 'Song Myung', 'Batang', serif";
   CHECKPOINTS.forEach((cell, i) => {
     ctx.fillText(
-      String(i + 1),
-      ox + shakeX + (cell.col + 0.5) * tile,
-      oy + shakeY + (cell.row + 0.5) * tile + tile * 0.02,
+      CHECKPOINT_NUMERALS[i] ?? String(i + 1),
+      ox + shakeX + (cell.col + 0.54) * tile,
+      oy + shakeY + (cell.row + 0.31 + checkpointWave(time, i) * 0.5) * tile,
     );
   });
 
@@ -1221,7 +1733,7 @@ export function drawGame(
       (note.big ? 700 : 600) +
       ' ' +
       Math.round(tile * (note.big ? 0.34 : 0.28)) +
-      "px 'IBM Plex Mono', ui-monospace, monospace";
+      "px 'Gowun Batang', 'Batang', serif";
     ctx.fillText(note.text, ox + note.x * tile, oy + note.y * tile);
   }
   ctx.globalAlpha = 1;

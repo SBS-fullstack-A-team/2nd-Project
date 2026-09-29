@@ -32,7 +32,7 @@ export const GAMES: readonly GameMeta[] = [
   {
     id: 'imjin-50',
     name: '임진 50',
-    description: '벽으로 길을 접어 쉰 번의 파도를 막는 미로형 타워디펜스',
+    description: '벽으로 길을 접어 쉰 차례의 공세를 막는 미로형 타워디펜스',
     thumbnail: imjin50Thumbnail,
     category: 'arcade',
     component: lazy(() => import('./imjin-50')),

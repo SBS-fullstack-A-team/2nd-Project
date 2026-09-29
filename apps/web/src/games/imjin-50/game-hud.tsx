@@ -1,6 +1,7 @@
 import { TOTAL_WAVES, isBossWave } from './engine/config';
 import type { Snapshot } from './engine/engine';
 import { cx } from './cx';
+import { formatElapsed } from './format';
 import styles from './Imjin50.module.css';
 
 function Chip({
@@ -43,11 +44,12 @@ export function GameHud({ stats }: { stats: Snapshot }) {
         />
         <Chip label="군자금" value={String(stats.gold)} tone={styles.toneAmber} />
         <Chip
-          label="파도"
+          label="공세"
           value={stats.wave + '/' + TOTAL_WAVES}
           tone={isBossWave(stats.wave) ? styles.toneRose : styles.toneCore}
         />
         <Chip label="점수" value={stats.score.toLocaleString('ko-KR')} tone={styles.tonePaper} />
+        <Chip label="경과" value={formatElapsed(stats.durationMs)} tone={styles.toneMuted} />
       </div>
 
       <div className={styles.progressRow}>
@@ -58,7 +60,7 @@ export function GameHud({ stats }: { stats: Snapshot }) {
           />
         </div>
         {stats.combo > 1 ? (
-          <span className={styles.progressNoteAmber}>연쇄 x{stats.comboMul.toFixed(1)}</span>
+          <span className={styles.progressNoteAmber}>연속 격파 x{stats.comboMul.toFixed(1)}</span>
         ) : (
           <span className={styles.progressNote}>경로 {stats.routeLength}칸</span>
         )}

@@ -34,14 +34,24 @@ export const CHECKPOINTS: readonly Cell[] = [
  *  green grounds, 丹 cinnabar for the aggressor, 石間朱 iron oxide for timber,
  *  黃 ochre for brass and waypoints, hanji paper for everything written. */
 export const PALETTE = {
-  void: '#0c1410',
-  ground: '#111d17',
-  groundAlt: '#0e1913',
-  grid: '#1c3227',
-  pad: '#17291f',
+  // 1592년 늦봄의 들판: 거무스름한 흙, 마른 풀, 밟아 다진 황톳길, 석축과 기와
+  void: '#120f0a',
+  ground: '#2b2a1c',
+  groundAlt: '#232216',
+  groundLit: '#363421',
+  grass: '#6b7438',
+  grid: 'rgba(10,8,4,0.26)',
+  pad: '#3a3526',
   wall: '#4a3726',
   wallTop: '#6b5137',
-  route: '#3e5c49',
+  route: '#6a5238',
+  routeLit: '#8f7652',
+  footprint: '#2a2014',
+  sea: '#1f3b44',
+  stone: '#57554b',
+  stoneLit: '#6d6a5e',
+  roof: '#57544e',
+  ink: '#241710',
   paper: '#ece3cf',
   muted: '#94a793',
   dim: '#5b7364',
@@ -84,7 +94,7 @@ export const BUILDS: Record<BuildKind, BuildDef> = {
     kind: 'wall',
     name: '목책',
     blurb:
-      '공격하지 않는 나무 울타리. 왜군이 걸어야 하는 길을 늘리는 데만 씁니다. 조선군은 성 밖에 목책을 겹으로 세워 방어선을 여러 겹으로 만들었습니다.',
+      '왜군이 걸어야 하는 길을 늘리는 나무 울타리. 강화하면 사슴뿔처럼 가지를 벌린 녹채가 되어 바로 옆을 지나는 적을 찌르고, 3단계에서는 걸음도 붙잡습니다.',
     cost: 18,
     damage: 0,
     rate: 0,
@@ -92,9 +102,9 @@ export const BUILDS: Record<BuildKind, BuildDef> = {
     splash: 0,
     slow: 0,
     chain: 0,
-    pierceArmor: false,
-    hitsScout: false,
-    upgradable: false,
+    pierceArmor: true,
+    hitsScout: true,
+    upgradable: true,
     color: PALETTE.timber,
   },
   arrow: {
@@ -120,7 +130,7 @@ export const BUILDS: Record<BuildKind, BuildDef> = {
     blurb:
       '조선 화포 가운데 가장 큰 구경. 착탄 지점 주변을 함께 쓸어냅니다. 대장군전을 날려 선체를 부수는 데 쓰였고, 좁은 통로에서 특히 강합니다.',
     cost: 105,
-    damage: 32,
+    damage: 38,
     rate: 0.62,
     range: 2.3,
     splash: 1,
@@ -170,7 +180,27 @@ export const BUILDS: Record<BuildKind, BuildDef> = {
 export const BUILD_ORDER: readonly BuildKind[] = ['wall', 'arrow', 'cannon', 'caltrop', 'hwacha'];
 
 export function upgradeCost(kind: BuildKind, level: number): number {
+  if (kind === 'wall') return WALL_UPGRADE_COST[level - 1] ?? 0;
   return Math.round(BUILDS[kind].cost * 0.85 * level);
+}
+
+/**
+ * 목책 강화(녹채). 바로 옆(한 칸 거리)을 지나는 적에게 초당 최대 체력의 일정 비율을
+ * 갑주 무시 피해로 주고, 3단계는 걸음도 늦춘다. 체력 비례라 체력이 수십 배로 불어나는
+ * 후반에도 같은 비중으로 먹힌다. 왜장은 절반만 받는다. 인덱스는 level - 1.
+ */
+export const WALL_UPGRADE_COST: readonly number[] = [30, 60];
+export const WALL_THORN: readonly number[] = [0, 0.004, 0.006];
+export const WALL_SLOW: readonly number[] = [0, 0, 0.15];
+export const WALL_REACH = 1.05;
+export const WALL_BOSS_FACTOR = 0.5;
+
+export function wallThorn(level: number): number {
+  return WALL_THORN[level - 1] ?? 0;
+}
+
+export function wallSlow(level: number): number {
+  return WALL_SLOW[level - 1] ?? 0;
 }
 
 export function towerDamage(kind: BuildKind, level: number): number {
@@ -334,12 +364,12 @@ export const ENEMIES: Record<EnemyKind, EnemyDef> = {
   boss: {
     kind: 'boss',
     name: '왜장',
-    note: '부대를 이끄는 장수. 열 번째 파도마다 들어오고, 뚫리면 성문이 크게 흔들립니다.',
+    note: '부대를 이끄는 장수. 열 번째 공세마다 들어오고, 뚫리면 성문이 크게 흔들립니다.',
     hp: 760,
     speed: 0.72,
     reward: 150,
-    armor: 10,
-    leak: 6,
+    armor: 6,
+    leak: 4,
     ignoresWalls: false,
     slowResist: 0.5,
     radius: 0.42,
@@ -358,11 +388,11 @@ export const ENEMY_ORDER: readonly EnemyKind[] = [
 
 export function hpScale(wave: number): number {
   const w = wave - 1;
-  return 1 + 0.2 * w + 0.011 * w * w;
+  return 1 + 0.22 * w + 0.013 * w * w;
 }
 
 export function rewardScale(wave: number): number {
-  return 1 + 0.035 * (wave - 1);
+  return 1 + 0.025 * (wave - 1);
 }
 
 export function waveClearGold(wave: number): number {

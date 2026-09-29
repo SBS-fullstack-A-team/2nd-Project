@@ -1,3 +1,4 @@
+import type { CSSProperties } from 'react';
 import { BUILDS, BUILD_ORDER, MAX_LEVEL, type BuildKind } from './engine/config';
 import type { Snapshot } from './engine/engine';
 import { BUILD_COLOR } from './config';
@@ -33,6 +34,7 @@ export function GameDock({
   onSpeed,
   onPause,
   onToggleMute,
+  onHoverKind,
 }: {
   stats: Snapshot;
   selection: DockSelection | null;
@@ -48,22 +50,25 @@ export function GameDock({
   onSpeed: () => void;
   onPause: () => void;
   onToggleMute: () => void;
+  /** 무기 버튼 위에 마우스를 올리고 뗄 때 호출 — 아직 세우지 않은 선택 칸에
+   *  그 무기의 그림자와 사거리를 미리 보여주는 데 쓴다. */
+  onHoverKind: (kind: BuildKind | null) => void;
 }) {
   const placed = selection !== null && selection.kind !== null;
   const kind = selection?.kind ?? null;
 
   return (
     <div className={styles.dock}>
-      <div className={styles.dockTopRow}>
+      <div className={styles.controls}>
         <button
           type="button"
           onClick={onSpeed}
           aria-label="배속 전환"
-          className={styles.dockButton}
+          className={styles.controlBtn}
         >
           x{speed}
         </button>
-        <button type="button" onClick={onPause} className={styles.dockButtonLabel}>
+        <button type="button" onClick={onPause} className={styles.controlBtn}>
           {paused ? '계속' : '멈춤'}
         </button>
         <button
@@ -71,18 +76,18 @@ export function GameDock({
           onClick={onToggleMute}
           aria-pressed={muted}
           aria-label={muted ? '소리 켜기' : '소리 끄기'}
-          className={styles.muteButton}
+          className={styles.controlBtn}
         >
           {muted ? '🔇' : '🔊'}
         </button>
-        {stats.phase === 'break' ? (
-          <button type="button" onClick={onCallWave} className={styles.callWaveButton}>
-            미리 소집 {Math.ceil(stats.breakLeft)}초
-          </button>
-        ) : (
-          <span className={styles.remainingTag}>남은 적 {stats.remaining}</span>
-        )}
       </div>
+      {stats.phase === 'break' ? (
+        <button type="button" onClick={onCallWave} className={styles.callWaveButton}>
+          미리 소집 {Math.ceil(stats.breakLeft)}초
+        </button>
+      ) : (
+        <span className={styles.remainingTag}>남은 적 {stats.remaining}</span>
+      )}
 
       <div className={styles.dockContent}>
         {placed && kind ? (
@@ -93,7 +98,7 @@ export function GameDock({
               </span>
               <div className={styles.selectionInfo}>
                 <p className={styles.selectionName}>
-                  {BUILDS[kind].name}
+                  {kind === 'wall' && selection.level >= 2 ? '녹채' : BUILDS[kind].name}
                   {BUILDS[kind].upgradable ? (
                     <span className={styles.selectionLevel}>
                       레벨 {selection.level}/{MAX_LEVEL}
@@ -107,7 +112,7 @@ export function GameDock({
                       ' · 사거리 ' +
                       selection.range.toFixed(2) +
                       (selection.trait ? ' · ' + selection.trait : '')
-                    : '공격하지 않는 목책'}
+                    : (selection.trait ?? '길만 막는 울타리 · 강화하면 녹채')}
                 </p>
               </div>
               <button type="button" onClick={onClose} className={styles.closeBtn}>
@@ -144,17 +149,18 @@ export function GameDock({
                   key={option}
                   type="button"
                   onClick={() => onPick(option)}
+                  onMouseEnter={() => onHoverKind(option)}
+                  onMouseLeave={() => onHoverKind(null)}
                   disabled={!affordable}
                   aria-pressed={active}
                   className={cx(styles.buildBtn, active && styles.buildBtnActive)}
-                  style={{
-                    borderTopColor: affordable ? BUILD_COLOR[option] : undefined,
-                    color: affordable ? BUILD_COLOR[option] : undefined,
-                  }}
+                  style={{ '--build-accent': BUILD_COLOR[option] } as CSSProperties}
                 >
                   <BuildGlyph kind={option} size={17} />
-                  <span className={styles.buildName}>{def.name}</span>
-                  <span className={styles.buildCost}>{def.cost}</span>
+                  <span className={styles.buildText}>
+                    <span className={styles.buildName}>{def.name}</span>
+                    <span className={styles.buildCost}>{def.cost}</span>
+                  </span>
                 </button>
               );
             })}

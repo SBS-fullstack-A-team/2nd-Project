@@ -5,9 +5,9 @@ export const GAME_ID = 'imjin-50';
 
 /** 시설별 강조색 (덴초 안료 팔레트) */
 export const BUILD_COLOR: Record<BuildKind, string> = {
-  wall: '#94a793',
-  arrow: '#ece3cf',
+  wall: '#b3906a',
+  arrow: '#efe4cc',
   cannon: '#d9a441',
-  caltrop: '#5b7364',
+  caltrop: '#9aa2a6',
   hwacha: '#7a9ccf',
 };
