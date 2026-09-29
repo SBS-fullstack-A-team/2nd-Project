@@ -20,7 +20,10 @@ export type ParticleKind =
   | 'shard'
   | 'wisp'
   | 'nebula'
-  | 'ring';
+  | 'ring'
+  | 'bubble'
+  | 'crescent'
+  | 'gust';
 
 export interface ParticleOptions {
   x: number;
@@ -225,6 +228,58 @@ export class Particle {
         ctx.beginPath();
         ctx.arc(this.x, this.y, s, 0, TAU);
         ctx.fill();
+        break;
+      }
+      case 'bubble': {
+        // 물방울/독방울 — 테두리 + 작은 하이라이트
+        const s = this.size * (0.8 + t * 0.4);
+        ctx.lineWidth = 1.4;
+        ctx.globalAlpha = alpha * 0.9;
+        ctx.beginPath();
+        ctx.arc(this.x, this.y, s, 0, TAU);
+        ctx.stroke();
+        ctx.globalAlpha = alpha * 0.25;
+        ctx.fill();
+        ctx.globalAlpha = alpha;
+        ctx.fillStyle = '#ffffff';
+        ctx.beginPath();
+        ctx.arc(this.x - s * 0.35, this.y - s * 0.35, s * 0.22, 0, TAU);
+        ctx.fill();
+        break;
+      }
+      case 'crescent': {
+        // 초승달 모양 검기 — 큰 원에서 어긋난 원을 파낸 모양
+        ctx.globalCompositeOperation = 'lighter';
+        ctx.save();
+        ctx.translate(this.x, this.y);
+        ctx.rotate(this.rot * 0.4);
+        const s = this.size;
+        ctx.beginPath();
+        ctx.arc(0, 0, s, Math.PI * 0.15, Math.PI * 1.85);
+        ctx.arc(s * 0.45, 0, s * 0.82, Math.PI * 1.75, Math.PI * 0.25, true);
+        ctx.closePath();
+        ctx.fill();
+        ctx.restore();
+        break;
+      }
+      case 'gust': {
+        // 바람 줄기 — 진행 방향으로 휘어지는 짧은 곡선
+        const speed = Math.hypot(this.vx, this.vy) || 1;
+        const ux = this.vx / speed;
+        const uy = this.vy / speed;
+        const len = this.size * 4;
+        ctx.globalCompositeOperation = 'lighter';
+        ctx.lineWidth = 1.6;
+        ctx.lineCap = 'round';
+        ctx.beginPath();
+        ctx.moveTo(this.x - ux * len, this.y - uy * len);
+        ctx.quadraticCurveTo(
+          this.x - ux * len * 0.4 - uy * this.size * 1.6,
+          this.y - uy * len * 0.4 + ux * this.size * 1.6,
+          this.x,
+          this.y,
+        );
+        ctx.stroke();
         break;
       }
       case 'ring': {
@@ -486,6 +541,32 @@ const TRAIL_LAYERS: Record<BladeId, TrailLayer[]> = {
     { width: 2.8, color: '#ffae00', alpha: 0.35, glow: true },
     { width: 1.2, color: '#ffd700', alpha: 0.95, glow: true },
     { width: 0.4, color: '#fffbe0', alpha: 1, glow: false },
+  ],
+  // ----- 에픽 등급 -----
+  gale: [
+    { width: 2.8, color: '#5fe3a8', alpha: 0.3, glow: true },
+    { width: 1.2, color: '#b8ffe0', alpha: 0.9, glow: true },
+    { width: 0.35, color: '#ffffff', alpha: 1, glow: false },
+  ],
+  tide: [
+    { width: 3.0, color: '#1f8fff', alpha: 0.35, glow: true },
+    { width: 1.4, color: '#5cc8ff', alpha: 0.8, glow: true },
+    { width: 0.45, color: '#e6fbff', alpha: 1, glow: false },
+  ],
+  venom: [
+    { width: 3.0, color: '#4caf1a', alpha: 0.4, glow: true },
+    { width: 1.3, color: '#9dff3c', alpha: 0.85, glow: true },
+    { width: 0.45, color: '#f0ffd0', alpha: 1, glow: false },
+  ],
+  amethyst: [
+    { width: 3.0, color: '#7a3cff', alpha: 0.35, glow: true },
+    { width: 1.3, color: '#c49bff', alpha: 0.9, glow: true },
+    { width: 0.4, color: '#f6eeff', alpha: 1, glow: false },
+  ],
+  crimson: [
+    { width: 3.2, color: '#c3002f', alpha: 0.45, glow: true },
+    { width: 1.3, color: '#ff4d6d', alpha: 0.9, glow: true },
+    { width: 0.4, color: '#ffe3e8', alpha: 1, glow: false },
   ],
   // ----- 전설 등급 -----
   frost: [
@@ -822,6 +903,143 @@ export class Blade {
           );
         }
         break;
+      // ----- 에픽 등급 -----
+      case 'gale':
+        if (Math.random() < 0.6) {
+          add({
+            x,
+            y,
+            vx: back.vx * 0.6 + rand(-60, 60),
+            vy: back.vy * 0.6 + rand(-60, 60),
+            life: rand(0.25, 0.45),
+            size: rand(3, 5),
+            color: pick(['#d9fff0', '#7ee8b8']),
+            kind: 'gust',
+            gravity: 0,
+            drag: 2.5,
+          });
+        }
+        if (Math.random() < 0.25) {
+          add({
+            x,
+            y,
+            vx: rand(-80, 80),
+            vy: rand(-60, 10),
+            life: rand(0.8, 1.3),
+            size: rand(4, 6),
+            color: pick(['#5fcf5a', '#8fe36b', '#c7f06a']),
+            kind: 'petal',
+            gravity: 0.1,
+            drag: 1.2,
+          });
+        }
+        break;
+      case 'tide':
+        if (Math.random() < 0.5) {
+          add({
+            x: x + rand(-6, 6),
+            y: y + rand(-6, 6),
+            vx: rand(-20, 20),
+            vy: rand(-70, -30),
+            life: rand(0.6, 1),
+            size: rand(2.5, 5),
+            color: '#8fdcff',
+            kind: 'bubble',
+            gravity: -0.05,
+            drag: 1.5,
+          });
+        }
+        if (Math.random() < 0.5) {
+          add({
+            x,
+            y,
+            vx: rand(-60, 60),
+            vy: rand(-40, 20),
+            life: rand(0.35, 0.6),
+            size: rand(1.8, 3),
+            color: pick(['#5cc8ff', '#c7f0ff']),
+            kind: 'juice',
+            gravity: 0.8,
+            drag: 0.8,
+          });
+        }
+        break;
+      case 'venom':
+        if (Math.random() < 0.45) {
+          add({
+            x,
+            y,
+            vx: rand(-20, 20),
+            vy: rand(-10, 40),
+            life: rand(0.5, 0.9),
+            size: rand(2.5, 4.5),
+            color: '#9dff3c',
+            kind: 'bubble',
+            gravity: 0.05,
+            drag: 1.5,
+          });
+        }
+        if (Math.random() < 0.5) {
+          add({
+            x,
+            y,
+            vx: rand(-15, 15),
+            vy: rand(20, 60),
+            life: rand(0.5, 0.8),
+            size: rand(2, 3.5),
+            color: pick(['#6bd425', '#b6ff4d']),
+            kind: 'juice',
+            gravity: 0.9,
+            drag: 0.5,
+          });
+        }
+        break;
+      case 'amethyst':
+        if (Math.random() < 0.6) {
+          add({
+            x: x + rand(-5, 5),
+            y: y + rand(-5, 5),
+            vx: rand(-50, 50),
+            vy: rand(-60, 20),
+            life: rand(0.4, 0.7),
+            size: rand(3, 5.5),
+            color: pick(['#9b5cff', '#c49bff', '#e2c6ff']),
+            kind: 'shard',
+            gravity: 0.3,
+            drag: 1.8,
+          });
+        }
+        break;
+      case 'crimson':
+        if (Math.random() < 0.35) {
+          add({
+            x,
+            y,
+            vx: back.vx * 0.3 + rand(-30, 30),
+            vy: back.vy * 0.3 + rand(-30, 30),
+            life: rand(0.35, 0.6),
+            size: rand(5, 8),
+            color: pick(['#ff4d6d', '#c3002f']),
+            kind: 'crescent',
+            gravity: 0,
+            drag: 2.5,
+          });
+        }
+        if (Math.random() < 0.4) {
+          add({
+            x,
+            y,
+            vx: rand(-80, 80),
+            vy: rand(-80, 80),
+            life: rand(0.2, 0.35),
+            size: 1.5,
+            color: '#ffb3c1',
+            kind: 'spark',
+            gravity: 0.2,
+            drag: 3,
+          });
+        }
+        break;
       // ----- 전설 등급 -----
       case 'frost':
         if (Math.random() < 0.55) {
@@ -994,6 +1212,94 @@ export class Blade {
           kind: 'star',
           gravity: 0.2,
           drag: 2,
+        }));
+        break;
+      // ----- 에픽 등급: 입자 + 가는 고리 한 겹 -----
+      case 'gale':
+        ring('#b8ffe0', 55);
+        burst(12, 1.2, () => ({
+          life: rand(0.3, 0.5),
+          size: rand(3, 6),
+          color: pick(['#d9fff0', '#7ee8b8']),
+          kind: 'gust',
+          gravity: 0,
+          drag: 2.5,
+        }));
+        burst(6, 0.6, () => ({
+          life: rand(0.9, 1.3),
+          size: rand(4, 7),
+          color: pick(['#5fcf5a', '#8fe36b', '#c7f06a']),
+          kind: 'petal',
+          gravity: 0.12,
+          drag: 1.4,
+        }));
+        break;
+      case 'tide':
+        ring('#5cc8ff', 55);
+        burst(10, 0.4, () => ({
+          life: rand(0.7, 1.1),
+          size: rand(3, 6),
+          color: '#8fdcff',
+          kind: 'bubble',
+          gravity: -0.08,
+          drag: 1.5,
+        }));
+        burst(10, 1, () => ({
+          life: rand(0.4, 0.7),
+          size: rand(2, 3.5),
+          color: pick(['#5cc8ff', '#c7f0ff']),
+          kind: 'juice',
+          gravity: 1,
+          drag: 0.6,
+        }));
+        break;
+      case 'venom':
+        ring('#9dff3c', 55);
+        burst(10, 0.4, () => ({
+          life: rand(0.6, 1),
+          size: rand(3, 6),
+          color: '#9dff3c',
+          kind: 'bubble',
+          gravity: 0.05,
+          drag: 1.5,
+        }));
+        burst(8, 0.8, () => ({
+          life: rand(0.5, 0.8),
+          size: rand(2.5, 4),
+          color: pick(['#6bd425', '#b6ff4d']),
+          kind: 'juice',
+          gravity: 1,
+          drag: 0.5,
+        }));
+        break;
+      case 'amethyst':
+        ring('#c49bff', 55);
+        burst(14, 1, () => ({
+          life: rand(0.5, 0.8),
+          size: rand(4, 7),
+          color: pick(['#9b5cff', '#c49bff', '#e2c6ff']),
+          kind: 'shard',
+          gravity: 0.5,
+          drag: 1.8,
+        }));
+        break;
+      case 'crimson':
+        ring('#ff4d6d', 55);
+        burst(5, 0.7, () => ({
+          life: rand(0.4, 0.6),
+          size: rand(8, 12),
+          color: pick(['#ff4d6d', '#c3002f']),
+          kind: 'crescent',
+          gravity: 0,
+          drag: 2.5,
+        }));
+        burst(12, 1.2, () => ({
+          life: rand(0.2, 0.35),
+          size: 1.8,
+          color: '#ffb3c1',
+          kind: 'spark',
+          gravity: 0.2,
+          drag: 3,
         }));
         break;
       // ----- 전설 등급: 입자 + 충격파 고리 -----

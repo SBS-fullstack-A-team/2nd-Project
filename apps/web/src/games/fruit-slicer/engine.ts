@@ -3,6 +3,8 @@ import {
   BOMB_CHANCE_START,
   COMBO_MILESTONE,
   COMBO_MILESTONE_BONUS,
+  DIFFICULTY_FULL_SCORE,
+  DIFFICULTY_FULL_SEC,
   FEVER_BOMB_POINTS,
   FEVER_COMBO_GOAL,
   FEVER_DURATION_SEC,
@@ -22,6 +24,7 @@ import {
 import { Blade, Fruit, FruitHalf, Particle, Popup, Splat, pick, rand } from './entities';
 import { TAU, bombFuseTip, drawBackground } from './render';
 import type { QuestManager } from './QuestManager';
+import type { SoundManager } from './SoundManager';
 
 /* =========================================================
  * ScoreManager — 한 판의 점수 · 목숨 · 콤보 판정
@@ -85,6 +88,8 @@ const LAUNCH_CANDIDATES = 16;
 /** 필요 간격 = 두 반지름 합 × 배율 — 과일끼리는 살짝, 폭탄과 과일은 넉넉히 */
 const FRUIT_GAP = 1.15;
 const BOMB_GAP = 2.6;
+/** 오른쪽 위 설정 버튼이 차지하는 CSS px (버튼 44 + 여백) — FruitSlicer.module.css 의 .settingsButton 과 맞출 것 */
+const SETTINGS_BUTTON_SPACE_CSS = 60;
 
 export class FruitSlicerEngine {
   private readonly ctx: CanvasRenderingContext2D;
@@ -134,9 +139,15 @@ export class FruitSlicerEngine {
   /** 피버 타임 남은 시간(초). 0 보다 크면 피버 중 */
   private feverTime = 0;
 
+  /** 일시정지 중엔 게임 시간을 멈추고 화면만 그린다 */
+  private paused = false;
+  /** 오른쪽 위 설정 버튼 자리 (논리 px) — 목숨 표시가 버튼에 가리지 않게 비워 둔다 */
+  private hudInsetRight = 0;
+
   constructor(
     private readonly canvas: HTMLCanvasElement,
     private readonly quests: QuestManager,
+    private readonly sound: SoundManager,
     private readonly callbacks: EngineCallbacks,
   ) {
     const ctx = canvas.getContext('2d');
@@ -179,15 +190,54 @@ export class FruitSlicerEngine {
     this.shakeTime = 0;
     this.feverGauge = 0;
     this.stopFever();
+    this.paused = false;
+    this.releasePointer();
     this.state = 'playing';
+    this.sound.stopBgm();
+    this.sound.startBgm();
   }
 
-  /** 메뉴로 돌아갈 때 — 데모 모드 */
+  /** 메뉴로 돌아갈 때 — 데모 모드 (진행 중인 판은 기록 없이 끝난다) */
   idle() {
     this.state = 'idle';
     this.timeScale = 1;
     this.pending = [];
     this.stopFever();
+    this.paused = false;
+    this.releasePointer();
+    this.sound.stopBgm();
+    this.quests.save();
+  }
+
+  /** 일시정지 — 게임 시간·피버·스폰이 모두 멈춘다 */
+  pause() {
+    if (this.paused) return;
+    this.paused = true;
+    this.releasePointer();
+    this.quests.save();
+  }
+
+  resume() {
+    this.paused = false;
+  }
+
+  /** 게임 진행 중(연출 포함)인지 — 일시정지 가능 여부 판단용 */
+  get inGame() {
+    return this.state === 'playing' || this.state === 'ending';
+  }
+
+  /** 누르고 있던 손가락/마우스를 놓은 것으로 처리 (일시정지·화면 전환 시) */
+  private releasePointer() {
+    if (this.pointerId !== null) {
+      try {
+        this.canvas.releasePointerCapture(this.pointerId);
+      } catch {
+        // 이미 풀려 있으면 무시
+      }
+    }
+    this.pointerId = null;
+    this.lastPointer = null;
+    this.swipeCount = 0;
   }
 
   private get fever() {
@@ -209,6 +259,8 @@ export class FruitSlicerEngine {
     this.canvas.height = Math.round(cssH * dpr);
     this.width = (this.height * cssW) / cssH;
     this.scale = this.canvas.height / this.height;
+    // 설정 버튼(44px + 여백) 만큼을 논리 좌표로 환산
+    this.hudInsetRight = (SETTINGS_BUTTON_SPACE_CSS * this.height) / cssH;
 
     // 배경은 크기가 바뀔 때만 다시 그린다
     this.bg.width = this.canvas.width;
@@ -231,7 +283,7 @@ export class FruitSlicerEngine {
   }
 
   private handleDown = (e: PointerEvent) => {
-    if (this.pointerId !== null) return;
+    if (this.pointerId !== null || this.paused) return;
     e.preventDefault();
     this.pointerId = e.pointerId;
     try {
@@ -246,7 +298,7 @@ export class FruitSlicerEngine {
   };
 
   private handleMove = (e: PointerEvent) => {
-    if (e.pointerId !== this.pointerId || !this.lastPointer) return;
+    if (e.pointerId !== this.pointerId || !this.lastPointer || this.paused) return;
     e.preventDefault();
     // 빠르게 그을 때 빠진 좌표까지 받아서 궤적을 촘촘하게
     const events = typeof e.getCoalescedEvents === 'function' ? e.getCoalescedEvents() : [];
@@ -258,7 +310,11 @@ export class FruitSlicerEngine {
       if (dx * dx + dy * dy < 1) continue;
       this.blade.addPoint(p.x, p.y, this.time);
       this.blade.emitTrail(this.particles, p.x, p.y, dx, dy);
-      if (this.state === 'playing') this.checkSlices(from, p);
+      if (this.state === 'playing') {
+        // 빠르게 휘두를 때만 바람 소리 (SoundManager 가 너무 자주 나지 않게 간격을 둔다)
+        if (dx * dx + dy * dy > 18 * 18) this.sound.play('swoosh');
+        this.checkSlices(from, p);
+      }
       this.lastPointer = p;
     }
   };
@@ -350,7 +406,9 @@ export class FruitSlicerEngine {
     const bonus = this.scoreBoard.addFruit(points);
     const combo = this.scoreBoard.combo;
     this.comboPulse = 0.25;
+    this.sound.play('slice');
     if (bonus > 0) {
+      this.sound.play('combo');
       this.popups.push(
         new Popup(
           `${combo} COMBO!`,
@@ -409,6 +467,7 @@ export class FruitSlicerEngine {
       }),
     );
     this.blade.emitSlice(this.particles, x, y);
+    this.sound.play('defuse');
     this.popups.push(new Popup(`+${FEVER_BOMB_POINTS}`, '', x, y - 10, '#ffe36e', 28, 0.8));
     // 폭탄은 과일이 아니므로 콤보·스와이프 개수에는 넣지 않는다
     this.scoreBoard.add(FEVER_BOMB_POINTS);
@@ -447,12 +506,15 @@ export class FruitSlicerEngine {
         }),
       );
     }
+    this.sound.play('fever');
+    this.sound.setBgmFast(true);
     this.unlock(this.quests.recordFever());
   }
 
   private stopFever() {
     this.feverTime = 0;
     this.blade.fever = false;
+    this.sound.setBgmFast(false);
   }
 
   /** 폭탄 — 화면 흔들림 + 붉은 플래시 + 폭발 입자, 곧바로 게임 오버 */
@@ -514,6 +576,7 @@ export class FruitSlicerEngine {
     this.shakeFor(0.8, 18);
     this.flash = 1;
     this.popups.push(new Popup('BOOM!', '', x, y - 20, '#ff3b1f', 56, 1.4));
+    this.sound.play('bomb');
     this.scoreBoard.lives = 0;
     this.endGame(1.6, 0.35);
   }
@@ -537,8 +600,8 @@ export class FruitSlicerEngine {
     this.endTimer = delay;
     this.timeScale = timeScale;
     this.pending = [];
-    this.pointerId = null;
-    this.lastPointer = null;
+    this.releasePointer();
+    this.sound.stopBgm();
     this.quests.recordScore(this.scoreBoard.score);
     this.quests.save();
   }
@@ -547,17 +610,19 @@ export class FruitSlicerEngine {
 
   /** 0 → 1 로 오르는 난이도 (시간 + 점수) */
   private difficulty() {
-    return Math.min(1, this.elapsed / 100 + this.scoreBoard.score / 4000);
+    const byTime = this.elapsed / DIFFICULTY_FULL_SEC;
+    const byScore = this.scoreBoard.score / DIFFICULTY_FULL_SCORE;
+    return Math.min(1, (byTime + byScore) / 2);
   }
 
   private scheduleWave() {
     if (this.fever) {
       // 피버 러시: 과일(가끔 폭탄)이 쉴 새 없이 쏟아진다
-      const size = 3 + Math.floor(Math.random() * 3);
+      const size = 2 + Math.floor(Math.random() * 3);
       for (let i = 0; i < size; i++) {
         this.pending.push({ delay: i * rand(0.05, 0.12), bomb: Math.random() < 0.15 });
       }
-      this.spawnTimer = rand(0.45, 0.65);
+      this.spawnTimer = rand(0.55, 0.8);
       return;
     }
     const d = this.difficulty();
@@ -639,7 +704,8 @@ export class FruitSlicerEngine {
     // 탭 전환 등으로 프레임이 오래 멈췄을 때 튀지 않도록 dt 상한
     const realDt = this.lastFrame ? Math.min((now - this.lastFrame) / 1000, 1 / 30) : 1 / 60;
     this.lastFrame = now;
-    this.update(realDt);
+    // 일시정지 중엔 시간을 흘리지 않고 마지막 장면만 그린다 (밝기 변경이 바로 보이도록)
+    if (!this.paused) this.update(realDt);
     this.render();
     this.raf = requestAnimationFrame(this.frame);
   };
@@ -692,6 +758,7 @@ export class FruitSlicerEngine {
       this.feverTime = Math.max(0, this.feverTime - realDt);
       if (this.feverTime === 0) {
         this.stopFever();
+        this.sound.play('feverEnd');
         this.popups.push(
           new Popup('FEVER 종료', '', this.width / 2, this.height * 0.4, '#ffffff', 34, 1),
         );
@@ -709,6 +776,7 @@ export class FruitSlicerEngine {
         this.timeScale = 1;
         this.fruits = [];
         this.spawnTimer = 1.5;
+        this.sound.play('gameOver');
         this.callbacks.onGameOver(this.scoreBoard.score);
       }
     }
@@ -725,6 +793,7 @@ export class FruitSlicerEngine {
     this.scoreBoard.breakCombo();
     this.feverGauge = 0;
     this.scoreBoard.lives -= 1;
+    this.sound.play('miss');
     this.shakeFor(0.25, 5);
     this.popups.push(
       new Popup('✕', '', this.clampX(fruit.x), this.height - 40, '#ff4d4d', 44, 0.9),
@@ -866,7 +935,7 @@ export class FruitSlicerEngine {
     // 목숨: 오른쪽 위 X 3개 — 잃은 만큼 빨갛게
     const lost = START_LIVES - Math.max(0, this.scoreBoard.lives);
     for (let i = 0; i < START_LIVES; i++) {
-      const cx = this.width - 30 - (START_LIVES - 1 - i) * 36;
+      const cx = this.width - 30 - this.hudInsetRight - (START_LIVES - 1 - i) * 36;
       const cy = 34;
       const isLost = i >= START_LIVES - lost;
       const m = isLost ? 13 : 10;
@@ -880,13 +949,22 @@ export class FruitSlicerEngine {
     }
   }
 
+  /**
+   * HUD 배치 — 넓은 화면은 게이지를 맨 위 가운데에,
+   * 좁은 화면(모바일 세로)은 목숨·설정 버튼과 겹치지 않게 한 줄 아래로 내린다
+   */
+  private hudLayout() {
+    const compact = this.width < 600;
+    return compact ? { gaugeY: 96, comboY: 150 } : { gaugeY: 22, comboY: 78 };
+  }
+
   /** 게이지 아래 현재 콤보 — 벨 때마다 톡 커졌다가 돌아온다 */
   private drawCombo(ctx: CanvasRenderingContext2D, font: string) {
     const combo = this.scoreBoard.combo;
     if (combo < 1) return;
     const scale = 1 + this.comboPulse * 1.4;
     ctx.save();
-    ctx.translate(this.width / 2, 78);
+    ctx.translate(this.width / 2, this.hudLayout().comboY);
     ctx.scale(scale, scale);
     ctx.textAlign = 'center';
     ctx.textBaseline = 'middle';
@@ -908,7 +986,7 @@ export class FruitSlicerEngine {
     const w = Math.min(220, this.width * 0.38);
     const h = 12;
     const x = (this.width - w) / 2;
-    const y = 22;
+    const y = this.hudLayout().gaugeY;
     const ratio = this.fever
       ? this.feverTime / FEVER_DURATION_SEC
       : Math.min(1, this.feverGauge / FEVER_COMBO_GOAL);

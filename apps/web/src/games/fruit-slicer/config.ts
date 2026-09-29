@@ -118,13 +118,20 @@ export const FRUIT_TYPES: readonly FruitType[] = [
 
 // ---------- 난이도 ----------
 
+/**
+ * 난이도(0 → 1) = (경과 시간 / DIFFICULTY_FULL_SEC + 점수 / DIFFICULTY_FULL_SCORE) 의 평균.
+ * 예전엔 100초·4000점 기준을 "더해서" 2000점 즈음 최고 난이도가 되어 너무 빨랐다.
+ * 지금은 2분·2000점일 때 약 0.5 (스폰 간격 약 1.2초, 한 번에 최대 3개).
+ */
+export const DIFFICULTY_FULL_SEC = 180;
+export const DIFFICULTY_FULL_SCORE = 5000;
 /** 스폰 간격(초): 시작값 → 최소값 */
 export const SPAWN_INTERVAL_START = 1.5;
-export const SPAWN_INTERVAL_MIN = 0.55;
+export const SPAWN_INTERVAL_MIN = 0.85;
 /** 한 번에 튀어 오르는 개수 상한 */
-export const MAX_WAVE_SIZE = 6;
+export const MAX_WAVE_SIZE = 4;
 export const BOMB_CHANCE_START = 0.08;
-export const BOMB_CHANCE_MAX = 0.22;
+export const BOMB_CHANCE_MAX = 0.17;
 /** 중력 가속도 (논리 px / s²) */
 export const GRAVITY = 900;
 
@@ -136,6 +143,11 @@ export type BladeId =
   | 'neon'
   | 'sakura'
   | 'golden'
+  | 'gale'
+  | 'tide'
+  | 'venom'
+  | 'amethyst'
+  | 'crimson'
   | 'frost'
   | 'thunder'
   | 'void'
@@ -148,9 +160,17 @@ export interface BladeDef {
   description: string;
   /** 선택창 미리보기 색 (CSS gradient) */
   preview: string;
-  /** 상급 검 — 선택창에서 등급 표시 */
-  tier: 'normal' | 'legend';
+  /** 등급 — 일반 < 에픽 < 전설. 선택창에서 등급 표시 */
+  tier: BladeTier;
 }
+
+export type BladeTier = 'normal' | 'epic' | 'legend';
+
+export const TIER_LABEL: Record<BladeTier, string> = {
+  normal: '일반',
+  epic: '에픽',
+  legend: '전설',
+};
 
 export const BLADES: readonly BladeDef[] = [
   {
@@ -188,7 +208,43 @@ export const BLADES: readonly BladeDef[] = [
     preview: 'linear-gradient(90deg, #8a6a00, #ffd700, #fff6c2, #ffd700)',
     tier: 'normal',
   },
-  // ----- 상급 검 (전설 등급) -----
+  // ----- 에픽 등급 -----
+  {
+    id: 'gale',
+    name: '질풍의 검',
+    description: '휘몰아치는 바람 줄기와 흩날리는 나뭇잎',
+    preview: 'linear-gradient(90deg, #e9fff4, #7ee8b8, #2fb58a, #e9fff4)',
+    tier: 'epic',
+  },
+  {
+    id: 'tide',
+    name: '파도의 검',
+    description: '넘실대는 물빛 궤적과 떠오르는 물방울',
+    preview: 'linear-gradient(90deg, #04386b, #1f8fff, #7fe0ff, #1f8fff)',
+    tier: 'epic',
+  },
+  {
+    id: 'venom',
+    name: '독사의 검',
+    description: '독기 어린 초록 궤적과 부글거리는 독방울',
+    preview: 'linear-gradient(90deg, #102a06, #6bd425, #c6ff4d, #3a8f12)',
+    tier: 'epic',
+  },
+  {
+    id: 'amethyst',
+    name: '자수정 검',
+    description: '보랏빛 결정 궤적과 반짝이는 자수정 조각',
+    preview: 'linear-gradient(90deg, #3b1466, #9b5cff, #e2c6ff, #9b5cff)',
+    tier: 'epic',
+  },
+  {
+    id: 'crimson',
+    name: '진홍 월광검',
+    description: '붉은 달빛 궤적과 초승달 모양 검기',
+    preview: 'linear-gradient(90deg, #2a0006, #c3002f, #ff6b81, #c3002f)',
+    tier: 'epic',
+  },
+  // ----- 전설 등급 -----
   {
     id: 'frost',
     name: '서리 여왕의 검',
@@ -276,6 +332,42 @@ export const QUESTS: readonly QuestDef[] = [
     goal: 20,
     progress: (s) => s.maxCombo,
   },
+  // ----- 중급 퀘스트 → 에픽 검 (일반과 전설 사이 난이도) -----
+  {
+    id: 'e1',
+    title: '누적 과일 200개 슬라이스',
+    reward: 'gale',
+    goal: 200,
+    progress: (s) => s.totalSliced,
+  },
+  {
+    id: 'e2',
+    title: '한 번의 스와이프로 과일 4개 베기',
+    reward: 'tide',
+    goal: 4,
+    progress: (s) => s.bestSwipe,
+  },
+  {
+    id: 'e3',
+    title: '콤보 40 달성',
+    reward: 'venom',
+    goal: 40,
+    progress: (s) => s.maxCombo,
+  },
+  {
+    id: 'e4',
+    title: '최고 점수 1000점 달성',
+    reward: 'amethyst',
+    goal: 1000,
+    progress: (s) => s.highScore,
+  },
+  {
+    id: 'e5',
+    title: '피버 타임 1회 발동',
+    reward: 'crimson',
+    goal: 1,
+    progress: (s) => s.totalFevers,
+  },
   // ----- 상급 퀘스트 → 전설 검 -----
   {
     id: 'q5',
@@ -323,5 +415,6 @@ export const HOW_TO_PLAY: readonly string[] = [
   `과일을 놓쳐 바닥에 떨어뜨리면 목숨이 1개 줄어요. (목숨 ${START_LIVES}개)`,
   '💣 폭탄을 베면 그 즉시 게임 오버!',
   `🔥 콤보 ${FEVER_COMBO_GOAL}을 쌓으면 ${FEVER_DURATION_SEC}초간 피버 타임! 폭탄까지 전부 벨 수 있고 점수 ${FEVER_SCORE_MULTIPLIER}배, 과일을 놓쳐도 목숨과 콤보가 유지돼요.`,
-  '퀘스트를 달성하면 새로운 검 스킨이 열려요. 상급 퀘스트로 전설 검 5종을 모아 보세요!',
+  '퀘스트를 달성하면 새로운 검 스킨이 열려요. 일반 → 에픽 → 전설 등급 검 15종을 모아 보세요!',
+  '⚙️ 오른쪽 위 설정 버튼(또는 Esc 키)으로 일시정지하고 사운드·밝기를 바꿀 수 있어요.',
 ];
