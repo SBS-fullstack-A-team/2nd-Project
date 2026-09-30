@@ -8,6 +8,7 @@ import { initialsHint } from './initials';
 import { questionPoints, scaledScore, timeMultiplier } from './scoring';
 import {
   CATEGORIES,
+  CATEGORY_CREDIT,
   DEFAULT_QUESTION_COUNT,
   FULL_BONUS_SEC,
   GAME_ID,
@@ -324,6 +325,9 @@ function QuizPlay({
           )}
         </ol>
       </div>
+      {CATEGORY_CREDIT[item.meta.category] && (
+        <p className={styles.credit}>{CATEGORY_CREDIT[item.meta.category]}</p>
+      )}
 
       {revealing ? (
         <div className={styles.reveal}>

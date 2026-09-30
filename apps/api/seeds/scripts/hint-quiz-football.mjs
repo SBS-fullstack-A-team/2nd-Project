@@ -1,28 +1,41 @@
-// 힌트 퀴즈 — 축구선수 문제 생성 스크립트 (위키데이터 → seeds/hint-quiz-football.sql)
+// 힌트 퀴즈 — 축구선수 문제 생성 스크립트 (FC온라인 선수 목록 + 위키데이터 → seeds/hint-quiz-football.sql)
 //
-// 데이터 출처: 위키데이터 (https://www.wikidata.org, CC0 — 자유 이용)
-// 위키백과 문서 수(sitelinks)가 많은 = 유명한 선수 순으로, 한국어 이름이 있고
+// 데이터 출처
+// - 선수 선발·정답 이름: FC온라인 선수 메타데이터 (Data based on NEXON Open API)
+//   https://open.api.nexon.com/static/fconline/meta/spid.json — 이용 시 'NEXON Open API' 출처 표시 필수
+// - 힌트(국적·생년·포지션·소속팀·신장): 위키데이터 (https://www.wikidata.org, CC0 — 자유 이용)
+//
+// 선발: FC온라인 특수 시즌 카드가 많은 = 인기 있는 선수 순으로, 위키데이터와 이름으로 연결되고
 // 포지션·신장·생년·국적·소속팀 이력이 모두 있는 선수만 골라 힌트 5~6개를 만든다.
 // (게임이 마지막에 '이름 초성' 힌트를 자동으로 하나 더 붙인다)
-// 선발: 한국 선수 몫(KOREA_TARGET) + 나머지는 전 세계 유명한 순 (한 나라 최대 COUNTRY_CAP 명)
+// 비율: 한국 선수 KOREA_TARGET + 레전드(현재 라이브 카드가 없는 은퇴 선수) 최대 LEGEND_TARGET, 나머지는 현역
 //
 // 실행: node apps/api/seeds/scripts/hint-quiz-football.mjs [인원수=1000]
-// → apps/api/seeds/hint-quiz-football.sql 을 덮어쓴다. 결과를 검토한 뒤 커밋할 것.
+// → apps/api/seeds/hint-quiz-football.sql 을 덮어쓴다. 로그의 '이름 연결 검토' 목록을 확인한 뒤 커밋할 것.
 // ※ Node 로 실행하는 개발용 스크립트 (Workers 코드 아님)
 import { writeFileSync } from 'node:fs';
 
 const TARGET = Number(process.argv[2] ?? 1000);
-const CANDIDATE_LIMIT = Math.ceil(TARGET * 2.2);
+/** 이름을 연결해 볼 FC온라인 인기 선수 수 (힌트 정보가 모자란 선수를 빼도 목표를 채울 만큼) */
+const FC_POOL = Math.ceil(TARGET * 2.5);
 /** 한국 선수 몫 — 전 세계 순위로만 뽑으면 한국 선수가 거의 들어가지 않는다 */
 const KOREA_TARGET = Math.round(TARGET * 0.2);
-const KOREA_CANDIDATE_LIMIT = KOREA_TARGET * 2;
-/** 한국 외 한 나라에서 뽑는 최대 인원 — 특정 나라(예: 일본)가 목록을 채우지 않게 */
+const KOREA_POOL = KOREA_TARGET * 8;
+/** 레전드(은퇴 선수) 최대 인원 — 요즘 선수 위주로 */
+const LEGEND_TARGET = Math.round(TARGET * 0.1);
+/** FC온라인 특수 시즌 카드가 이보다 적은 선수는 뺀다 — 기본 카드만 있는 무명 선수 */
+const MIN_POPULARITY = 2;
+/** 한국 외 한 나라에서 뽑는 최대 인원 — 특정 나라가 목록을 채우지 않게 */
 const COUNTRY_CAP = Math.round(TARGET * 0.07);
 const KOREA = '대한민국';
 const BATCH_SIZE = 100;
 const INSERT_CHUNK = 100; // D1 은 SQL 문 하나가 100KB 를 넘으면 안 되므로 나눠서 INSERT
 const OUT_FILE = new URL('../hint-quiz-football.sql', import.meta.url);
 const ENDPOINT = 'https://query.wikidata.org/sparql';
+const FC_SPID_URL = 'https://open.api.nexon.com/static/fconline/meta/spid.json';
+/** FC온라인 시즌 ID — 선수 카드 ID = 시즌 ID × 1,000,000 + 선수 고유 ID */
+const FC_CURRENT_LIVE = 300; // 25 LIVE: 현역 선수 기본 카드
+const isFcBaseSeason = (s) => (s >= 317 && s <= 324) || s === 300 || (s >= 500 && s <= 520); // LIVE·Premium Live·K리그 기본 카드
 const USER_AGENT = 'simsim-arcade-seed/1.0 (https://github.com/SBS-fullstack-A-team/simsim-arcade)';
 
 /** 직접 만든 문제(seeds/hint-quiz.sql)에 이미 있는 선수 — 중복 생성하지 않는다 */
@@ -40,9 +53,9 @@ const HANDMADE = new Set([
 const QUESTION = '이 축구선수는 누구일까요?';
 
 /**
- * 정답 표기 보정 (위키데이터 ID → 국내 통용 표기) — 재수집해도 유지된다
- * 기준: 국내 중계·주요 언론에서 가장 흔히 쓰는 표기. 풀네임이 긴 브라질 선수 등은 흔히 부르는 이름으로.
- * 위키데이터 한국어 이름(외래어 표기법 기준인 경우가 많음)은 별칭으로 남겨 계속 정답으로 인정한다.
+ * 국내 통용 표기 (위키데이터 ID → 이름) — 재수집해도 유지된다
+ * 정답은 FC온라인 표기를 먼저 쓰고, FC온라인 이름이 없을 때만 여기 answer 를 정답으로 쓴다.
+ * 어느 쪽이든 여기 이름과 위키데이터 한국어 이름은 별칭으로 남겨 계속 정답으로 인정한다.
  * aliases: 함께 인정할 이름 (선택)
  */
 const NAME_FIX = {
@@ -130,16 +143,67 @@ const NAME_FIX = {
   Q312454: { answer: '파울루 호베르투 파우캉', aliases: ['파우캉'] },
 };
 
-async function sparql(query, attempt = 1) {
-  const res = await fetch(`${ENDPOINT}?query=${encodeURIComponent(query)}`, {
-    headers: { Accept: 'application/sparql-results+json', 'User-Agent': USER_AGENT },
-  });
+/**
+ * FC온라인 이름 → 위키데이터 ID 수동 연결 — 이름만으로 자동 연결이 안 되거나 잘못 연결되는 선수
+ * (한 단어 이름·동명이인·표기 차이가 큰 경우). null 이면 문제에서 뺀다.
+ */
+const FC_LINK = {
+  라우타로: 'Q21484126',
+  차비: 'Q17500',
+  즐라탄: 'Q46896',
+  '데이비드 알라바': 'Q31981',
+  '조르지뇨 베이날둠': 'Q372379',
+  '헨릭 미키타리안': 'Q196219',
+  '야니크 카라스코': 'Q4284482',
+  'D. 소보슬러이': 'Q30134278',
+  '프레디 융베리': 'Q10560',
+  '빈센트 콤파니': 'Q201381',
+  '미랄렘 피아니치': 'Q146907',
+  '에미 마르티네스': 'Q3275904',
+  케파: 'Q3195361',
+  'A. 마칼리스테르': 'Q33297140',
+  '은완코 카누': 'Q599675',
+  나니: 'Q482947',
+  '델리 알리': 'Q10553748',
+  아르투르: 'Q39667548',
+  '가브리엘 마갈량이스': 'Q25175970',
+  '네이선 아케': 'Q1755683',
+  히샬리송: 'Q20806743',
+  '스테번 베르흐바인': 'Q17496653',
+  '엑토르 에레라': 'Q2297174',
+  'L. 마르티네스': 'Q30881092',
+  소크라티스: 'Q192923',
+  세드리크: 'Q481330',
+  에메르손: 'Q5370912',
+  사울: 'Q912172',
+  티아고: 'Q17493',
+  '요나탄 타': 'Q14640027',
+  페드로: 'Q179773',
+  'I. 일리치': 'Q29081863', // 이비차 올리치와 헷갈림
+  마르키뉴스: 'Q39230', // 아스널 유스 마르키뉴스와 헷갈림
+  하피냐: 'Q28861547', // 1985년생 하피냐와 헷갈림
+  다닐루: 'Q437329', // 2001년생 다닐루와 헷갈림
+  '막심 로페즈': null, // 막시 로페즈(아르헨티나)와 헷갈림
+  그리말도: null, // 알레한드로 그리말도는 위키데이터 한국어 이름이 없음 (주앙 그리말도와 헷갈림)
+};
+
+async function sparql(query, attempt = 1, method = 'GET') {
+  const headers = { Accept: 'application/sparql-results+json', 'User-Agent': USER_AGENT };
+  // VALUES 가 긴 쿼리는 URL 길이 제한을 넘으므로 POST 로 보낸다
+  const res =
+    method === 'POST'
+      ? await fetch(ENDPOINT, {
+          method,
+          headers: { ...headers, 'Content-Type': 'application/x-www-form-urlencoded' },
+          body: `query=${encodeURIComponent(query)}`,
+        })
+      : await fetch(`${ENDPOINT}?query=${encodeURIComponent(query)}`, { headers });
   if (res.status === 429 || res.status >= 500) {
     if (attempt >= 5) throw new Error(`위키데이터 요청 실패 (${res.status})`);
     const wait = Number(res.headers.get('retry-after')) || attempt * 10;
     console.warn(`  … ${res.status} 응답, ${wait}초 후 재시도 (${attempt}/5)`);
     await new Promise((r) => setTimeout(r, wait * 1000));
-    return sparql(query, attempt + 1);
+    return sparql(query, attempt + 1, method);
   }
   if (!res.ok) throw new Error(`위키데이터 요청 실패 (${res.status}): ${await res.text()}`);
   const json = await res.json();
@@ -150,32 +214,224 @@ async function sparql(query, attempt = 1) {
 
 const qid = (uri) => uri.replace('http://www.wikidata.org/entity/', '');
 
-// 1) 후보: 축구선수(Q937857) 중 유명한 순, 한국어 이름·포지션·신장·생년이 있는 사람
-async function fetchCandidates() {
-  const rows = await sparql(`
-    SELECT ?p ?links WHERE {
-      ?p wdt:P106 wd:Q937857; wikibase:sitelinks ?links.
-      FILTER(?links >= 25)
-      ?p wdt:P413 []; wdt:P2048 []; wdt:P569 [].
-      FILTER EXISTS { ?p rdfs:label ?ko FILTER(LANG(?ko) = "ko") }
-    }
-    ORDER BY DESC(?links)
-    LIMIT ${CANDIDATE_LIMIT}`);
-  return rows.map((r) => ({ id: qid(r.p), links: Number(r.links) }));
+// 1) FC온라인 선수 목록 — 선수별 대표 이름, 인기도(특수 시즌 카드 수), 현역 여부
+async function fetchFcPlayers() {
+  const res = await fetch(FC_SPID_URL, { headers: { 'User-Agent': USER_AGENT } });
+  if (!res.ok) throw new Error(`FC온라인 선수 목록 요청 실패 (${res.status})`);
+  const players = new Map();
+  for (const card of await res.json()) {
+    const season = Math.floor(card.id / 1e6);
+    const pid = card.id % 1e6;
+    const p = players.get(pid) ?? { pid, names: new Map(), popularity: 0, active: false };
+    p.names.set(card.name, (p.names.get(card.name) ?? 0) + 1);
+    if (season === FC_CURRENT_LIVE) p.active = true;
+    if (!isFcBaseSeason(season)) p.popularity++;
+    players.set(pid, p);
+  }
+  // 카드마다 이름이 조금씩 다를 수 있어 가장 많이 쓰인 이름을 쓴다
+  return [...players.values()]
+    .map((p) => ({ ...p, name: [...p.names].sort((a, b) => b[1] - a[1])[0][0].trim() }))
+    .sort((a, b) => b.popularity - a.popularity);
 }
 
-// 1-2) 후보: 한국 선수 (대표팀 국적 또는 국적이 대한민국 Q884)
-async function fetchKoreanCandidates() {
+// 2) 위키데이터 축구선수의 한국어 이름·별칭·영문 이름 (FC온라인 이름과 연결용)
+// FC온라인에는 남자 선수만 있으므로 동명이인 여자 선수와 헷갈리지 않게 남자 선수(P21 = Q6581097)만 받는다
+async function fetchWikidataNames() {
   const rows = await sparql(`
-    SELECT DISTINCT ?p ?links WHERE {
-      ?p wdt:P106 wd:Q937857; wikibase:sitelinks ?links.
+    SELECT ?p ?links ?ko ?alias WHERE {
+      ?p wdt:P106 wd:Q937857; wdt:P21 wd:Q6581097; wikibase:sitelinks ?links. FILTER(?links >= 8)
+      ?p rdfs:label ?ko FILTER(LANG(?ko) = "ko")
+      OPTIONAL { ?p skos:altLabel ?alias FILTER(LANG(?alias) = "ko") }
+    }`);
+  // 한국 선수는 위키백과 문서가 적은 경우가 많아 문서 수 제한 없이 따로 받는다
+  const koreans = await sparql(`
+    SELECT ?p ?links ?ko ?alias WHERE {
+      ?p wdt:P106 wd:Q937857; wdt:P21 wd:Q6581097; wikibase:sitelinks ?links.
       { ?p wdt:P1532 wd:Q884 } UNION { ?p wdt:P27 wd:Q884 }
-      ?p wdt:P413 []; wdt:P2048 []; wdt:P569 [].
-      FILTER EXISTS { ?p rdfs:label ?ko FILTER(LANG(?ko) = "ko") }
+      ?p rdfs:label ?ko FILTER(LANG(?ko) = "ko")
+      OPTIONAL { ?p skos:altLabel ?alias FILTER(LANG(?alias) = "ko") }
+    }`);
+  const people = new Map();
+  for (const r of [...rows, ...koreans]) {
+    const id = qid(r.p);
+    const p = people.get(id) ?? { id, links: Number(r.links), names: [r.ko] };
+    if (r.alias) p.names.push(r.alias);
+    people.set(id, p);
+  }
+  // 영문 이름은 이니셜 확인용 — 한 번에 받으면 시간 초과가 나서 나눠서 받는다
+  const list = [...people.values()];
+  for (let i = 0; i < list.length; i += 2000) {
+    const values = list
+      .slice(i, i + 2000)
+      .map((p) => `wd:${p.id}`)
+      .join(' ');
+    for (const r of await sparql(
+      `SELECT ?p ?en WHERE { VALUES ?p { ${values} } ?p rdfs:label ?en FILTER(LANG(?en) = "en") }`,
+      1,
+      'POST',
+    ))
+      people.get(qid(r.p)).en = r.en;
+  }
+  return list;
+}
+
+// --- FC온라인 이름 ↔ 위키데이터 연결 ---
+const nameKey = (s) =>
+  s
+    .replace(/\s*\(.*?\)\s*/g, '')
+    .replace(/[\s·.\-_'"]/g, '')
+    .toLowerCase();
+
+/** 'T. 알렉산더-아놀드' → 이니셜 T + 이름 '알렉산더-아놀드', '네이마르 Jr.' → '네이마르' */
+function parseFcName(name) {
+  const s = name.replace(/\s*Jr\.?$/i, '').trim();
+  const m = s.match(/^([A-Z])\.\s*(.+)$/);
+  return m ? { initial: m[1], rest: m[2] } : { initial: null, rest: s };
+}
+
+const CHO = 'ㄱㄲㄴㄷㄸㄹㅁㅂㅃㅅㅆㅇㅈㅉㅊㅋㅌㅍㅎ';
+const JUNG = 'ㅏㅐㅑㅒㅓㅔㅕㅖㅗㅘㅙㅚㅛㅜㅝㅞㅟㅠㅡㅢㅣ';
+const JONG = ['', ...'ㄱㄲㄳㄴㄵㄶㄷㄹㄺㄻㄼㄽㄾㄿㅀㅁㅂㅄㅅㅆㅇㅈㅊㅋㅌㅍㅎ'];
+/** 외래어 표기에서 흔히 갈리는 자모를 하나로 (사네/자네, 부스케츠/부스케츠) */
+const SIMILAR_JAMO = {
+  ㄲ: 'ㄱ',
+  ㄸ: 'ㄷ',
+  ㅃ: 'ㅂ',
+  ㅆ: 'ㅅ',
+  ㅉ: 'ㅈ',
+  ㅈ: 'ㅅ',
+  ㅊ: 'ㅅ',
+  ㅐ: 'ㅔ',
+  ㅒ: 'ㅖ',
+  ㅘ: 'ㅜㅏ',
+  ㅝ: 'ㅜㅓ',
+  ㅟ: 'ㅜㅣ',
+  ㅙ: 'ㅜㅔ',
+  ㅚ: 'ㅜㅔ',
+  ㅞ: 'ㅜㅔ',
+};
+function toJamo(key) {
+  const out = [];
+  for (const ch of key) {
+    const c = ch.charCodeAt(0) - 0xac00;
+    if (c < 0 || c > 11171) {
+      out.push(ch);
+      continue;
     }
-    ORDER BY DESC(?links)
-    LIMIT ${KOREA_CANDIDATE_LIMIT}`);
-  return rows.map((r) => ({ id: qid(r.p), links: Number(r.links) }));
+    for (const j of [CHO[Math.floor(c / 588)], JUNG[Math.floor((c % 588) / 28)], JONG[c % 28]]) {
+      if (j && j !== 'ㅡ') out.push(...(SIMILAR_JAMO[j] ?? j));
+    }
+  }
+  return out.join('');
+}
+function editDistance(a, b) {
+  let prev = Array.from({ length: b.length + 1 }, (_, j) => j);
+  for (let i = 1; i <= a.length; i++) {
+    const cur = [i];
+    for (let j = 1; j <= b.length; j++)
+      cur[j] = Math.min(prev[j] + 1, cur[j - 1] + 1, prev[j - 1] + (a[i - 1] === b[j - 1] ? 0 : 1));
+    prev = cur;
+  }
+  return prev[b.length];
+}
+
+/** 정확히 같지 않은 이름으로 연결할 때는 충분히 유명한 선수만 (엉뚱한 무명 선수와 이어지지 않게) */
+const LOOSE_MIN_LINKS = 30;
+
+function buildNameIndex(people) {
+  const exact = new Map();
+  const loose = [];
+  for (const p of people) {
+    const names = uniq(p.names.map((n) => n.replace(/\s*\(.*?\)\s*/g, ' ').trim()));
+    for (const n of names) exact.set(nameKey(n), [...(exact.get(nameKey(n)) ?? []), p]);
+    if (p.links < LOOSE_MIN_LINKS) continue;
+    // 성만 쓴 이름과 비교할 수 있게 뒤쪽 단어들도 둔다 ('로베르트 레반도프스키' → '레반도프스키')
+    const surnames = new Set();
+    for (const n of names) {
+      const t = n.split(/\s+/);
+      for (let k = 1; k < t.length; k++) surnames.add(nameKey(t.slice(-k).join('')));
+    }
+    loose.push({
+      p,
+      full: names.map((n) => toJamo(nameKey(n))),
+      surnames: [...surnames],
+      surnameJamo: [...surnames].map(toJamo),
+    });
+  }
+  return { exact, loose, byId: new Map(people.map((p) => [p.id, p])) };
+}
+
+const initialOk = (p, initial) =>
+  !initial || !p.en || stripDiacritics(p.en).trim()[0]?.toUpperCase() === initial;
+
+/** 후보 중 가장 유명한 선수. 비슷하게 유명한 후보가 또 있으면(동명이인) 연결하지 않는다 */
+function mostFamous(cands) {
+  const sorted = uniq(cands).sort((a, b) => b.links - a.links);
+  if (sorted.length > 1 && sorted[1].links * 1.5 > sorted[0].links) return null;
+  return sorted[0] ?? null;
+}
+
+/** FC온라인 이름 → { person, how } (how: exact·manual·surname·similar) 또는 null */
+function linkFcName(fcName, index) {
+  if (fcName in FC_LINK) {
+    const person = FC_LINK[fcName] && index.byId.get(FC_LINK[fcName]);
+    return person ? { person, how: 'manual' } : null;
+  }
+  const { initial, rest } = parseFcName(fcName);
+  const key = nameKey(rest);
+  if (key.length < 2) return null;
+  const single = !/\s/.test(rest);
+
+  const exact = (index.exact.get(key) ?? []).filter((p) => initialOk(p, initial));
+  if (exact.length) {
+    const person = mostFamous(exact);
+    return person && { person, how: 'exact' };
+  }
+  // 한 단어 이름은 이름·별명일 수 있어(사울, 페드로) 4글자 이상이거나 이니셜이 있을 때만 성으로 본다
+  if (single && (key.length >= 4 || initial)) {
+    const person = mostFamous(
+      index.loose
+        .filter((e) => e.surnames.includes(key) && initialOk(e.p, initial))
+        .map((e) => e.p),
+    );
+    if (person) return { person, how: 'surname' };
+  }
+  // 표기만 조금 다른 이름 (리로이 사네 ↔ 리로이 자네) — 여러 단어 이름, 또는 이니셜 + 성
+  if (single && !initial) return null;
+  const jamo = toJamo(key);
+  if (jamo.length < 6) return null;
+  const allow = jamo.length < 12 ? 1 : 2;
+  let best = Infinity;
+  let cands = [];
+  for (const e of index.loose) {
+    if (!initialOk(e.p, initial)) continue;
+    const pool = single ? e.surnameJamo : e.full;
+    let d = Infinity;
+    for (const s of pool)
+      if (Math.abs(s.length - jamo.length) <= 2) d = Math.min(d, editDistance(s, jamo));
+    if (d > allow || d > best) continue;
+    if (d < best) cands = [];
+    best = d;
+    cands.push(e.p);
+  }
+  const person = mostFamous(cands);
+  return person && { person, how: 'similar' };
+}
+
+/**
+ * 문제에 쓸 FC온라인 이름 — Jr. 를 떼고, 이니셜은 위키데이터 이름의 첫 단어로 바꾼다
+ * ('T. 알렉산더-아놀드' + 트렌트 알렉산더아널드 → '트렌트 알렉산더-아놀드', 'R. 루이스' → '리코 루이스')
+ */
+function fcDisplayName(fcName, person) {
+  const { initial, rest } = parseFcName(fcName);
+  if (!initial) return rest;
+  const words = person.names[0]
+    .replace(/\s*\(.*?\)\s*/g, ' ')
+    .trim()
+    .split(/\s+/);
+  // 성이 앞에 오는 이름(소보슬러이 도미니크)은 첫 단어가 곧 성이므로 붙이지 않는다
+  if (words.length < 2 || nameKey(words[0]) === nameKey(rest)) return rest;
+  return `${words[0]} ${rest}`;
 }
 
 // 2) 상세: 이름·신장·생년·국적
@@ -324,14 +580,16 @@ function toQuestion(p) {
   // 동명이인 구분 괄호는 정답에서 뺀다 (예: '이종호 (축구 선수)' → '이종호')
   const wikidataName = p.ko.replace(/\s*\(.*?\)\s*/g, ' ').trim();
   const fix = NAME_FIX[p.id];
-  const answer = fix?.answer ?? wikidataName;
+  const answer = p.fcName ?? fix?.answer ?? wikidataName;
   if (heightCm < 150 || heightCm > 210 || !p.birth) return null;
 
   return {
     answer,
     en: p.en && stripDiacritics(p.en),
-    // 보정한 경우 위키데이터 이름도 별칭으로 남긴다
-    koAliases: [...(fix?.aliases ?? []), ...(fix ? [wikidataName] : []), ...(p.aliases ?? [])],
+    // 정답과 다른 표기(보정 목록·위키데이터 이름)도 별칭으로 남긴다
+    koAliases: [fix?.answer, ...(fix?.aliases ?? []), wikidataName, ...(p.aliases ?? [])].filter(
+      (name) => name && name !== answer,
+    ),
     meta: {
       category: '축구선수',
       hints: [
@@ -384,9 +642,10 @@ function addAliases(questions) {
     const candidates = [q.en, ...q.koAliases];
     const koLast = lastToken(q.answer);
     if (koLast !== q.answer && koLastCount.get(koLast) === 1) candidates.push(koLast);
-    // 영문 성은 한국어 이름에 띄어쓰기가 있는 서양식 이름일 때만 (예: Messi)
+    // 영문 성은 서양식 이름일 때만 (예: Messi, 성만 쓴 정답 '레반도프스키' 도 포함)
     // 한국식 이름(기성용 → Ki Sung-yueng)은 영문 끝 단어가 성이 아니라 이름이다
-    if (q.en && koLast !== q.answer) {
+    const koreanName = /대한민국|북한/.test(q.meta.hints[0].value) && koLast === q.answer;
+    if (q.en && !koreanName) {
       const enLast = lastToken(q.en).toLowerCase();
       if (enLastCount.get(enLast) === 1) candidates.push(enLast);
     }
@@ -404,7 +663,8 @@ function toSql(questions) {
   const today = new Date().toISOString().slice(0, 10);
   const lines = [
     `-- 힌트 퀴즈 — 축구선수 문제 ${questions.length}개 (자동 생성, 직접 수정하지 말 것)`,
-    '-- 출처: 위키데이터 (https://www.wikidata.org, CC0) — 유명한 순 + 한국어 이름이 있는 선수',
+    '-- 선수 선발·정답 이름: Data based on NEXON Open API (FC온라인 선수 메타데이터)',
+    '-- 힌트: 위키데이터 (https://www.wikidata.org, CC0)',
     `-- 생성: node apps/api/seeds/scripts/hint-quiz-football.mjs (${today})`,
     '-- 이 파일의 문제만 지우고 다시 넣는다 (meta.source = wikidata). 직접 만든 문제는 hint-quiz.sql',
     '',
@@ -428,40 +688,77 @@ function toSql(questions) {
   return `${lines.join('\n')}\n`;
 }
 
+console.log('▶ FC온라인 선수 목록');
+const fcPlayers = await fetchFcPlayers();
+console.log(`  선수 ${fcPlayers.length}명`);
+
+console.log('▶ 위키데이터 선수 이름');
+const nameIndex = buildNameIndex(await fetchWikidataNames());
+
+// 인기 순 상위 + 한국 선수(띄어쓰기 없는 한글 2~4글자 이름) 상위를 위키데이터와 연결한다
+console.log('▶ 이름 연결');
+const isKoreanStyleName = (fc) => /^[가-힣]{2,4}$/.test(fc.name);
+const popular = fcPlayers.filter((fc) => fc.popularity >= MIN_POPULARITY);
+const toLink = uniq([
+  ...popular.slice(0, FC_POOL),
+  ...popular.filter(isKoreanStyleName).slice(0, KOREA_POOL),
+]);
+const linked = new Map();
+const review = [];
+for (const fc of toLink) {
+  const link = linkFcName(fc.name, nameIndex);
+  if (!link || linked.has(link.person.id)) continue;
+  linked.set(link.person.id, {
+    id: link.person.id,
+    links: link.person.links,
+    fcName: fcDisplayName(fc.name, link.person),
+    popularity: fc.popularity,
+    legend: !fc.active,
+  });
+  if (link.how === 'surname' || link.how === 'similar')
+    review.push(`${fc.name} → ${link.person.names[0]} (${link.person.id})`);
+}
+console.log(`  ${toLink.length}명 중 ${linked.size}명 연결`);
 console.log(
-  `▶ 후보 조회 (전 세계 최대 ${CANDIDATE_LIMIT}명 + 한국 최대 ${KOREA_CANDIDATE_LIMIT}명)`,
+  `  이름 연결 검토 (정확히 같지 않은 이름 ${review.length}건):\n    ${review.join('\n    ')}`,
 );
-const merged = new Map();
-for (const c of [...(await fetchCandidates()), ...(await fetchKoreanCandidates())])
-  merged.set(c.id, c);
-const candidates = [...merged.values()];
-console.log(`  후보 ${candidates.length}명`);
 
 console.log('▶ 상세 조회');
-const players = await collectDetails(candidates);
+const players = await collectDetails([...linked.values()]);
 
-// 힌트를 만들 수 있는 선수만, 유명한 순으로 (정답 이름이 겹치면 더 유명한 쪽만)
+// 힌트를 만들 수 있는 선수만, 인기 순으로 (정답 이름이 겹치면 더 인기 있는 쪽만)
 const seen = new Set(HANDMADE);
 const pool = [];
-for (const p of players.sort((a, b) => b.links - a.links)) {
+for (const p of players.sort((a, b) => b.popularity - a.popularity || b.links - a.links)) {
   const q = toQuestion(p);
-  if (!q || seen.has(q.answer)) continue;
+  if (!q || seen.has(q.answer) || q.koAliases.some((name) => HANDMADE.has(name))) continue;
   seen.add(q.answer);
-  pool.push({ q, links: p.links });
+  pool.push({ q, legend: p.legend });
 }
 const countriesOf = (q) => q.meta.hints.find((h) => h.label === '국적').value.split(' / ');
 const isKorean = ({ q }) => countriesOf(q).includes(KOREA);
 
-// 한국 선수 몫을 먼저 채우고, 나머지는 나라별 상한을 지키며 유명한 순으로
-const picked = new Set(pool.filter(isKorean).slice(0, KOREA_TARGET));
+// 한국 선수 몫 → 나머지는 인기 순 (레전드 상한, 나라별 상한)
+const picked = new Set();
+let legends = 0;
+const tryPick = (item) => {
+  if (item.legend && legends >= LEGEND_TARGET) return;
+  picked.add(item);
+  if (item.legend) legends++;
+};
+for (const item of pool.filter(isKorean)) {
+  if (picked.size >= KOREA_TARGET) break;
+  tryPick(item);
+}
 const perCountry = new Map();
 for (const item of pool) {
   if (picked.size >= TARGET) break;
   if (picked.has(item) || isKorean(item)) continue;
   const country = countriesOf(item.q)[0];
   if ((perCountry.get(country) ?? 0) >= COUNTRY_CAP) continue;
+  if (item.legend && legends >= LEGEND_TARGET) continue;
   perCountry.set(country, (perCountry.get(country) ?? 0) + 1);
-  picked.add(item);
+  tryPick(item);
 }
 const questions = pool.filter((item) => picked.has(item)).map((item) => item.q);
 addAliases(questions);
@@ -469,7 +766,7 @@ addAliases(questions);
 writeFileSync(OUT_FILE, toSql(questions));
 const koreans = questions.filter((q) => isKorean({ q })).length;
 console.log(
-  `\n✅ ${questions.length}명 생성 (한국 선수 ${koreans}명) → seeds/hint-quiz-football.sql`,
+  `\n✅ ${questions.length}명 생성 (한국 선수 ${koreans}명, 레전드 ${legends}명) → seeds/hint-quiz-football.sql`,
 );
 if (questions.length < TARGET)
-  console.warn(`⚠️ 목표 ${TARGET}명보다 적습니다. CANDIDATE_LIMIT 를 늘려 보세요.`);
+  console.warn(`⚠️ 목표 ${TARGET}명보다 적습니다. FC_POOL 을 늘려 보세요.`);

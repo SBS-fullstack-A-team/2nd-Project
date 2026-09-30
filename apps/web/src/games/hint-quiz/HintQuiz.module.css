@@ -48,6 +48,12 @@
   align-items: center;
   gap: 8px;
 }
+.credit {
+  margin: 6px 0 0;
+  text-align: right;
+  font-size: 0.75rem;
+  color: var(--text-muted);
+}
 .category {
   background: var(--yellow);
   color: var(--text);

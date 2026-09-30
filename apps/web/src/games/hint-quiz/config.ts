@@ -6,11 +6,19 @@ export const GAME_ID = 'hint-quiz';
  * 장르를 추가하면 seeds/hint-quiz*.sql 에 그 장르 문제도 넣을 것
  */
 export const CATEGORIES = [
-  { id: '축구선수', icon: '⚽', description: '국내외 축구선수 약 1,000명' },
+  { id: '축구선수', icon: '⚽', description: '요즘 인기 선수 위주 국내외 약 1,000명' },
   { id: '동물', icon: '🐾', description: '신기한 동물 이야기' },
   { id: '나라', icon: '🌏', description: '세계 여러 나라' },
   { id: '음식', icon: '🍜', description: '맛있는 음식' },
 ] as const;
+
+/**
+ * 장르별 데이터 출처 — 문제 화면 아래에 표시한다
+ * 축구선수: 선수 선발·이름은 넥슨 Open API(FC온라인 선수 목록), 힌트는 위키데이터 (넥슨 Open API 약관상 출처 표시 필수)
+ */
+export const CATEGORY_CREDIT: Partial<Record<string, string>> = {
+  축구선수: '선수 이름: Data based on NEXON Open API · 선수 정보: 위키데이터',
+};
 
 /** 고를 수 있는 문항 수 (문제 API 최대 50개 이하) */
 export const QUESTION_COUNTS = [5, 10, 20] as const;
