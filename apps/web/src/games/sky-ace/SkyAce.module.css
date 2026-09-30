@@ -1,0 +1,260 @@
+/* 스카이 에이스 — 테마와 상관없이 오락실 느낌의 어두운 화면을 쓴다 */
+
+.root {
+  width: 100%;
+  display: flex;
+  justify-content: center;
+}
+
+/* 세로형 2:3 무대 — 화면 높이에 맞춰 줄어든다 */
+.stage {
+  position: relative;
+  width: min(100%, 500px, calc(78vh * 2 / 3));
+  aspect-ratio: 2 / 3;
+  overflow: hidden;
+  border-radius: 8px;
+  background: #0b1020;
+  box-shadow: 0 0 0 3px #1a1f33;
+  user-select: none;
+  -webkit-user-select: none;
+}
+
+.canvas {
+  display: block;
+  width: 100%;
+  height: 100%;
+  /* 드래그 이동이 스크롤/확대로 먹히지 않게 */
+  touch-action: none;
+}
+
+.overlay {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  padding: 12px;
+  background: rgba(5, 8, 20, 0.62);
+  backdrop-filter: blur(2px);
+  overflow-y: auto;
+  animation: fadeIn 0.2s ease-out;
+}
+
+.panel {
+  width: min(420px, 100%);
+  margin: auto;
+  padding: 18px 16px;
+  color: #eef2ff;
+  background: linear-gradient(180deg, #1c2340, #121729);
+  border: 2px solid #3a4a80;
+  border-radius: 12px;
+  box-shadow: 0 0 24px rgba(80, 140, 255, 0.25);
+  text-align: center;
+}
+
+.logo {
+  margin: 0;
+  font-size: clamp(2rem, 8vw, 2.6rem);
+  font-style: italic;
+  font-weight: 900;
+  letter-spacing: 0.06em;
+  color: #ffffff;
+  text-shadow:
+    0 0 12px rgba(90, 180, 255, 0.8),
+    3px 3px 0 #1a3a80;
+}
+.logo span {
+  color: #ffcf3a;
+}
+
+.subtitle {
+  margin: 4px 0 12px;
+  color: #aab4d8;
+  font-size: 0.9rem;
+}
+
+.panelTitle {
+  margin: 0 0 10px;
+  font-size: 1.4rem;
+}
+
+.aircraftList {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 8px;
+}
+
+.aircraft {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 2px;
+  padding: 6px 4px 8px;
+  color: #dfe6ff;
+  background: #182040;
+  border: 2px solid #2c3866;
+  border-radius: 10px;
+  cursor: pointer;
+  font: inherit;
+  font-size: 0.8rem;
+  transition:
+    transform 0.12s,
+    border-color 0.12s;
+}
+.aircraft:hover {
+  transform: translateY(-2px);
+}
+.aircraftOn {
+  border-color: #ffcf3a;
+  background: #26305c;
+  box-shadow: 0 0 12px rgba(255, 207, 58, 0.35);
+}
+.aircraftType {
+  color: #8f9bc8;
+  font-size: 0.72rem;
+}
+
+.preview {
+  width: 72px;
+  height: 72px;
+}
+
+.spec {
+  display: grid;
+  grid-template-columns: auto 1fr;
+  gap: 4px 10px;
+  margin: 12px 0;
+  padding: 10px 12px;
+  text-align: left;
+  font-size: 0.85rem;
+  background: rgba(0, 0, 0, 0.25);
+  border-radius: 8px;
+}
+.spec dt,
+.summary dt {
+  color: #ffcf3a;
+  font-weight: 700;
+}
+.spec dd,
+.summary dd {
+  margin: 0;
+}
+
+.startBtn,
+.subBtn {
+  padding: 10px 22px;
+  font: inherit;
+  font-weight: 800;
+  border-radius: 999px;
+  cursor: pointer;
+}
+.startBtn {
+  color: #1a1400;
+  background: linear-gradient(180deg, #ffe37a, #ffb81a);
+  border: 2px solid #fff3c0;
+  font-size: 1.1rem;
+  box-shadow: 0 4px 0 #a86b00;
+}
+.startBtn:active {
+  transform: translateY(2px);
+  box-shadow: 0 2px 0 #a86b00;
+}
+.subBtn {
+  color: #eef2ff;
+  background: #26305c;
+  border: 2px solid #3a4a80;
+}
+
+.row {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: 8px;
+}
+
+.howto {
+  margin: 14px 0 0;
+  padding: 0;
+  list-style: none;
+  color: #aab4d8;
+  font-size: 0.78rem;
+  line-height: 1.6;
+  text-align: left;
+}
+.howto li::before {
+  content: '▸ ';
+  color: #5ab8ff;
+}
+
+.hint {
+  margin: 12px 0 0;
+  color: #8f9bc8;
+  font-size: 0.8rem;
+}
+
+.bigScore {
+  margin: 0 0 10px;
+  font-size: 2rem;
+  font-weight: 900;
+  color: #ffcf3a;
+  font-variant-numeric: tabular-nums;
+}
+
+.summary {
+  display: grid;
+  grid-template-columns: auto 1fr;
+  gap: 6px 14px;
+  margin: 0;
+  text-align: left;
+}
+
+/* ---------- 게임 중 버튼 ---------- */
+
+.topButtons {
+  position: absolute;
+  top: 62px;
+  right: 8px;
+  display: flex;
+  gap: 6px;
+}
+
+.iconBtn {
+  width: 34px;
+  height: 34px;
+  padding: 0;
+  font-size: 16px;
+  color: #fff;
+  background: rgba(10, 16, 40, 0.55);
+  border: 1px solid rgba(255, 255, 255, 0.3);
+  border-radius: 8px;
+  cursor: pointer;
+}
+
+.bombBtn {
+  position: absolute;
+  right: 12px;
+  bottom: 44px;
+  width: 64px;
+  height: 64px;
+  padding: 0;
+  font: inherit;
+  font-size: 0.8rem;
+  font-weight: 900;
+  color: #fff;
+  background: radial-gradient(circle at 35% 30%, #7ab4ff, #1a58d8);
+  border: 2px solid rgba(255, 255, 255, 0.7);
+  border-radius: 50%;
+  opacity: 0.8;
+  cursor: pointer;
+  touch-action: none;
+}
+.bombBtn:active {
+  transform: scale(0.94);
+}
+
+@keyframes fadeIn {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}

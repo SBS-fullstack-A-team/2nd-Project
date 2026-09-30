@@ -5,6 +5,7 @@ import flagQuizThumbnail from './flag-quiz/thumbnail.svg';
 import fruitSlicerThumbnail from './fruit-slicer/thumbnail.svg';
 import hintQuizThumbnail from './hint-quiz/thumbnail.svg';
 import imjin50Thumbnail from './imjin-50/thumbnail.svg';
+import skyAceThumbnail from './sky-ace/thumbnail.svg';
 
 /**
  * 게임 등록부 — 메인 화면 카드와 /games/:gameId 라우트가 이 목록으로 자동 생성된다.
@@ -78,6 +79,16 @@ export const GAMES: readonly GameMeta[] = [
     category: 'quiz',
     card: 5,
     component: lazy(() => import('./flag-quiz')),
+  },
+  // 카드 7 (신영)
+  {
+    id: 'sky-ace',
+    name: '스카이 에이스',
+    description: '기체 3종 중 하나로 출격! 2단 변신 보스 3체가 기다리는 종스크롤 탄막 슈팅',
+    thumbnail: skyAceThumbnail,
+    category: 'arcade',
+    card: 7,
+    component: lazy(() => import('./sky-ace')),
   },
 ];
 
