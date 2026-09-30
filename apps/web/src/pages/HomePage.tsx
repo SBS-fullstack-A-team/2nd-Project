@@ -17,7 +17,7 @@ export function HomePage() {
       <p className={styles.subtitle}>퀴즈부터 추억의 게임까지. 점수를 올리고 랭킹에 도전하세요.</p>
     </section>
   );
-  // 카드 칸(1~4) 순서대로 등록된 게임을 넣고, 비어 있는 칸은 "준비 중" 으로 채운다.
+  // 카드 칸 번호 순서대로 등록된 게임을 넣고, 비어 있는 칸은 "준비 중" 으로 채운다.
   // 카드 번호가 없는 게임(샘플 등)은 카드 칸 뒤에 둔다.
   const slotCards = new Set(GAME_CARD_SLOTS.map((slot) => slot.card));
   const extraGames = GAMES.filter((game) => game.card === undefined || !slotCards.has(game.card));

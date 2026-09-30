@@ -7,7 +7,7 @@ import imjin50Thumbnail from './imjin-50/thumbnail.svg';
 
 /**
  * 게임 등록부 — 메인 화면 카드와 /games/:gameId 라우트가 이 목록으로 자동 생성된다.
- * 배열 순서 = 메인 화면 카드 순서 (CLAUDE.md 의 "게임 카드 담당" 번호 순서대로 둔다).
+ * 메인 화면 카드 순서는 card 번호로 정해진다. 배열도 card 번호 순서대로 둔다.
  * 새 게임 추가 시 여기에 한 줄 등록하면 된다. (README 의 "새 게임 추가 체크리스트" 참고)
  */
 export interface GameMeta {
@@ -19,7 +19,8 @@ export interface GameMeta {
   thumbnail: string;
   category: GameCategory;
   /**
-   * 메인 화면 카드 번호 (CLAUDE.md "게임 카드 담당" 의 카드 번호, 1~4).
+   * 메인 화면 카드 번호 — 4명이 순서대로 돌아가며 받는다 (CARD_OWNERS 참고).
+   * 내 n번째 게임 = (n - 1) × 4 + 내 순번. 예: 혁 1·5·9, 경수 2·6·10, 신영 3·7·11, 동한 4·8·12
    * 이 번호 칸에 게임이 들어가고, 게임이 없는 칸은 "준비 중" 으로 표시된다.
    * 샘플 게임처럼 카드 칸에 속하지 않는 게임은 비워 두면 카드 칸 뒤에 표시된다.
    */
@@ -70,15 +71,28 @@ export const GAMES: readonly GameMeta[] = [
 ];
 
 /**
- * 메인 화면 카드 칸 — CLAUDE.md 의 "게임 카드 담당" 표와 같게 유지한다.
+ * 카드 담당 순서 — CLAUDE.md 의 "게임 카드 담당" 표와 같게 유지한다.
+ * 카드 번호는 이 순서로 4장씩 돌아간다: 1~4 = 첫 번째 게임, 5~8 = 두 번째 게임, …
+ */
+export const CARD_OWNERS = ['혁', '경수', '신영', '동한'] as const;
+
+/** 카드 번호의 담당자 (1·5·9 → 혁, 2·6·10 → 경수 …) */
+export function cardOwner(card: number): string {
+  return CARD_OWNERS[(card - 1) % CARD_OWNERS.length] ?? '';
+}
+
+/**
+ * 메인 화면 카드 칸 — 등록된 가장 큰 card 번호가 속한 차례(4장 묶음)까지 만든다.
+ * 예: card 5 가 등록되면 5~8 칸이 생기고, 아직 게임이 없는 6·7·8 은 "준비 중".
  * 게임 담당자는 여기를 고치지 않고, GAMES 에 등록할 때 card 번호만 적는다.
  */
-export const GAME_CARD_SLOTS: readonly { card: number; owner: string }[] = [
-  { card: 1, owner: '혁' },
-  { card: 2, owner: '경수' },
-  { card: 3, owner: '신영' },
-  { card: 4, owner: '동한' },
-];
+const maxCard = Math.max(CARD_OWNERS.length, ...GAMES.map((game) => game.card ?? 0));
+const slotCount = Math.ceil(maxCard / CARD_OWNERS.length) * CARD_OWNERS.length;
+
+export const GAME_CARD_SLOTS: readonly { card: number; owner: string }[] = Array.from(
+  { length: slotCount },
+  (_, i) => ({ card: i + 1, owner: cardOwner(i + 1) }),
+);
 
 export const CATEGORY_LABEL: Record<GameCategory, string> = {
   quiz: '퀴즈',
