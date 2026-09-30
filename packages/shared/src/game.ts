@@ -63,6 +63,8 @@ export const MAX_SCORE_BY_GAME: Record<string, number> = {
   'hint-quiz': 1000,
   // 시뮬레이션상 무피해 완전 방어가 약 201만 점 — 더 잘하는 플레이어를 위해 넉넉히 잡은 상한
   'imjin-50': 3_000_000,
+  // 시뮬레이션상 무피해 올 클리어가 약 75~80만 점 — 게임 내부 상한(config.ts MAX_SCORE)과 같게
+  'sky-ace': 1_500_000,
 };
 
 export const DEFAULT_MAX_SCORE = 1_000_000;
