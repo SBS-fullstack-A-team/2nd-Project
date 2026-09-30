@@ -1,0 +1,208 @@
+/* 색·모서리는 테마 토큰만 사용 — XP·98·클래식 테마를 자동으로 따라간다 */
+.message {
+  text-align: center;
+  padding: 48px 0;
+  color: var(--text-muted);
+}
+
+/* 시작 화면 */
+.ready {
+  text-align: center;
+  padding: 24px 0;
+}
+.readyTitle {
+  font-size: 1.3rem;
+  font-weight: 800;
+  margin: 0 0 12px;
+}
+.rules {
+  list-style: none;
+  padding: 0;
+  margin: 0 0 24px;
+  color: var(--text-muted);
+  line-height: 1.9;
+}
+.pickTitle {
+  margin: 0 0 12px;
+  font-weight: 800;
+}
+.levels {
+  display: flex;
+  justify-content: center;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-bottom: 20px;
+}
+.levelButton {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 150px;
+  padding: 8px 14px;
+  border: 2px solid var(--border);
+  border-radius: var(--radius);
+  background: var(--surface);
+  color: var(--text);
+  font: inherit;
+  cursor: pointer;
+}
+.levelButton:hover {
+  border-color: var(--accent);
+}
+.levelSelected {
+  border-color: var(--accent);
+  background: var(--accent);
+  color: #fff;
+}
+.levelDesc {
+  font-size: 0.8rem;
+  opacity: 0.85;
+}
+.modes {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+  gap: 10px;
+}
+.modeButton {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 4px;
+  padding: 16px 10px;
+  border: 2px solid var(--border);
+  border-radius: var(--radius);
+  background: var(--surface);
+  color: var(--text);
+  font: inherit;
+  cursor: pointer;
+}
+.modeButton:hover {
+  border-color: var(--accent);
+  background: var(--bg);
+}
+.modeIcon {
+  font-size: 2rem;
+}
+.modeDesc {
+  font-size: 0.8rem;
+  color: var(--text-muted);
+}
+
+/* 문제 풀이 */
+.play {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+.hud {
+  display: flex;
+  justify-content: space-between;
+  font-weight: 700;
+}
+.score {
+  color: var(--accent);
+}
+.card {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 10px;
+  padding: 20px 16px;
+  background: var(--surface-strong);
+  color: var(--on-strong);
+  border-radius: var(--radius);
+}
+.flag {
+  width: min(320px, 80%);
+  aspect-ratio: 4 / 3;
+  object-fit: cover;
+  border: 1px solid var(--border);
+  box-shadow: 0 2px 8px rgb(0 0 0 / 25%);
+}
+.flagSmall {
+  width: 72px;
+  aspect-ratio: 4 / 3;
+  object-fit: cover;
+  border: 1px solid var(--border);
+}
+.countryName {
+  margin: 0;
+  font-size: clamp(1.6rem, 7vw, 2.4rem);
+  font-weight: 900;
+}
+.question {
+  margin: 0;
+  font-weight: 700;
+}
+
+.choices {
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  gap: 10px;
+}
+.choice {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  min-height: 56px;
+  padding: 10px 12px;
+  border: 2px solid var(--border);
+  border-radius: var(--radius);
+  background: var(--surface);
+  color: var(--text);
+  font: inherit;
+  font-weight: 700;
+  text-align: left;
+  word-break: keep-all;
+  cursor: pointer;
+}
+.choice:hover:not(:disabled) {
+  border-color: var(--accent);
+  background: var(--bg);
+}
+.choice:disabled {
+  cursor: default;
+}
+.choiceNo {
+  flex: none;
+  display: grid;
+  place-items: center;
+  width: 26px;
+  height: 26px;
+  border-radius: 999px;
+  background: var(--bg);
+  color: var(--text-muted);
+  font-size: 0.85rem;
+}
+.choiceCorrect {
+  border-color: var(--success);
+  background: var(--success);
+  color: #fff;
+}
+.choiceWrong {
+  border-color: var(--danger);
+  background: var(--danger);
+  color: #fff;
+}
+.choiceDim {
+  opacity: 0.45;
+}
+
+.feedback {
+  min-height: 1.5em;
+  margin: 0;
+  text-align: center;
+  font-weight: 800;
+}
+.correct {
+  color: var(--success);
+}
+.wrong {
+  color: var(--danger);
+}
+
+@media (max-width: 420px) {
+  .choices {
+    grid-template-columns: 1fr;
+  }
+}
