@@ -22,6 +22,8 @@ export default function SkyAce({ onFinish }: GameProps) {
   const [screen, setScreen] = useState<Screen>({ name: 'menu' });
   const [selected, setSelected] = useState<AircraftId>('p38');
   const [paused, setPaused] = useState(false);
+  /** 설정 창에서 '게임 홈으로' 를 눌러 확인을 기다리는 중 */
+  const [confirmHome, setConfirmHome] = useState(false);
   const [muted, setMuted] = useState(() => sound.isMuted);
   const [engineError, setEngineError] = useState<string | null>(null);
 
@@ -78,6 +80,16 @@ export default function SkyAce({ onFinish }: GameProps) {
     engineRef.current?.resume();
     sound.resume();
     setPaused(false);
+    setConfirmHome(false);
+  }
+
+  /** 진행 중인 판을 버리고 기체 선택 화면(게임 홈)으로 */
+  function goHome() {
+    engineRef.current?.idle();
+    sound.resume();
+    setPaused(false);
+    setConfirmHome(false);
+    setScreen({ name: 'menu' });
   }
 
   function toggleMute() {
@@ -106,7 +118,8 @@ export default function SkyAce({ onFinish }: GameProps) {
         const k = e.key.toLowerCase();
         if (k === 'escape' || k === 'p') {
           e.preventDefault();
-          if (paused) resume();
+          if (confirmHome) setConfirmHome(false);
+          else if (paused) resume();
           else pause();
         }
       }
@@ -140,7 +153,10 @@ export default function SkyAce({ onFinish }: GameProps) {
               <button
                 type="button"
                 className={styles.iconBtn}
-                onClick={toggleMute}
+                onClick={(e) => {
+                  e.currentTarget.blur();
+                  toggleMute();
+                }}
                 aria-label={muted ? '소리 켜기' : '소리 끄기'}
               >
                 {muted ? '🔇' : '🔊'}
@@ -148,10 +164,13 @@ export default function SkyAce({ onFinish }: GameProps) {
               <button
                 type="button"
                 className={styles.iconBtn}
-                onClick={pause}
-                aria-label="일시정지"
+                onClick={(e) => {
+                  e.currentTarget.blur();
+                  pause();
+                }}
+                aria-label="설정 (일시정지)"
               >
-                ⏸
+                ⚙
               </button>
             </div>
             <button
@@ -218,16 +237,47 @@ export default function SkyAce({ onFinish }: GameProps) {
         {screen.name === 'playing' && paused && (
           <div className={styles.overlay}>
             <div className={styles.panel}>
-              <h2 className={styles.panelTitle}>일시정지</h2>
-              <div className={styles.row}>
-                <button type="button" className={styles.startBtn} onClick={resume}>
-                  계속하기
-                </button>
-                <button type="button" className={styles.subBtn} onClick={toggleMute}>
-                  {muted ? '🔇 소리 켜기' : '🔊 소리 끄기'}
-                </button>
-              </div>
-              <p className={styles.hint}>Esc 또는 P 로도 계속할 수 있어요</p>
+              {confirmHome ? (
+                <>
+                  <h2 className={styles.panelTitle}>게임 홈으로 갈까요?</h2>
+                  <p className={styles.panelText}>
+                    지금 판은 저장되지 않고, 점수도 랭킹에 등록되지 않아요.
+                  </p>
+                  <div className={styles.row}>
+                    <button type="button" className={styles.dangerBtn} onClick={goHome}>
+                      홈으로 이동
+                    </button>
+                    <button
+                      type="button"
+                      className={styles.subBtn}
+                      onClick={() => setConfirmHome(false)}
+                    >
+                      취소
+                    </button>
+                  </div>
+                </>
+              ) : (
+                <>
+                  <h2 className={styles.panelTitle}>⚙ 설정</h2>
+                  <p className={styles.panelText}>게임이 일시정지됐어요</p>
+                  <div className={styles.menuList}>
+                    <button type="button" className={styles.startBtn} onClick={resume}>
+                      ▶ 계속하기
+                    </button>
+                    <button type="button" className={styles.subBtn} onClick={toggleMute}>
+                      {muted ? '🔇 소리 켜기' : '🔊 소리 끄기'}
+                    </button>
+                    <button
+                      type="button"
+                      className={styles.subBtn}
+                      onClick={() => setConfirmHome(true)}
+                    >
+                      🏠 게임 홈으로
+                    </button>
+                  </div>
+                  <p className={styles.hint}>Esc 또는 P 로도 계속할 수 있어요</p>
+                </>
+              )}
             </div>
           </div>
         )}

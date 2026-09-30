@@ -12,16 +12,8 @@ import {
   type EnemyKind,
   type StageDef,
 } from './config';
-import {
-  TAU,
-  drawChronos,
-  drawEnemyCraft,
-  drawGoliath,
-  drawKraken,
-  drawSprite,
-  glowSprite,
-  type BossLook,
-} from './render';
+import { drawChronos, drawGoliath, drawKraken, type BossLook } from './bossRender';
+import { TAU, drawEnemyCraft, drawSprite, glowSprite } from './render';
 
 export const rand = (a: number, b: number) => a + Math.random() * (b - a);
 export const clamp = (v: number, a: number, b: number) => Math.min(b, Math.max(a, v));
@@ -925,7 +917,7 @@ export class Boss {
         for (const s of [-1, 1]) {
           const a = Math.PI / 2 + s * 0.25 + Math.sin(this.t * 2.2 + s) * 0.75;
           const sp = (135 + Math.sin(this.t * 3.1) * 30) * bs;
-          w.fire(this.x + s * 90, this.y + 100, a, sp, { color: '#5ad0ff', r: 5 });
+          w.fire(this.x + s * 90, this.y + 118, a, sp, { color: '#5ad0ff', r: 5 });
         }
       }
     } else {
@@ -960,7 +952,7 @@ export class Boss {
       if (!lasering && this.ready('needle', dt, 0.7)) {
         for (const s of [-1, 1]) {
           const fx = this.x + s * 90;
-          const fy = this.y + 100;
+          const fy = this.y + 118;
           w.fire(fx, fy, this.aim(w, fx, fy), 230 * bs, { color: '#5ad0ff', kind: 'needle', r: 4 });
         }
       }
@@ -1028,7 +1020,8 @@ export class Boss {
     }
   }
 
-  draw(ctx: CanvasRenderingContext2D) {
+  /** px, py: 플레이어 위치 (포탑이 조준하는 방향) */
+  draw(ctx: CanvasRenderingContext2D, px: number, py: number) {
     const look: BossLook = {
       x: this.x,
       y: this.y,
@@ -1037,6 +1030,8 @@ export class Boss {
       flash: this.flash > 0,
       morph: this.state === 'transform' ? Math.min(1, this.stateT / 2.2) : 0,
       open: this.open,
+      hp: this.hp / this.maxHp,
+      aim: Math.atan2(py - this.y, px - this.x),
     };
     if (this.id === 'goliath') drawGoliath(ctx, look);
     else if (this.id === 'kraken') drawKraken(ctx, look);
