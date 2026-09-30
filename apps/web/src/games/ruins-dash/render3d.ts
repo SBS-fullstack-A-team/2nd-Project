@@ -1,7 +1,6 @@
 import { CharacterAnimator, drawCharacter3d, type Pose3d } from './character3d';
 import {
   ACCELERATION,
-  ITEMS,
   JUMP_SEC,
   MAX_SPEED,
   SPAWN_DISTANCE,
@@ -9,6 +8,7 @@ import {
   type Theme,
 } from './config';
 import { isSliding, jumpHeight, type Obstacle, type RunState } from './engine';
+import type { Look } from './looks';
 import {
   add,
   box,
@@ -34,6 +34,7 @@ import {
   drawSpeedLines,
   drawVignette,
 } from './sprites';
+import { TrailFx } from './trail';
 
 /**
  * 유적 탈출 3D 화면 — r3d(자체 소프트웨어 렌더러)로 로우폴리 유적을 그린다.
@@ -179,6 +180,8 @@ export interface FrameInfo {
   t: number;
   /** 붙잡힌 뒤 지난 시간(초), 아직이면 null */
   caughtT: number | null;
+  /** 캐릭터 꾸미기 (상점) */
+  look?: Look;
 }
 
 // ---------- 판마다 남는 화면 상태 ----------
@@ -192,6 +195,9 @@ interface ViewState {
   yawFrom: number;
   yawT: number;
   lastT: number | null;
+  /** 지난 프레임부터 흐른 시간(초) — 일시정지 중엔 0 */
+  dt: number;
+  trail: TrailFx;
 }
 
 /** 한 판(RunState)마다 하나 — 판이 끝나면 함께 사라진다 */
@@ -207,6 +213,8 @@ function viewFor(run: RunState): ViewState {
       yawFrom: 0,
       yawT: 1,
       lastT: null,
+      dt: 0,
+      trail: new TrailFx(),
     };
     views.set(run, s);
   }
@@ -217,8 +225,11 @@ function viewFor(run: RunState): ViewState {
 function updateTurnView(vs: ViewState, run: RunState, t: number): void {
   const dt = vs.lastT === null ? 0 : Math.max(0, Math.min(0.1, t - vs.lastT));
   vs.lastT = t;
+  vs.dt = dt;
   if (run.turnCount !== vs.turnCount) {
     vs.turnCount = run.turnCount;
+    // 지나온 길에 남은 입자는 새 길 방향과 맞지 않으니 치운다
+    vs.trail.clear();
     // 방금 돈 방향만큼 돌려 놓고 시작하면, 돌기 직전 화면과 이어진다
     vs.yawFrom = (run.prevCorner?.dir ?? 1) * (Math.PI / 2);
     vs.yawT = 0;
@@ -259,7 +270,7 @@ function speedRatio(run: RunState): number {
 function makeCamera(v: View, run: RunState, f: FrameInfo, px: number): Camera {
   // 부스트가 켜지고 꺼질 때 시야가 부드럽게 넓어졌다 좁아진다
   const boost = run.effects.boost;
-  const boostK = boost > 0 ? Math.min(1, (ITEMS.boost.duration - boost) / 0.3, boost / 0.3) : 0;
+  const boostK = boost > 0 ? Math.min(1, (run.durations.boost - boost) / 0.3, boost / 0.3) : 0;
   const base = Math.min(v.w * 1.3, v.h) * CAMERA.zoom;
   // 빨라질수록 시야가 조금씩 넓어져(최대 8%) 주변이 더 빠르게 흘러가 보인다
   const speedK = speedRatio(run);
@@ -499,6 +510,20 @@ export function drawFrame(ctx: CanvasRenderingContext2D, v: View, run: RunState,
 
   scene.xform = xf.get(segs.cur) ?? null;
   buildPlayer(scene, run, f, anim);
+  // 달리기 효과 — 발을 디딜 때·착지할 때 터지고, 빠를수록·부스트 중엔 더 많이
+  const trailKind = f.look?.trail ?? 'dust';
+  const running = f.caughtT === null;
+  const lift = jumpHeight(run);
+  vs.trail.update(vs.dt, trailKind, {
+    x: px,
+    y: lift,
+    speed: run.speed,
+    grounded: running && lift === 0,
+    phase: running && !isSliding(run) ? anim.phase : null,
+    boost: run.effects.boost > 0,
+    intensity: speedRatio(run),
+  });
+  vs.trail.draw(scene, trailKind, f.t, px, lift);
   if (!run.fell) buildBoulder(scene, run, f, px);
   scene.xform = null;
 
@@ -1341,6 +1366,8 @@ function buildPlayer(scene: Scene, run: RunState, f: FrameInfo, anim: CharacterA
   const wobble = !caught && run.slowT > 0 ? Math.sin(f.t * 32) * 0.2 * (run.slowT / 0.8) : 0;
   // 무적(부스트 끝·방패 깨진 직후)일 때는 깜빡인다 — 깜빡이는 순간엔 그리지 않는다
   const blink = !caught && run.invulnT > 0 && run.effects.boost === 0 && Math.sin(f.t * 40) > 0.4;
+  // 걸음 위상은 깜빡여서 안 그리는 프레임에도 흘러야 한다 (발걸음 효과가 이 박자를 따른다)
+  const phase = anim.runPhase(run.speed, f.t);
 
   if (!caught && run.effects.boost > 0) {
     scene.sprite(v3(x, 0.9, 0.5), (ctx, sx, sy, s) => drawBoostGlow(ctx, sx, sy, s, f.t));
@@ -1354,7 +1381,7 @@ function buildPlayer(scene: Scene, run: RunState, f: FrameInfo, anim: CharacterA
       {
         pose,
         // 빨라질수록 걸음도 빨라진다 (일시정지 중엔 멈춘다)
-        phase: anim.runPhase(run.speed, f.t),
+        phase,
         jumpP: run.fell ? 0.5 : run.jumpT / JUMP_SEC,
         // 출발 속도 0 → 최고 속도 1 (부스트 중엔 1 을 넘지만 캐릭터 쪽에서 1 로 자른다)
         intensity: (run.speed - START_SPEED) / (MAX_SPEED - START_SPEED),
@@ -1364,6 +1391,14 @@ function buildPlayer(scene: Scene, run: RunState, f: FrameInfo, anim: CharacterA
       anim.tilt + wobble,
       anim,
       f.t,
+      f.look,
+      {
+        heat:
+          run.multMax > run.multBase ? (run.mult - run.multBase) / (run.multMax - run.multBase) : 0,
+        top: run.mult >= run.multMax,
+        speed: run.speed,
+        airborne: lift > 0,
+      },
     );
   }
   scene.below = false;

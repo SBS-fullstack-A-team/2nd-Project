@@ -475,10 +475,249 @@
   }
 }
 
+/* ---------- 미션 ---------- */
+
+.missions {
+  margin: 0 0 14px;
+  padding: 10px 12px;
+  border: 1px solid var(--rd-line);
+  border-radius: 10px;
+  background: rgba(0, 0, 0, 0.22);
+  text-align: left;
+}
+.missionsHead {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: space-between;
+  gap: 2px 8px;
+  margin: 0 0 6px;
+  font-size: 0.85rem;
+  font-weight: 700;
+  color: var(--rd-gold);
+}
+.missionsHint {
+  font-size: 0.72rem;
+  font-weight: 400;
+  color: var(--rd-muted);
+}
+.missionList,
+.caughtMissions {
+  display: grid;
+  gap: 4px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  font-size: 0.8rem;
+}
+.missionList li {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+.missionText {
+  flex: 1;
+}
+.missionCount {
+  font-variant-numeric: tabular-nums;
+  color: var(--rd-muted);
+}
+.missionDone {
+  color: var(--rd-muted);
+  text-decoration: line-through;
+}
+.missionToast {
+  position: absolute;
+  top: 28%;
+  left: 50%;
+  max-width: calc(100% - 32px);
+  padding: 7px 14px;
+  border: 2px solid var(--rd-gold);
+  border-radius: 999px;
+  background: var(--rd-panel);
+  font-size: 0.85rem;
+  font-weight: 700;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  transform: translateX(-50%);
+  pointer-events: none;
+  animation: rd-toast 1.8s ease-out forwards;
+}
+
+/* ---------- 동전 · 결과 ---------- */
+
+.lastRun {
+  margin: 0 0 8px;
+  font-size: 0.8rem;
+  font-weight: 700;
+  color: var(--rd-gold);
+}
+.walletRow {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+  margin: 12px 0 0;
+}
+.wallet {
+  margin: 0;
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+  color: var(--rd-gold);
+}
+.caughtCoins {
+  margin: 10px 0 6px;
+  font-weight: 700;
+  color: var(--rd-gold);
+}
+.caughtMissions {
+  justify-items: center;
+  font-size: 0.85rem;
+}
+.levelUp {
+  margin: 10px 0 0;
+  font-weight: 800;
+  color: var(--rd-gold);
+}
+
+/* ---------- 상점 ---------- */
+
+.preview {
+  display: block;
+  max-width: 100%;
+  margin: 8px auto 0;
+  border: 1px solid var(--rd-line);
+  border-radius: 10px;
+}
+.tryBar {
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  min-height: 40px;
+  margin: 6px 0 10px;
+}
+.tryNote {
+  font-size: 0.78rem;
+  color: var(--rd-muted);
+}
+.tabs {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+  margin: 0 0 10px;
+}
+.tab {
+  flex: 1 1 auto;
+  padding: 6px 8px;
+  border: 1px solid var(--rd-line);
+  border-radius: 999px;
+  background: transparent;
+  color: var(--rd-muted);
+  font: inherit;
+  font-size: 0.78rem;
+  cursor: pointer;
+}
+.tabOn {
+  border-color: var(--rd-gold);
+  background: rgba(255, 210, 63, 0.15);
+  color: var(--rd-gold);
+  font-weight: 700;
+}
+.goods {
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  gap: 6px;
+  margin: 0 0 14px;
+  padding: 0;
+  list-style: none;
+}
+.good {
+  display: grid;
+  gap: 2px;
+  width: 100%;
+  height: 100%;
+  padding: 8px 10px;
+  border: 2px solid transparent;
+  border-radius: 8px;
+  background: rgba(0, 0, 0, 0.25);
+  color: var(--rd-text);
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+.good:hover {
+  border-color: var(--rd-line);
+}
+.goodOn {
+  border-color: var(--rd-gold);
+}
+.goodLocked .goodLabel {
+  color: var(--rd-muted);
+}
+.goodLabel {
+  font-size: 0.85rem;
+  font-weight: 700;
+}
+.goodDesc {
+  font-size: 0.72rem;
+  color: var(--rd-muted);
+}
+.goodPrice,
+.goodWearing {
+  margin-top: 2px;
+  font-size: 0.74rem;
+  color: var(--rd-muted);
+}
+.goodWearing {
+  font-weight: 700;
+  color: var(--rd-gold);
+}
+.upgrades {
+  display: grid;
+  gap: 8px;
+  margin: 0 0 14px;
+  padding: 0;
+  list-style: none;
+}
+.upgrade {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+.upgradeInfo {
+  display: grid;
+  flex: 1;
+  gap: 2px;
+  font-size: 0.82rem;
+}
+.upgradeSub {
+  font-size: 0.74rem;
+  color: var(--rd-muted);
+}
+.pips {
+  display: flex;
+  gap: 3px;
+}
+.pip,
+.pipOn {
+  width: 14px;
+  height: 5px;
+  border-radius: 2px;
+  background: rgba(255, 255, 255, 0.15);
+}
+.pipOn {
+  background: var(--rd-gold);
+}
+.buyButton {
+  min-width: 76px;
+  font-size: 0.8rem;
+}
+
 @media (prefers-reduced-motion: reduce) {
   .overlayCaught,
   .caught,
   .toast,
+  .missionToast,
   .danger,
   .mult,
   .closePop {

@@ -1,6 +1,10 @@
+import type { HatId, Look, PackId, SuitId } from './looks';
 import {
   add,
   box,
+  cross,
+  dot,
+  norm,
   hex,
   limb,
   mul,
@@ -19,12 +23,15 @@ import {
  * 로컬 좌표는 두 발 사이 바닥이 원점 (x 오른쪽, y 위, z 앞). 단위 m, 키 약 1.75m.
  */
 
-const C = {
+/** 기본 색 (탐험가 옷) */
+const BASE = {
   skin: hex('#e2ae84'),
   hair: hex('#3a2718'),
   shirt: hex('#cdb88c'),
   sleeve: hex('#b8a174'),
   pants: hex('#5e4c37'),
+  /** 정강이 — 반바지면 맨살 */
+  shin: hex('#5e4c37'),
   boot: hex('#3d2a1b'),
   sole: hex('#1c130c'),
   belt: hex('#2e2015'),
@@ -35,6 +42,79 @@ const C = {
   hat: hex('#8a6036'),
   hatBand: hex('#2e2015'),
 };
+
+type Palette = typeof BASE;
+
+/** 옷마다 바뀌는 색 */
+const SUIT_PALETTE: Record<SuitId, Palette> = {
+  explorer: BASE,
+  ranger: {
+    ...BASE,
+    shirt: hex('#8a9a5b'),
+    sleeve: hex('#7a8a4e'),
+    pants: hex('#b49a6a'),
+    shin: hex('#e2ae84'),
+    boot: hex('#4a3a24'),
+    belt: hex('#3b3020'),
+  },
+  nomad: {
+    ...BASE,
+    shirt: hex('#e4d8bc'),
+    sleeve: hex('#d6c8a8'),
+    pants: hex('#c9b48c'),
+    shin: hex('#c9b48c'),
+    boot: hex('#8a6a44'),
+    belt: hex('#a8392f'),
+  },
+  golden: {
+    ...BASE,
+    shirt: hex('#d9a93a'),
+    sleeve: hex('#b88a2a'),
+    pants: hex('#6b4a22'),
+    shin: hex('#6b4a22'),
+    boot: hex('#8a6a22'),
+    belt: hex('#f0c64a'),
+  },
+};
+
+/** 소품 색 (옷과 상관없이 같은 것) */
+const K = {
+  vest: hex('#4f5a32'),
+  vestPocket: hex('#434d2a'),
+  scarf: hex('#b8453a'),
+  scarfDark: hex('#9a362d'),
+  gold: hex('#f0c64a'),
+  goldDark: hex('#c29528'),
+  gemRed: hex('#e0443a'),
+  gemBlue: hex('#3a8ee0'),
+  safari: hex('#e8dcb5'),
+  safariBand: hex('#8a6a3e'),
+  bandana: hex('#c23b32'),
+  minerHat: hex('#e8b62c'),
+  minerRim: hex('#b8871c'),
+  lamp: hex('#3a3a40'),
+  lampGlass: hex('#fff3b0'),
+  propCap: hex('#3a7bd5'),
+  propStripe: hex('#e0443a'),
+  propBlade: hex('#ffd23f'),
+  iron: hex('#8e8e96'),
+  bronze: hex('#b0793a'),
+  horn: hex('#efe6d0'),
+  hornTip: hex('#c9bb96'),
+  tube: hex('#6b4428'),
+  tubeCap: hex('#c29528'),
+  paper: hex('#efe3c4'),
+  sack: hex('#a8864f'),
+  sackDark: hex('#8a6c3c'),
+  rope: hex('#5a4228'),
+  coin: hex('#ffd23f'),
+  shieldWood: hex('#8a5a32'),
+  shieldRim: hex('#9a9aa2'),
+  shieldBoss: hex('#c9c9d0'),
+};
+
+/** 지금 그리는 캐릭터의 색 — drawCharacter3d 가 옷에 맞게 바꾼다 */
+let C: Palette = BASE;
 
 const THIGH = 0.44;
 const SHIN = 0.44;
@@ -217,6 +297,11 @@ export class CharacterAnimator {
     return this.phaseAcc;
   }
 
+  /** 지금까지 쌓인 걸음 위상 (읽기만 — 발걸음 효과가 박자를 맞춘다). π 마다 한 걸음 */
+  get phase(): number {
+    return this.phaseAcc;
+  }
+
   /** 이번 프레임에 보일 관절 각도 */
   rig(s: Character3dState, t: number): Rig {
     const dt = this.step(t);
@@ -240,6 +325,20 @@ function softMin(a: number, b: number, k = 0.04): number {
   return -k * Math.log(Math.exp(-a / k) + Math.exp(-b / k));
 }
 
+/** 게임 상태에 따라 움직이는 모자(횃불·프로펠러)가 보는 값 */
+export interface HatFx {
+  /** 배율 진행 0~1 (기본 배율 → 이번 판 최고 배율). 비틀거리면 0 으로 */
+  heat: number;
+  /** 최고 배율에 닿았는지 — 횃불이 파랗게 탄다 */
+  top: boolean;
+  /** 달리는 속도(m/s) — 프로펠러가 그만큼 빨리 돈다 */
+  speed: number;
+  /** 공중에 떠 있는지 — 프로펠러가 더 세게 돈다 */
+  airborne: boolean;
+}
+
+const IDLE_FX: HatFx = { heat: 0, top: false, speed: 0, airborne: false };
+
 /**
  * 캐릭터 그리기. feet = 발 위치(월드), tilt = 옆 기울기, anim 이 관절 섞기를 맡는다.
  */
@@ -250,7 +349,10 @@ export function drawCharacter3d(
   tilt: number,
   anim: CharacterAnimator,
   t: number,
+  look?: Look,
+  fx: HatFx = IDLE_FX,
 ): void {
+  C = SUIT_PALETTE[look?.suit ?? 'explorer'];
   const rig = anim.rig(s, t);
   const sides = [-1, 1] as const;
 
@@ -284,7 +386,7 @@ export function drawCharacter3d(
   // ---------- 다리 ----------
   for (const l of legPts) {
     limb(scene, world(l.hip), world(l.knee), 0.16, 0.17, C.pants);
-    limb(scene, world(l.knee), world(l.foot), 0.14, 0.15, C.pants);
+    limb(scene, world(l.knee), world(l.foot), 0.14, 0.15, C.shin);
     // 부츠 — 정강이와 직각으로 앞코가 나온다 (발을 차올리면 밑창이 보인다)
     const toeDir = v3(0, l.shinDir.z, -l.shinDir.y);
     const heel = add(l.foot, mul(toeDir, -0.05));
@@ -301,24 +403,9 @@ export function drawCharacter3d(
   box(scene, v3(0, 0.38, 0), v3(0.42, 0.52, 0.25), C.shirt, {}, T);
   // 어깨 (조금 넓게)
   box(scene, v3(0, 0.58, 0), v3(0.5, 0.12, 0.25), C.shirt, {}, T);
+  drawSuitExtras(scene, look?.suit ?? 'explorer', T, t);
 
-  // 배낭 — 등(-z)쪽에 붙어 있어서 뒤에서 따라가는 카메라에 잘 보인다
-  box(scene, v3(0, 0.36, -0.22), v3(0.36, 0.44, 0.2), C.pack, {}, T);
-  box(scene, v3(0, 0.52, -0.23), v3(0.37, 0.14, 0.21), C.packFlap, {}, T);
-  box(scene, v3(0, 0.26, -0.33), v3(0.22, 0.16, 0.04), C.pocket, {}, T);
-  // 어깨끈
-  for (const side of sides)
-    box(scene, v3(side * 0.12, 0.62, -0.03), v3(0.05, 0.05, 0.3), C.belt, {}, T);
-  // 배낭 위 담요 롤
-  prism(
-    scene,
-    T(v3(0, 0.64, -0.24)),
-    sub(T(v3(1, 0.64, -0.24)), T(v3(0, 0.64, -0.24))),
-    0.08,
-    0.46,
-    7,
-    C.roll,
-  );
+  drawPack(scene, look?.pack ?? 'backpack', T);
 
   // ---------- 팔 ----------
   sides.forEach((side, i) => {
@@ -337,8 +424,10 @@ export function drawCharacter3d(
   for (const side of sides)
     box(scene, v3(side * 0.13, 0.85, 0), v3(0.04, 0.08, 0.06), C.skin, {}, H);
 
+  const hat = look?.hat ?? 'explorer';
   if (s.pose !== 'fallen') {
-    drawHat(scene, H(v3(0, 0.99, 0)), sub(H(v3(0, 1.99, 0)), H(v3(0, 0.99, 0))));
+    const base = H(v3(0, 0.99, 0));
+    drawHat(scene, hat, base, sub(H(v3(0, 1.99, 0)), base), sub(H(v3(0, 0.99, 1)), base), t, fx);
   } else {
     // 날아간 모자 — 옆으로 포물선을 그리며 떨어진다
     const p = Math.min(1, s.fallenT / 0.7);
@@ -347,14 +436,299 @@ export function drawCharacter3d(
       v3(0.4 + p * 0.9, 1.3 + Math.sin(p * Math.PI) * 0.7 - p * 1.25, 0.8 + p * 0.3),
     );
     const up = rotZ(rotX(v3(0, 1, 0), p * 1.2), -p * 2.2);
-    drawHat(scene, pos, up);
+    const fwd = rotZ(rotX(v3(0, 0, 1), p * 1.2), -p * 2.2);
+    // 날아간 뒤엔 게임 상태와 상관없이 (횃불은 작게, 프로펠러는 천천히)
+    drawHat(scene, hat, pos, up, fwd, t, IDLE_FX);
   }
 }
 
-/** 챙 넓은 모자 — base = 챙 중심, up = 모자 위쪽 방향 */
-function drawHat(scene: Scene, base: Vec3, up: Vec3) {
-  const u = mul(up, 1 / (Math.hypot(up.x, up.y, up.z) || 1));
-  prism(scene, base, u, 0.26, 0.035, 10, C.hat);
-  prism(scene, add(base, mul(u, 0.05)), u, 0.15, 0.06, 8, C.hatBand);
-  prism(scene, add(base, mul(u, 0.12)), u, 0.14, 0.1, 8, C.hat);
+// ---------- 옷 · 등 소품 · 모자 ----------
+
+type Xform = (p: Vec3) => Vec3;
+
+/** 옷마다 몸통에 덧붙는 것 (T = 몸통 좌표 → 월드) */
+function drawSuitExtras(scene: Scene, suit: SuitId, T: Xform, t: number) {
+  if (suit === 'ranger') {
+    // 앞이 트인 조끼 — 앞 두 쪽과 등판, 가슴 주머니
+    box(scene, v3(0, 0.4, -0.125), v3(0.44, 0.46, 0.03), K.vest, {}, T);
+    for (const side of [-1, 1]) {
+      box(scene, v3(side * 0.14, 0.4, 0.125), v3(0.15, 0.46, 0.03), K.vest, {}, T);
+      box(scene, v3(side * 0.14, 0.44, 0.145), v3(0.09, 0.08, 0.02), K.vestPocket, {}, T);
+    }
+    return;
+  }
+  if (suit === 'nomad') {
+    // 목에 두른 스카프 — 뒤로 긴 자락이 펄럭인다
+    box(scene, v3(0, 0.66, 0), v3(0.3, 0.08, 0.29), K.scarf, {}, T);
+    const p0 = v3(0.05, 0.64, -0.15);
+    const p1 = v3(0.09 + Math.sin(t * 14) * 0.04, 0.6 + Math.sin(t * 11) * 0.04, -0.46);
+    const p2 = v3(
+      0.12 + Math.sin(t * 14 + 1.2) * 0.08,
+      0.58 + Math.sin(t * 11 + 1.2) * 0.08,
+      -0.78,
+    );
+    limb(scene, T(p0), T(p1), 0.12, 0.025, K.scarf);
+    limb(scene, T(p1), T(p2), 0.1, 0.025, K.scarfDark);
+    return;
+  }
+  if (suit === 'golden') {
+    // 두 겹 어깨 갑옷과 가슴 보석
+    for (const side of [-1, 1]) {
+      box(scene, v3(side * 0.3, 0.63, 0), v3(0.2, 0.09, 0.3), K.gold, {}, T);
+      box(scene, v3(side * 0.33, 0.56, 0), v3(0.16, 0.06, 0.27), K.goldDark, {}, T);
+    }
+    box(scene, v3(0, 0.46, 0.13), v3(0.16, 0.16, 0.02), K.goldDark, {}, T);
+    box(scene, v3(0, 0.46, 0.145), v3(0.08, 0.08, 0.02), K.gemRed, { emissive: true }, T);
+  }
+}
+
+/** 멜빵 두 줄 (배낭·자루) */
+function shoulderStraps(scene: Scene, T: Xform) {
+  for (const side of [-1, 1])
+    box(scene, v3(side * 0.12, 0.62, -0.03), v3(0.05, 0.05, 0.3), C.belt, {}, T);
+}
+
+/** 가슴을 비스듬히 가로지르는 끈 (통·방패) */
+function crossStrap(scene: Scene, T: Xform) {
+  limb(scene, T(v3(-0.17, 0.62, 0.135)), T(v3(0.18, 0.14, 0.135)), 0.06, 0.02, C.belt);
+  limb(scene, T(v3(-0.17, 0.62, -0.135)), T(v3(0.18, 0.14, -0.135)), 0.06, 0.02, C.belt);
+}
+
+/** 등 소품 — 등(-z)쪽이라 뒤에서 따라가는 카메라에 잘 보인다 */
+function drawPack(scene: Scene, pack: PackId, T: Xform) {
+  if (pack === 'scroll') {
+    crossStrap(scene, T);
+    // 비스듬히 멘 지도 통 — 위쪽 뚜껑 밖으로 종이가 삐져나온다
+    const c = T(v3(0, 0.4, -0.2));
+    const axis = sub(T(v3(0.6, 1.2, -0.2)), c);
+    const a = norm(axis);
+    prism(scene, c, axis, 0.075, 0.78, 8, K.tube);
+    prism(scene, add(c, mul(a, 0.39)), axis, 0.085, 0.07, 8, K.tubeCap);
+    prism(scene, add(c, mul(a, -0.39)), axis, 0.085, 0.07, 8, K.tubeCap);
+    prism(scene, add(c, mul(a, 0.47)), axis, 0.05, 0.1, 6, K.paper);
+    return;
+  }
+  if (pack === 'treasure') {
+    shoulderStraps(scene, T);
+    // 불룩한 자루 — 묶은 주둥이 위로 동전이 보인다
+    box(scene, v3(0, 0.34, -0.25), v3(0.42, 0.44, 0.28), K.sack, {}, T);
+    box(scene, v3(0, 0.13, -0.25), v3(0.34, 0.07, 0.22), K.sackDark, {}, T);
+    box(scene, v3(0, 0.6, -0.25), v3(0.2, 0.1, 0.15), K.sackDark, {}, T);
+    box(scene, v3(0, 0.58, -0.25), v3(0.22, 0.03, 0.17), K.rope, {}, T);
+    const coins = [v3(-0.04, 0.67, -0.24), v3(0.05, 0.69, -0.27), v3(0.0, 0.72, -0.22)];
+    coins.forEach((p, i) => {
+      const tiltAxis = sub(T(add(p, v3(0.3 * (i - 1), 1, 0.4))), T(p));
+      prism(scene, T(p), tiltAxis, 0.055, 0.018, 8, K.coin, K.coin, { emissive: true });
+    });
+    return;
+  }
+  if (pack === 'shield') {
+    crossStrap(scene, T);
+    // 둥근 방패 — 쇠 테두리 안쪽 나무판이 뒤로 조금 나오고, 가운데 쇠 돌기
+    const back = sub(T(v3(0, 0.38, -1)), T(v3(0, 0.38, 0)));
+    prism(scene, T(v3(0, 0.38, -0.17)), back, 0.32, 0.04, 12, K.shieldRim);
+    prism(scene, T(v3(0, 0.38, -0.2)), back, 0.28, 0.05, 12, K.shieldWood);
+    prism(scene, T(v3(0, 0.38, -0.24)), back, 0.08, 0.06, 8, K.shieldBoss);
+    return;
+  }
+  // 기본 배낭 — 담요 롤을 얹었다
+  shoulderStraps(scene, T);
+  box(scene, v3(0, 0.36, -0.22), v3(0.36, 0.44, 0.2), C.pack, {}, T);
+  box(scene, v3(0, 0.52, -0.23), v3(0.37, 0.14, 0.21), C.packFlap, {}, T);
+  box(scene, v3(0, 0.26, -0.33), v3(0.22, 0.16, 0.04), C.pocket, {}, T);
+  prism(
+    scene,
+    T(v3(0, 0.64, -0.24)),
+    sub(T(v3(1, 0.64, -0.24)), T(v3(0, 0.64, -0.24))),
+    0.08,
+    0.46,
+    7,
+    C.roll,
+  );
+}
+
+/** 횃불 투구의 불꽃 — heat(배율 진행)만큼 커지고, 최고 배율이면 파란 불꽃 */
+function drawTorchFlame(
+  ctx: CanvasRenderingContext2D,
+  x: number,
+  y: number,
+  s: number,
+  t: number,
+  fx: HatFx,
+) {
+  const k = (0.55 + fx.heat * 0.8) * (fx.top ? 1.15 : 1);
+  const flicker = 1 + Math.sin(t * 19) * 0.12 + Math.sin(t * 33) * 0.07;
+  const w = s * 0.11 * k * flicker;
+  const h = s * 0.24 * k * flicker;
+  const [glow, outer, inner] = fx.top
+    ? ['90, 170, 255', '#4aa8ff', '#e2f4ff']
+    : ['255, 170, 70', '#ff7a22', '#ffe07a'];
+  ctx.save();
+  const g = ctx.createRadialGradient(x, y - h * 0.6, 0, x, y - h * 0.6, s * 0.55 * k);
+  g.addColorStop(0, `rgba(${glow}, 0.55)`);
+  g.addColorStop(1, `rgba(${glow}, 0)`);
+  ctx.fillStyle = g;
+  ctx.beginPath();
+  ctx.arc(x, y - h * 0.6, s * 0.55 * k, 0, Math.PI * 2);
+  ctx.fill();
+  ctx.fillStyle = outer;
+  ctx.beginPath();
+  ctx.ellipse(x, y - h * 0.8, w, h, 0, 0, Math.PI * 2);
+  ctx.fill();
+  ctx.fillStyle = inner;
+  ctx.beginPath();
+  ctx.ellipse(x, y - h * 0.6, w * 0.5, h * 0.6, 0, 0, Math.PI * 2);
+  ctx.fill();
+  ctx.restore();
+}
+
+/**
+ * 모자. base = 정수리 가운데, up = 머리 위쪽, fwd = 얼굴 앞쪽 (날아가는 모자도 같은 틀).
+ * 모자 좌표는 x 오른쪽 · y 위 · z 앞, 원점이 정수리.
+ */
+function drawHat(scene: Scene, hat: HatId, base: Vec3, up: Vec3, fwd: Vec3, t: number, fx: HatFx) {
+  const u = norm(up);
+  const f = norm(sub(fwd, mul(u, dot(fwd, u))));
+  const r = cross(u, f);
+  const L: Xform = (p) => add(base, add(mul(r, p.x), add(mul(u, p.y), mul(f, p.z))));
+  const at = (x: number, y: number, z: number) => L(v3(x, y, z));
+
+  switch (hat) {
+    case 'safari': {
+      // 둥근 챙 → 띠 → 층층이 줄어드는 둥근 몸통
+      prism(scene, at(0, -0.05, 0), u, 0.23, 0.03, 12, K.safari);
+      prism(scene, at(0, 0.0, 0), u, 0.155, 0.07, 10, K.safariBand);
+      prism(scene, at(0, 0.07, 0), u, 0.15, 0.08, 10, K.safari);
+      prism(scene, at(0, 0.13, 0), u, 0.115, 0.05, 10, K.safari);
+      prism(scene, at(0, 0.17, 0), u, 0.06, 0.03, 8, K.safari);
+      return;
+    }
+    case 'bandana': {
+      // 머리를 감싼 천 — 뒤통수 매듭에서 끈 두 가닥이 휘날린다
+      box(scene, v3(0, -0.04, 0), v3(0.27, 0.1, 0.28), K.bandana, {}, L);
+      box(scene, v3(0, 0.02, 0), v3(0.24, 0.03, 0.25), K.bandana, {}, L);
+      box(scene, v3(0, -0.05, -0.155), v3(0.08, 0.07, 0.05), K.scarfDark, {}, L);
+      // 두 마디로 길게 — 끝으로 갈수록 크게 펄럭인다
+      for (const side of [-1, 1]) {
+        const w1 = Math.sin(t * 16 + side) * 0.04;
+        const w2 = Math.sin(t * 16 + side + 1.1) * 0.09;
+        const p0 = at(side * 0.03, -0.05, -0.17);
+        const p1 = at(side * 0.08 + w1, -0.1 + w1, -0.4);
+        const p2 = at(side * 0.14 + w2, -0.12 + w2, -0.66);
+        limb(scene, p0, p1, 0.06, 0.015, K.bandana);
+        limb(scene, p1, p2, 0.05, 0.015, K.scarfDark);
+      }
+      return;
+    }
+    case 'miner': {
+      // 노란 안전모와 이마의 전등 — 불빛이 둥글게 번진다
+      prism(scene, at(0, -0.05, 0), u, 0.17, 0.02, 10, K.minerRim);
+      prism(scene, at(0, 0.0, 0), u, 0.155, 0.09, 10, K.minerHat);
+      prism(scene, at(0, 0.07, 0), u, 0.12, 0.06, 10, K.minerHat);
+      box(scene, v3(0, 0.0, 0.16), v3(0.08, 0.07, 0.05), K.lamp, {}, L);
+      box(scene, v3(0, 0.0, 0.19), v3(0.06, 0.05, 0.01), K.lampGlass, { emissive: true }, L);
+      scene.sprite(at(0, 0.0, 0.24), (ctx, sx, sy, s) => {
+        const rad = s * 0.35;
+        ctx.save();
+        const g = ctx.createRadialGradient(sx, sy, 0, sx, sy, rad);
+        g.addColorStop(0, 'rgba(255, 244, 190, 0.85)');
+        g.addColorStop(1, 'rgba(255, 230, 140, 0)');
+        ctx.fillStyle = g;
+        ctx.beginPath();
+        ctx.arc(sx, sy, rad, 0, Math.PI * 2);
+        ctx.fill();
+        ctx.restore();
+      });
+      return;
+    }
+    case 'propeller': {
+      // 줄무늬 비니 위 프로펠러 — 빨리 달릴수록, 공중에서는 더 세게 돈다
+      prism(scene, at(0, -0.02, 0), u, 0.15, 0.09, 10, K.propCap);
+      prism(scene, at(0, -0.02, 0), u, 0.153, 0.025, 10, K.propStripe);
+      prism(scene, at(0, 0.05, 0), u, 0.11, 0.05, 10, K.propCap);
+      limb(scene, at(0, 0.07, 0), at(0, 0.13, 0), 0.025, 0.025, K.iron);
+      prism(scene, at(0, 0.135, 0), u, 0.03, 0.03, 6, K.propStripe);
+      const spin = t * (10 + fx.speed * 0.5) * (fx.airborne ? 1.8 : 1);
+      const bx = Math.cos(spin) * 0.24;
+      const bz = Math.sin(spin) * 0.24;
+      limb(scene, at(-bx, 0.14, -bz), at(bx, 0.14, bz), 0.07, 0.012, K.propBlade);
+      // 빨리 돌면 날개 자국이 흐릿한 원판으로 보인다
+      if (fx.speed > 0)
+        prism(scene, at(0, 0.14, 0), u, 0.24, 0.004, 14, K.propBlade, K.propBlade, { alpha: 0.18 });
+      return;
+    }
+    case 'viking': {
+      // 쇠 투구와 양옆으로 휘어 솟은 큰 뿔 — 머리 밖으로 가장 넓게 튀어나온다
+      prism(scene, at(0, -0.07, 0), u, 0.165, 0.03, 10, K.bronze);
+      prism(scene, at(0, -0.02, 0), u, 0.155, 0.08, 10, K.iron);
+      prism(scene, at(0, 0.05, 0), u, 0.12, 0.06, 10, K.iron);
+      box(scene, v3(0, 0.03, 0), v3(0.03, 0.11, 0.31), K.bronze, {}, L);
+      for (const side of [-1, 1]) {
+        const p0 = at(side * 0.14, -0.01, 0);
+        const p1 = at(side * 0.27, 0.05, -0.01);
+        const p2 = at(side * 0.35, 0.16, -0.03);
+        const p3 = at(side * 0.36, 0.28, -0.05);
+        limb(scene, p0, p1, 0.075, 0.075, K.horn);
+        limb(scene, p1, p2, 0.058, 0.058, K.horn);
+        limb(scene, p2, p3, 0.04, 0.04, K.hornTip);
+      }
+      return;
+    }
+    case 'torch': {
+      // 청동 투구 꼭대기 화로에서 불꽃이 탄다 — 배율이 오를수록 커지고, 최고 배율이면 파랗다
+      prism(scene, at(0, -0.07, 0), u, 0.165, 0.03, 10, K.iron);
+      prism(scene, at(0, -0.02, 0), u, 0.155, 0.08, 10, K.bronze);
+      prism(scene, at(0, 0.05, 0), u, 0.11, 0.06, 10, K.bronze);
+      prism(scene, at(0, 0.1, 0), u, 0.05, 0.05, 8, K.iron);
+      prism(scene, at(0, 0.13, 0), u, 0.08, 0.025, 8, K.iron);
+      scene.sprite(at(0, 0.15, 0), (ctx, sx, sy, s) => drawTorchFlame(ctx, sx, sy, s, t, fx));
+      return;
+    }
+    case 'crown': {
+      // 크고 높은 황금 테 — 뿔 다섯, 둘레의 보석이 번갈아 반짝인다
+      prism(scene, at(0, -0.02, 0), u, 0.165, 0.1, 10, K.gold);
+      prism(scene, at(0, -0.075, 0), u, 0.172, 0.02, 10, K.goldDark);
+      for (let i = 0; i < 5; i++) {
+        const a = (i / 5) * Math.PI * 2;
+        const x = Math.sin(a) * 0.15;
+        const z = Math.cos(a) * 0.15;
+        limb(scene, at(x, 0.02, z), at(x * 0.9, 0.2, z * 0.9), 0.065, 0.035, K.gold);
+        box(scene, v3(x * 0.9, 0.21, z * 0.9), v3(0.04, 0.04, 0.04), K.goldDark, {}, L);
+      }
+      for (let i = 0; i < 4; i++) {
+        const a = (i / 4) * Math.PI * 2 + Math.PI / 4;
+        const gem = v3(Math.sin(a) * 0.17, -0.02, Math.cos(a) * 0.17);
+        box(scene, gem, v3(0.05, 0.05, 0.05), i % 2 ? K.gemBlue : K.gemRed, { emissive: true }, L);
+        const glint = Math.max(0, Math.sin(t * 3 + i * 1.6));
+        if (glint > 0.6) {
+          scene.sprite(L(gem), (ctx, sx, sy, s) => {
+            const r = s * 0.12 * glint;
+            ctx.save();
+            ctx.globalCompositeOperation = 'lighter';
+            ctx.fillStyle = `rgba(255, 245, 210, ${(glint - 0.6) * 2})`;
+            ctx.beginPath();
+            ctx.moveTo(sx, sy - r);
+            ctx.lineTo(sx + r * 0.25, sy);
+            ctx.lineTo(sx, sy + r);
+            ctx.lineTo(sx - r * 0.25, sy);
+            ctx.closePath();
+            ctx.moveTo(sx - r, sy);
+            ctx.lineTo(sx, sy + r * 0.25);
+            ctx.lineTo(sx + r, sy);
+            ctx.lineTo(sx, sy - r * 0.25);
+            ctx.closePath();
+            ctx.fill();
+            ctx.restore();
+          });
+        }
+      }
+      return;
+    }
+    default: {
+      // 탐험가 모자 — 챙 넓은 가죽 모자
+      prism(scene, base, u, 0.26, 0.035, 10, C.hat);
+      prism(scene, add(base, mul(u, 0.05)), u, 0.15, 0.06, 8, C.hatBand);
+      prism(scene, add(base, mul(u, 0.12)), u, 0.14, 0.1, 8, C.hat);
+    }
+  }
 }

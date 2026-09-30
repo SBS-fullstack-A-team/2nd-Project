@@ -192,8 +192,14 @@ export interface RunState {
   nextTurnAt: number;
   /** 마지막으로 "반드시 점프해야 하는 줄"을 놓은 누적 거리(m) */
   lastForcedJumpAt: number;
-  /** 점수 배율 (1 ~ MULT_MAX) — 비틀거리면 1 로 */
+  /** 점수 배율 (multBase ~ multMax) — 비틀거리면 multBase 로 */
   mult: number;
+  /** 판을 시작할 때의 배율 (미션 레벨만큼 높다) */
+  multBase: number;
+  /** 이번 판에 오를 수 있는 최고 배율 = multBase + (MULT_MAX - 1) */
+  multMax: number;
+  /** 아이템별 지속 시간(초) — 상점 강화가 반영된다 */
+  durations: Record<ItemKind, number>;
   /** 다음 배율까지 달린 거리(m) */
   multProgress: number;
   /** 이번 판 최고 배율 */
@@ -215,7 +221,17 @@ function randomItemInterval(): number {
   return ITEM_INTERVAL_MIN_SEC + Math.random() * (ITEM_INTERVAL_MAX_SEC - ITEM_INTERVAL_MIN_SEC);
 }
 
-export function createRun(): RunState {
+/** 판을 시작할 때 정하는 값 — 미션 레벨·상점 강화 */
+export interface RunOptions {
+  /** 기본 배율 (1 이상) */
+  multBase?: number;
+  durations?: Partial<Record<ItemKind, number>>;
+}
+
+export function createRun(opts: RunOptions = {}): RunState {
+  const multBase = Math.max(1, Math.floor(opts.multBase ?? 1));
+  const durations = {} as Record<ItemKind, number>;
+  for (const kind of ITEM_KINDS) durations[kind] = opts.durations?.[kind] ?? ITEMS[kind].duration;
   return {
     status: 'running',
     time: 0,
@@ -249,9 +265,12 @@ export function createRun(): RunState {
     turnCount: 0,
     nextTurnAt: TURN_FIRST_M,
     lastForcedJumpAt: -Infinity,
-    mult: 1,
+    mult: multBase,
+    multBase,
+    multMax: multBase + MULT_MAX - 1,
+    durations,
     multProgress: 0,
-    bestMult: 1,
+    bestMult: multBase,
     distanceScore: 0,
     bonusScore: 0,
     closeCount: 0,
@@ -276,7 +295,7 @@ function close(run: RunState, emit: (e: RunEvent) => void): void {
 
 /** 비틀거리면 배율이 처음으로 돌아간다 */
 function resetMult(run: RunState): void {
-  run.mult = 1;
+  run.mult = run.multBase;
   run.multProgress = 0;
 }
 
@@ -358,7 +377,7 @@ export function step(run: RunState, dt: number, emit: (e: RunEvent) => void): vo
   run.distance += dz;
   run.distanceScore += dz * run.mult;
   // 비틀거리지 않는 동안 배율이 오른다
-  if (run.stumbleT <= 0 && run.mult < MULT_MAX) {
+  if (run.stumbleT <= 0 && run.mult < run.multMax) {
     run.multProgress += dz;
     if (run.multProgress >= MULT_STEP_M) {
       run.multProgress -= MULT_STEP_M;
@@ -555,7 +574,7 @@ function collectItems(run: RunState, emit: (e: RunEvent) => void): void {
   for (const it of run.items) {
     if (it.taken || it.lane !== lane || Math.abs(it.z) > HIT_DEPTH) continue;
     it.taken = true;
-    run.effects[it.kind] = ITEMS[it.kind].duration;
+    run.effects[it.kind] = run.durations[it.kind];
     emit('item');
   }
 }

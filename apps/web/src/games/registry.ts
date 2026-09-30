@@ -5,7 +5,7 @@ import flagQuizThumbnail from './flag-quiz/thumbnail.svg';
 import fruitSlicerThumbnail from './fruit-slicer/thumbnail.svg';
 import hintQuizThumbnail from './hint-quiz/thumbnail.svg';
 import imjin50Thumbnail from './imjin-50/thumbnail.svg';
-import ruinsDashThumbnail from './ruins-dash/thumbnail.svg';
+import ruinsDashThumbnail from './ruins-dash/thumbnail.webp';
 import skyAceThumbnail from './sky-ace/thumbnail.webp';
 
 /**
