@@ -5,6 +5,7 @@ import flagQuizThumbnail from './flag-quiz/thumbnail.svg';
 import fruitSlicerThumbnail from './fruit-slicer/thumbnail.svg';
 import hintQuizThumbnail from './hint-quiz/thumbnail.svg';
 import imjin50Thumbnail from './imjin-50/thumbnail.svg';
+import ruinsDashThumbnail from './ruins-dash/thumbnail.svg';
 import skyAceThumbnail from './sky-ace/thumbnail.webp';
 
 /**
@@ -79,6 +80,16 @@ export const GAMES: readonly GameMeta[] = [
     category: 'quiz',
     card: 5,
     component: lazy(() => import('./flag-quiz')),
+  },
+  // 카드 6 (경수)
+  {
+    id: 'ruins-dash',
+    name: '유적 탈출',
+    description: '굴러오는 바위를 피해 달려라! 점프·슬라이드·레인 이동으로 즐기는 3레인 러너',
+    thumbnail: ruinsDashThumbnail,
+    category: 'arcade',
+    card: 6,
+    component: lazy(() => import('./ruins-dash')),
   },
   // 카드 7 (신영)
   {

@@ -65,6 +65,8 @@ export const MAX_SCORE_BY_GAME: Record<string, number> = {
   'imjin-50': 3_000_000,
   // 시뮬레이션상 무피해 올 클리어가 약 75~80만 점 — 게임 내부 상한(config.ts MAX_SCORE)과 같게
   'sky-ace': 1_500_000,
+  // 최고 속도 42m/s · 배율 ×5 로 1시간 넘게 달려도 닿지 않을 만큼 넉넉한 상한
+  'ruins-dash': 3_000_000,
 };
 
 export const DEFAULT_MAX_SCORE = 1_000_000;
