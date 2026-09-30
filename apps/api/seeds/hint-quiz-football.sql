@@ -2,11 +2,11 @@
 -- 선수 선발·정답 이름: Data based on NEXON Open API (FC온라인 선수 메타데이터)
 -- 힌트: 위키데이터 (https://www.wikidata.org, CC0)
 -- 생성: node apps/api/seeds/scripts/hint-quiz-football.mjs (2026-09-30)
--- 이 파일의 문제만 지우고 다시 넣는다 (meta.source = wikidata). 직접 만든 문제는 hint-quiz.sql
+-- 이 파일의 문제만 지우고 다시 넣는다 (meta.source = wikidata, category = 축구선수). 직접 만든 문제는 hint-quiz.sql
 
 INSERT OR IGNORE INTO game (id, name, category) VALUES ('hint-quiz', '힌트 퀴즈', 'quiz');
 
-DELETE FROM quiz_item WHERE game_id = 'hint-quiz' AND json_extract(meta, '$.source') = 'wikidata';
+DELETE FROM quiz_item WHERE game_id = 'hint-quiz' AND json_extract(meta, '$.source') = 'wikidata' AND json_extract(meta, '$.category') = '축구선수';
 
 INSERT INTO quiz_item (game_id, question, answer, meta) VALUES
   ('hint-quiz', '이 축구선수는 누구일까요?', '루카 모드리치', '{"category":"축구선수","hints":[{"label":"국적","value":"크로아티아"},{"label":"출생 연도","value":"1985년"},{"label":"포지션","value":"미드필더"},{"label":"소속팀","value":"레알 마드리드 CF"},{"label":"신장","value":"174cm"},{"label":"다른 소속팀","value":"AC 밀란, 토트넘 홋스퍼 FC"}],"source":"wikidata","wikidata":"Q483837","aliases":["Luka Modric","모드리치","modric"]}'),

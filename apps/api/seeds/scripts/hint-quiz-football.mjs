@@ -666,11 +666,11 @@ function toSql(questions) {
     '-- 선수 선발·정답 이름: Data based on NEXON Open API (FC온라인 선수 메타데이터)',
     '-- 힌트: 위키데이터 (https://www.wikidata.org, CC0)',
     `-- 생성: node apps/api/seeds/scripts/hint-quiz-football.mjs (${today})`,
-    '-- 이 파일의 문제만 지우고 다시 넣는다 (meta.source = wikidata). 직접 만든 문제는 hint-quiz.sql',
+    '-- 이 파일의 문제만 지우고 다시 넣는다 (meta.source = wikidata, category = 축구선수). 직접 만든 문제는 hint-quiz.sql',
     '',
     "INSERT OR IGNORE INTO game (id, name, category) VALUES ('hint-quiz', '힌트 퀴즈', 'quiz');",
     '',
-    "DELETE FROM quiz_item WHERE game_id = 'hint-quiz' AND json_extract(meta, '$.source') = 'wikidata';",
+    "DELETE FROM quiz_item WHERE game_id = 'hint-quiz' AND json_extract(meta, '$.source') = 'wikidata' AND json_extract(meta, '$.category') = '축구선수';",
   ];
   for (let i = 0; i < questions.length; i += INSERT_CHUNK) {
     const rows = questions
