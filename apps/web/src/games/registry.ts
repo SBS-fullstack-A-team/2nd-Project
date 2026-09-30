@@ -5,7 +5,7 @@ import flagQuizThumbnail from './flag-quiz/thumbnail.svg';
 import fruitSlicerThumbnail from './fruit-slicer/thumbnail.svg';
 import hintQuizThumbnail from './hint-quiz/thumbnail.svg';
 import imjin50Thumbnail from './imjin-50/thumbnail.svg';
-import skyAceThumbnail from './sky-ace/thumbnail.svg';
+import skyAceThumbnail from './sky-ace/thumbnail.webp';
 
 /**
  * 게임 등록부 — 메인 화면 카드와 /games/:gameId 라우트가 이 목록으로 자동 생성된다.
