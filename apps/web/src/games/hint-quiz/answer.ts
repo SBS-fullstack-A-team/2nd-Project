@@ -12,9 +12,37 @@ import type { HintQuizMeta, QuizItem } from '@simsim/shared';
 
 export type AnswerMatch = 'exact' | 'partial' | 'similar' | 'wrong';
 
-/** 비교용 정규화: 공백·가운뎃점·마침표·하이픈·밑줄 제거 + 소문자 */
+/** NFD 로 풀리지 않는 라틴 특수 문자 */
+const LATIN_SPECIAL: Record<string, string> = {
+  ı: 'i',
+  ø: 'o',
+  Ø: 'O',
+  ł: 'l',
+  Ł: 'L',
+  đ: 'd',
+  Đ: 'D',
+  ð: 'd',
+  ß: 'ss',
+  æ: 'ae',
+  œ: 'oe',
+};
+
+/**
+ * 라틴 문자의 발음 기호를 뗀다 (Çalhanoğlu → Calhanoglu, Modrić → Modric)
+ * ※ 문자열 전체를 NFD 로 바꾸면 한글 음절도 자모로 풀리므로 라틴 문자만 바꾼다
+ */
+function stripDiacritics(text: string): string {
+  return text.replace(
+    /[À-ɏḀ-ỿ]/g,
+    (ch) => LATIN_SPECIAL[ch] ?? ch.normalize('NFD').replace(/[̀-ͯ]/g, ''),
+  );
+}
+
+/** 비교용 정규화: 발음 기호 제거 + 공백·가운뎃점·마침표·하이픈·밑줄 제거 + 소문자 */
 export function normalizeAnswer(text: string): string {
-  return text.replace(/[\s·.\-_'"]/g, '').toLowerCase();
+  return stripDiacritics(text)
+    .replace(/[\s·.\-_'"]/g, '')
+    .toLowerCase();
 }
 
 const HANGUL_START = 0xac00;

@@ -39,6 +39,97 @@ const HANDMADE = new Set([
 
 const QUESTION = '이 축구선수는 누구일까요?';
 
+/**
+ * 정답 표기 보정 (위키데이터 ID → 국내 통용 표기) — 재수집해도 유지된다
+ * 기준: 국내 중계·주요 언론에서 가장 흔히 쓰는 표기. 풀네임이 긴 브라질 선수 등은 흔히 부르는 이름으로.
+ * 위키데이터 한국어 이름(외래어 표기법 기준인 경우가 많음)은 별칭으로 남겨 계속 정답으로 인정한다.
+ * aliases: 함께 인정할 이름 (선택)
+ */
+const NAME_FIX = {
+  Q763465: { answer: '하칸 찰하놀루' }, // 칼하노글루
+  Q26517: { answer: '루이스 수아레스' }, // 루이스 알베르토 수아레스
+  Q17163: { answer: '요한 크루이프' }, // 크라위프
+  Q1255625: { answer: '사무엘 에투' }, // 사뮈엘 에토오
+  Q41244: { answer: '안드리 셰브첸코' }, // 셰우첸코
+  Q79983: { answer: '조세 무리뉴', aliases: ['주제 무리뉴'] }, // 조제 모리뉴
+  Q17500: { answer: '사비 에르난데스', aliases: ['차비'] }, // 차비 에르난데스
+  Q208104: { answer: '사비 알론소' }, // 샤비 알론소
+  Q22951255: { answer: '마커스 래시포드' }, // 래쉬포드
+  Q172720: { answer: '다니 알베스' }, // 다니 아우베스
+  Q429039: { answer: '호베르투 카를로스', aliases: ['로베르토 카를로스'] }, // 호베르투 카를루스
+  Q210453: { answer: '티아구 실바' }, // 치아구 시우바
+  Q124086: { answer: '베슬리 스네이더' }, // 베슬러이 스네이더르
+  Q311872: { answer: '필리페 쿠티뉴' }, // 필리피 쿠티뉴
+  Q47526: { answer: '지코' }, // 코임브라 지코
+  Q173972: { answer: '루드 굴리트' }, // 뤼트 휠릿
+  Q133903: { answer: '버질 판데이크', aliases: ['버질 반 다이크', '판 다이크', '반 다이크'] },
+  Q46347: { answer: '파트리크 비에이라' }, // 비에라
+  Q26069: { answer: '클라스 얀 훈텔라르' }, // 클라스얀 휜텔라르
+  Q165125: { answer: '하비에르 에르난데스', aliases: ['치차리토'] }, // … 발카사르
+  Q192635: { answer: '로날드 쿠만' }, // 로날트 쿠만
+  Q1894: { answer: '멤피스 데파이' }, // 더파이
+  Q222789: { answer: '루이스 엔리케' }, // … 마르티네스 가르시아
+  Q4979316: { answer: '브루노 페르난데스' }, // 브루누 페르난드스
+  Q13308: { answer: '사무엘 움티티' }, // 사뮈엘 윔티티
+  Q31981: { answer: '다비드 알라바' }, // 다비트 알라바
+  Q70550: { answer: '페르 메르테사커' }, // 페어 메르테자커
+  Q62786: { answer: '헐크', aliases: ['훌크'] }, // 지바니우두 비에이라 지 소자
+  Q228616: { answer: '마르타' }, // 마르타 비에이라 다 시우바
+  Q312772: { answer: '프레드' }, // 프레데리쿠 샤베스 게지스
+  Q182459: { answer: '줄리우 세자르' }, // … 소아리스 이스핀돌라
+  Q184177: { answer: '토마스 베르마엘렌' }, // 페르마엘런
+  Q27569376: { answer: '트렌트 알렉산더아놀드' }, // 알렉산더아널드
+  Q102331: { answer: '소크라테스' }, // 소크라치스
+  Q19497: { answer: '오스카' }, // 오스카르 두스 산투스 임보아바 주니오르
+  Q138075: { answer: '알렉산드레 파투' }, // 알레샨드리 파투
+  Q233510: { answer: '알렉스 모건' }, // 앨릭스 모건
+  Q327456: { answer: '하킴 지예흐' }, // 지예시
+  Q514427: { answer: '그라니트 샤카' }, // 자카
+  Q179773: { answer: '페드로 로드리게스', aliases: ['페드로'] }, // … 레데스마
+  Q16056053: { answer: '잭 그릴리시' }, // 그릴리쉬
+  Q28861547: { answer: '하피냐' }, // 하파에우 지아스 벨롤리
+  Q19708656: { answer: '가브리엘 제주스' }, // 가브리에우 제주스
+  Q6413296: { answer: '킹슬리 코망' }, // 킹슬레 코망
+  Q44073: { answer: '비셴테 리자라쥐' }, // 리사라수
+  Q170452: { answer: '아드리아누' }, // 아드리아누 레이치 히베이루
+  Q185115: { answer: '에드가 다비즈' }, // 엣하르 다비츠
+  Q177686: { answer: '마이콘' }, // 마이콩 도글라스 시제난두
+  Q175296: { answer: '하울 메이렐레스' }, // 메이렐르스
+  Q42728914: { answer: '호드리구' }, // 호드리구 고이스
+  Q437329: { answer: '다닐루' }, // 다닐루 루이스 다 시우바
+  Q17074511: { answer: '에데르송' }, // 이데르송 모라이스
+  Q62657: { answer: '네투' }, // 노르베르투 무라라 네투
+  Q484772: { answer: '안데르송' }, // 안데르송 루이스 지 아브레우 올리베이라
+  Q666506: { answer: '리카르도 로드리게스' }, // 리카르도 이반 로드리게스 아라야
+  Q33297140: { answer: '알렉시스 맥알리스터' }, // 알렉시스 마크 아이스테르
+  Q39230: { answer: '마르퀴뉴스' }, // 마르쿠스 아오아스 코헤아
+  Q309532: { answer: '에리크 막심 추포모팅' }, // 에리크 막생 슈포 모탱
+  Q599675: { answer: '은완코 카누' }, // 느왕쿼 카누
+  Q14947422: { answer: '엑토르 베예린' }, // 헥토르 벨레린
+  Q194149: { answer: '알렉스 옥슬레이드체임벌린' }, // 앨릭스 …
+  Q96396963: { answer: '누누 멘데스' }, // 누누 멘드스
+  Q30134278: { answer: '소보슬러이 도미니크', aliases: ['도미니크 소보슬러이'] },
+  Q1029982: { answer: '페테르 보스' }, // 페터르 보스즈
+  Q27694: { answer: '엠레 찬' }, // 엠레 잔
+  Q14640027: { answer: '요나탄 타' }, // 조나탕 타
+  Q694014: { answer: '슈코드란 무스타피' }, // 스코드란 무스타피
+  Q171295: { answer: '파벨 네드베드' }, // 네드베트
+  Q170328: { answer: '에릭 칸토나' }, // 에리크 캉토나
+  Q1935: { answer: '에릭 아비달' }, // 에리크 아비달
+  Q386876: { answer: '엠마누엘 아데바요르' }, // 에마뉘엘 아데바요르
+  Q260725: { answer: '메건 라피노' }, // 메건 러피노
+  Q201381: { answer: '뱅상 콤파니' }, // 콩파니
+  Q54094: { answer: '사미 케디라' }, // 자미 케디라
+  Q16499882: { answer: '르로이 자네', aliases: ['리로이 자네'] },
+  Q187396: { answer: '아이두르 구드욘센' }, // 에이뒤르 그뷔드욘센
+  Q59105: { answer: '길피 시구르드손' }, // 길비 시귀르드손
+  Q244790: { answer: '파블로 사발레타' }, // 자발레타
+  Q108111889: { answer: '가비', aliases: ['파블로 가비'] },
+  Q213427: { answer: '에런 램지', aliases: ['애런 램지'] },
+  Q310598: { answer: '다나카 마르쿠스 툴리오', aliases: ['툴리오'] },
+  Q312454: { answer: '파울루 호베르투 파우캉', aliases: ['파우캉'] },
+};
+
 async function sparql(query, attempt = 1) {
   const res = await fetch(`${ENDPOINT}?query=${encodeURIComponent(query)}`, {
     headers: { Accept: 'application/sparql-results+json', 'User-Agent': USER_AGENT },
@@ -231,13 +322,16 @@ function toQuestion(p) {
 
   if (!p.ko || positions.length === 0 || countries.length === 0 || clubs.length === 0) return null;
   // 동명이인 구분 괄호는 정답에서 뺀다 (예: '이종호 (축구 선수)' → '이종호')
-  const answer = p.ko.replace(/\s*\(.*?\)\s*/g, ' ').trim();
+  const wikidataName = p.ko.replace(/\s*\(.*?\)\s*/g, ' ').trim();
+  const fix = NAME_FIX[p.id];
+  const answer = fix?.answer ?? wikidataName;
   if (heightCm < 150 || heightCm > 210 || !p.birth) return null;
 
   return {
     answer,
-    en: p.en,
-    koAliases: p.aliases ?? [],
+    en: p.en && stripDiacritics(p.en),
+    // 보정한 경우 위키데이터 이름도 별칭으로 남긴다
+    koAliases: [...(fix?.aliases ?? []), ...(fix ? [wikidataName] : []), ...(p.aliases ?? [])],
     meta: {
       category: '축구선수',
       hints: [
@@ -255,6 +349,26 @@ function toQuestion(p) {
 }
 
 const lastToken = (name) => name.trim().split(/\s+/).at(-1);
+
+/** 라틴 문자의 발음 기호를 뗀다 (Çalhanoğlu → Calhanoglu). 한글은 건드리지 않는다 — answer.ts 와 같은 규칙 */
+const LATIN_SPECIAL = {
+  ı: 'i',
+  ø: 'o',
+  Ø: 'O',
+  ł: 'l',
+  Ł: 'L',
+  đ: 'd',
+  Đ: 'D',
+  ð: 'd',
+  ß: 'ss',
+  æ: 'ae',
+  œ: 'oe',
+};
+const stripDiacritics = (s) =>
+  s.replace(
+    /[\u00c0-\u024f\u1e00-\u1eff]/g,
+    (ch) => LATIN_SPECIAL[ch] ?? ch.normalize('NFD').replace(/[\u0300-\u036f]/g, ''),
+  );
 const isCleanAlias = (s) => s.length >= 2 && s.length <= 20 && /^[가-힣a-zA-Z .'-]+$/.test(s);
 
 /** 정답으로 함께 인정할 이름: 영문 이름, 한국어 별칭, (겹치지 않는) 성 */
