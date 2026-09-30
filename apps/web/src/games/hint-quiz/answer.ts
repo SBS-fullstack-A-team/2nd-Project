@@ -137,9 +137,16 @@ function isKoreanPersonName(item: QuizItem<HintQuizMeta>): boolean {
   return /대한민국|북한/.test(nationality) && isHangulName(item.answer);
 }
 
-/** 이름의 부분들 (2글자 이상) — '루이스 알베르토 수아레스' → ['루이스', '알베르토', '수아레스'] */
+/**
+ * 이름의 부분들 (2글자 이상) — '루이스 알베르토 수아레스' → ['루이스', '알베르토', '수아레스']
+ * 마지막 단어(성)는 한 글자여도 넣는다 — '요나탄 타' → ['요나탄', '타'], '루크 쇼' → ['루크', '쇼']
+ * 앞쪽 한 글자 이름('존', '벤')은 너무 흔해 넣지 않는다
+ */
 function nameParts(name: string): string[] {
-  return name.split(/[\s·-]+/).filter((part) => part.length >= 2);
+  const parts = name.split(/[\s·-]+/).filter(Boolean);
+  return parts.filter(
+    (part, i) => part.length >= 2 || (parts.length > 1 && i === parts.length - 1),
+  );
 }
 
 /**
