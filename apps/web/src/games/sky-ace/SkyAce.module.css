@@ -163,6 +163,32 @@
   border: 2px solid #3a4a80;
 }
 
+.panelText {
+  margin: 0 0 14px;
+  color: #aab4d8;
+  font-size: 0.9rem;
+}
+
+/* 설정 창 세로 버튼 목록 */
+.menuList {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  width: min(240px, 100%);
+  margin: 0 auto;
+}
+
+.dangerBtn {
+  padding: 10px 22px;
+  font: inherit;
+  font-weight: 800;
+  color: #fff;
+  background: linear-gradient(180deg, #ff6a6a, #d8323a);
+  border: 2px solid #ffc0c0;
+  border-radius: 999px;
+  cursor: pointer;
+}
+
 .row {
   display: flex;
   flex-wrap: wrap;

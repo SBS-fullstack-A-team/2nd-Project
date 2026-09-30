@@ -72,7 +72,7 @@ export function drawThrust(
   ctx.fill();
 }
 
-function shade(hex: string, amt: number): string {
+export function shade(hex: string, amt: number): string {
   const n = parseInt(hex.slice(1), 16);
   const c = (v: number) => Math.max(0, Math.min(255, Math.round(v + amt)));
   const r = c((n >> 16) & 255);
@@ -81,13 +81,19 @@ function shade(hex: string, amt: number): string {
   return `rgb(${r},${g},${b})`;
 }
 
-function ellipse(ctx: CanvasRenderingContext2D, x: number, y: number, rx: number, ry: number) {
+export function ellipse(
+  ctx: CanvasRenderingContext2D,
+  x: number,
+  y: number,
+  rx: number,
+  ry: number,
+) {
   ctx.beginPath();
   ctx.ellipse(x, y, rx, ry, 0, 0, TAU);
   ctx.fill();
 }
 
-function poly(ctx: CanvasRenderingContext2D, pts: number[], mirror = false) {
+export function poly(ctx: CanvasRenderingContext2D, pts: number[], mirror = false) {
   ctx.beginPath();
   for (let i = 0; i < pts.length; i += 2) {
     const px = mirror ? -pts[i]! : pts[i]!;
@@ -100,7 +106,13 @@ function poly(ctx: CanvasRenderingContext2D, pts: number[], mirror = false) {
 }
 
 /** 회전하는 프로펠러 (반투명 원판 + 날 2개) */
-function propeller(ctx: CanvasRenderingContext2D, x: number, y: number, r: number, t: number) {
+export function propeller(
+  ctx: CanvasRenderingContext2D,
+  x: number,
+  y: number,
+  r: number,
+  t: number,
+) {
   ctx.fillStyle = 'rgba(230,230,230,0.25)';
   ellipse(ctx, x, y, r, r * 0.3);
   ctx.strokeStyle = 'rgba(40,40,40,0.8)';
@@ -321,245 +333,6 @@ export function drawEnemyCraft(
     for (const ex of [-40, -22, 22, 40]) propeller(ctx, ex, -13, 9, t);
   }
   ctx.restore();
-}
-
-/* =========================================================
- * 보스 3종 — phase 2 는 모양이 바뀐다
- * ========================================================= */
-export interface BossLook {
-  x: number;
-  y: number;
-  t: number;
-  phase: 1 | 2;
-  flash: boolean;
-  /** 0~1, 2단 변신 연출 진행도 */
-  morph: number;
-  /** Kraken 코어 개방 정도 0~1 */
-  open: number;
-}
-
-export function drawGoliath(ctx: CanvasRenderingContext2D, b: BossLook) {
-  const { x, y, t } = b;
-  ctx.save();
-  ctx.translate(x, y);
-  // 엔진 포드 불꽃 (비행선이라 위로 전진 — 뒤쪽 = 화면 위)
-  if (b.phase === 1) {
-    ctx.save();
-    ctx.rotate(Math.PI);
-    for (const ex of [-92, 92]) drawThrust(ctx, ex, 30, 10, 26, t);
-    ctx.restore();
-    // 기낭 (비행선 풍선)
-    const env = ctx.createLinearGradient(-150, 0, 150, 0);
-    env.addColorStop(0, '#5a4a3a');
-    env.addColorStop(0.5, b.flash ? '#ffffff' : '#9c8468');
-    env.addColorStop(1, '#5a4a3a');
-    ctx.fillStyle = env;
-    ellipse(ctx, 0, 0, 150, 58);
-    ctx.strokeStyle = 'rgba(40,28,18,0.6)';
-    ctx.lineWidth = 2;
-    for (let i = -4; i <= 4; i++) {
-      ctx.beginPath();
-      ctx.ellipse(0, 0, Math.abs(i) * 34 + 2, 58, 0, -Math.PI / 2, Math.PI / 2, i < 0);
-      ctx.stroke();
-    }
-    ctx.fillStyle = 'rgba(255,255,255,0.12)';
-    ellipse(ctx, -30, -24, 90, 14);
-    // 엔진 포드 + 레이저 포
-    for (const ex of [-92, 92]) {
-      ctx.fillStyle = '#403a34';
-      ellipse(ctx, ex, 0, 16, 34);
-      ctx.fillStyle = '#ff4040';
-      ellipse(ctx, ex, 28, 6, 6);
-      ctx.fillStyle = '#ffd0d0';
-      ellipse(ctx, ex, 28, 2.5, 2.5);
-    }
-    // 곤돌라
-    ctx.fillStyle = b.flash ? '#ffffff' : '#3a3a42';
-    ellipse(ctx, 0, 30, 28, 18);
-    ctx.fillStyle = '#ffcc55';
-    for (let i = -2; i <= 2; i++) ellipse(ctx, i * 9, 30, 2.5, 3);
-  } else {
-    // 장갑이 떨어져 나간 메카 골격
-    ctx.save();
-    ctx.rotate(Math.PI);
-    for (const ex of [-60, 60]) drawThrust(ctx, ex, 40, 12, 30, t, '#ffe0ff', '#ff3a8a');
-    ctx.restore();
-    ctx.strokeStyle = '#5c5f66';
-    ctx.lineWidth = 6;
-    for (let i = -3; i <= 3; i++) {
-      ctx.beginPath();
-      ctx.moveTo(i * 30, -40);
-      ctx.lineTo(i * 22, 40);
-      ctx.stroke();
-    }
-    ctx.fillStyle = b.flash ? '#ffffff' : '#474a52';
-    poly(ctx, [-120, -10, -70, -44, 70, -44, 120, -10, 90, 30, -90, 30]);
-    ctx.fillStyle = '#2d2f35';
-    poly(ctx, [-70, -20, 70, -20, 50, 20, -50, 20]);
-    // 회전 포탑 링
-    ctx.save();
-    ctx.rotate(t * 3);
-    ctx.fillStyle = '#8a8f99';
-    for (let i = 0; i < 8; i++) {
-      ctx.rotate(TAU / 8);
-      ctx.fillRect(-4, 26, 8, 14);
-    }
-    ctx.restore();
-    const core = ctx.createRadialGradient(0, 0, 2, 0, 0, 26);
-    core.addColorStop(0, '#ffffff');
-    core.addColorStop(0.4, '#ff4a8a');
-    core.addColorStop(1, 'rgba(120,0,40,0.9)');
-    ctx.fillStyle = core;
-    ellipse(ctx, 0, 0, 24, 24);
-    for (const ex of [-60, 60]) {
-      ctx.fillStyle = '#35373d';
-      ellipse(ctx, ex, 0, 14, 22);
-      ctx.fillStyle = '#ff4a8a';
-      ellipse(ctx, ex, 16, 4, 4);
-    }
-  }
-  morphFlash(ctx, b.morph);
-  ctx.restore();
-}
-
-export function drawKraken(ctx: CanvasRenderingContext2D, b: BossLook) {
-  const { x, y, t } = b;
-  ctx.save();
-  ctx.translate(x, y);
-  // 물보라
-  ctx.fillStyle = 'rgba(220,240,255,0.25)';
-  for (let i = 0; i < 10; i++) {
-    const a = (i / 10) * TAU + t * 0.6;
-    ellipse(ctx, Math.cos(a) * 160, Math.sin(a) * 76, 14 + Math.sin(t * 3 + i) * 4, 6);
-  }
-  // 촉수 모양 포신 6개
-  ctx.lineCap = 'round';
-  for (let i = 0; i < 6; i++) {
-    const side = i < 3 ? -1 : 1;
-    const k = i % 3;
-    const bx = side * (60 + k * 32);
-    ctx.strokeStyle = b.phase === 2 ? '#6a2a3a' : '#2a4a5a';
-    ctx.lineWidth = 12 - k * 2;
-    ctx.beginPath();
-    ctx.moveTo(bx, 20);
-    const wob = Math.sin(t * 2.4 + i) * 16;
-    ctx.quadraticCurveTo(bx + side * 20 + wob, 70, bx + wob * 0.6, 100 + k * 8);
-    ctx.stroke();
-  }
-  ctx.lineCap = 'butt';
-  // 팔각형 갑판
-  const deck = ctx.createLinearGradient(0, -70, 0, 70);
-  deck.addColorStop(0, b.flash ? '#ffffff' : '#51606b');
-  deck.addColorStop(1, b.flash ? '#ffffff' : '#2d3840');
-  ctx.fillStyle = deck;
-  poly(ctx, [-150, -20, -110, -66, 110, -66, 150, -20, 150, 20, 110, 62, -110, 62, -150, 20]);
-  ctx.strokeStyle = '#1b2329';
-  ctx.lineWidth = 3;
-  ctx.stroke();
-  // 미사일 발사대 4개
-  for (const mx of [-112, -70, 70, 112]) {
-    ctx.fillStyle = '#20282e';
-    ctx.fillRect(mx - 10, -30, 20, 30);
-    ctx.fillStyle = '#ffae3a';
-    for (let r = 0; r < 3; r++) ctx.fillRect(mx - 6, -26 + r * 9, 12, 4);
-  }
-  // 코어 — 2단계에 좌우 장갑이 열린다
-  const open = b.open * 34;
-  const glow = ctx.createRadialGradient(0, 8, 2, 0, 8, 40);
-  glow.addColorStop(0, '#ffffff');
-  glow.addColorStop(0.35, b.phase === 2 ? '#ff3a5a' : '#3ad0ff');
-  glow.addColorStop(1, 'rgba(0,0,0,0)');
-  ctx.fillStyle = glow;
-  ellipse(ctx, 0, 8, 26 + open * 0.5, 26 + open * 0.5);
-  ctx.fillStyle = b.flash ? '#ffffff' : '#3b4852';
-  ctx.fillRect(-40 - open, -24, 40, 64);
-  ctx.fillRect(0 + open, -24, 40, 64);
-  ctx.strokeStyle = '#1b2329';
-  ctx.strokeRect(-40 - open, -24, 40, 64);
-  ctx.strokeRect(0 + open, -24, 40, 64);
-  morphFlash(ctx, b.morph);
-  ctx.restore();
-}
-
-export function drawChronos(ctx: CanvasRenderingContext2D, b: BossLook) {
-  const { x, y, t } = b;
-  const rage = b.phase === 2;
-  ctx.save();
-  ctx.translate(x, y);
-  // 시계 톱니 링 (두 개가 서로 반대로 회전)
-  for (const [r, dir, teeth] of [
-    [105, 1, 24],
-    [80, -1.6, 18],
-  ] as const) {
-    ctx.save();
-    ctx.rotate(t * 0.6 * dir * (rage ? 3 : 1));
-    ctx.strokeStyle = rage ? '#ff5a3a' : '#c8a8ff';
-    ctx.globalAlpha = 0.85;
-    ctx.lineWidth = 5;
-    ctx.beginPath();
-    ctx.arc(0, 0, r, 0, TAU);
-    ctx.stroke();
-    ctx.fillStyle = rage ? '#ff8a5a' : '#e0d0ff';
-    for (let i = 0; i < teeth; i++) {
-      ctx.rotate(TAU / teeth);
-      ctx.fillRect(-3, r - 2, 6, 10);
-    }
-    ctx.restore();
-  }
-  ctx.globalAlpha = 1;
-  // 몸체
-  const body = ctx.createRadialGradient(0, -10, 10, 0, 0, 80);
-  body.addColorStop(0, b.flash ? '#ffffff' : rage ? '#7a2a3a' : '#4a3a7a');
-  body.addColorStop(1, b.flash ? '#ffffff' : rage ? '#2a0a14' : '#1a1430');
-  ctx.fillStyle = body;
-  poly(ctx, [0, -78, 52, -40, 66, 20, 30, 70, -30, 70, -66, 20, -52, -40]);
-  // 어깨 날개 — 광란 모드에서 가시가 돋는다
-  ctx.fillStyle = rage ? '#b8323a' : '#6a5aa8';
-  for (const s of [-1, 1]) {
-    ctx.save();
-    ctx.scale(s, 1);
-    ctx.rotate(Math.sin(t * (rage ? 8 : 2)) * 0.08);
-    poly(ctx, [50, -30, 128, -58, 110, -10, 138, 12, 64, 20]);
-    if (rage) poly(ctx, [120, -50, 160, -80, 132, -30]);
-    ctx.restore();
-  }
-  // 시계 문자판 코어 + 바늘
-  ctx.fillStyle = '#0c0a18';
-  ellipse(ctx, 0, 0, 30, 30);
-  ctx.strokeStyle = rage ? '#ffb070' : '#e8dcff';
-  ctx.lineWidth = 2;
-  for (let i = 0; i < 12; i++) {
-    const a = (i / 12) * TAU;
-    ctx.beginPath();
-    ctx.moveTo(Math.cos(a) * 24, Math.sin(a) * 24);
-    ctx.lineTo(Math.cos(a) * 28, Math.sin(a) * 28);
-    ctx.stroke();
-  }
-  ctx.lineWidth = 3;
-  const h = t * (rage ? 9 : 1.5);
-  ctx.beginPath();
-  ctx.moveTo(0, 0);
-  ctx.lineTo(Math.cos(h) * 16, Math.sin(h) * 16);
-  ctx.moveTo(0, 0);
-  ctx.lineTo(Math.cos(h * 12) * 24, Math.sin(h * 12) * 24);
-  ctx.stroke();
-  // 눈
-  ctx.fillStyle = rage ? '#ff2a2a' : '#8af0ff';
-  ellipse(ctx, -22, -46, 7, 4);
-  ellipse(ctx, 22, -46, 7, 4);
-  morphFlash(ctx, b.morph);
-  ctx.restore();
-}
-
-/** 변신 중 하얗게 번쩍이는 원 */
-function morphFlash(ctx: CanvasRenderingContext2D, morph: number) {
-  if (morph <= 0) return;
-  const a = Math.sin(morph * Math.PI);
-  const g = ctx.createRadialGradient(0, 0, 0, 0, 0, 200);
-  g.addColorStop(0, `rgba(255,255,255,${a})`);
-  g.addColorStop(1, 'rgba(255,255,255,0)');
-  ctx.fillStyle = g;
-  ellipse(ctx, 0, 0, 200, 200);
 }
 
 /* =========================================================

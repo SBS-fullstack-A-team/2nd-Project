@@ -386,6 +386,27 @@ export class SkyAceEngine implements World {
     this.beginStage(0);
   }
 
+  /** 게임을 멈추고 메뉴 뒤 배경 상태로 돌아간다 (게임 홈으로) */
+  idle() {
+    this.mode = 'idle';
+    this.paused = false;
+    this.bullets = [];
+    this.enemyBullets = [];
+    this.lasers = [];
+    this.enemies = [];
+    this.items = [];
+    this.particles = [];
+    this.boss = null;
+    this.bomb = null;
+    this.timeStop = 0;
+    this.shakeAmt = 0;
+    this.flash = 0;
+    this.keys.clear();
+    this.drag = null;
+    this.bg.reset(1);
+    this.sound.stopBgm();
+  }
+
   pause() {
     this.paused = true;
     this.keys.clear();
@@ -401,7 +422,7 @@ export class SkyAceEngine implements World {
     return this.mode === 'playing';
   }
 
-  /** 필살기 발동 (키보드 X/B, 모바일 버튼) */
+  /** 필살기 발동 (스페이스바, 모바일 BOMB 버튼) */
   useBomb() {
     const p = this.player;
     if (this.mode !== 'playing' || this.paused || !p.alive || this.bomb || p.bombs <= 0) return;
@@ -1177,7 +1198,7 @@ export class SkyAceEngine implements World {
     if (this.mode !== 'idle') {
       for (const it of this.items) it.draw(ctx, this.t);
       for (const e of this.enemies) e.draw(ctx, this.t);
-      this.boss?.draw(ctx);
+      this.boss?.draw(ctx, this.player.x, this.player.y);
       for (const l of this.lasers) l.draw(ctx, this.t);
 
       ctx.globalCompositeOperation = 'lighter';
@@ -1487,10 +1508,12 @@ export class SkyAceEngine implements World {
     const key = e.key.toLowerCase();
     if (['arrowleft', 'arrowright', 'arrowup', 'arrowdown', ' '].includes(key)) e.preventDefault();
     this.keys.add(key);
-    if ((key === 'x' || key === 'b') && !e.repeat) this.useBomb();
+    if (key === ' ' && !e.repeat) this.useBomb();
   };
 
   private onKeyUp = (e: KeyboardEvent) => {
+    // 포커스된 버튼이 스페이스바로 눌리지 않게 (버튼은 keyup 에서 클릭된다)
+    if (e.key === ' ' && this.mode === 'playing') e.preventDefault();
     this.keys.delete(e.key.toLowerCase());
     // Shift 를 누른 채 방향키를 떼면 key 값이 달라질 수 있어 함께 정리
     if (e.key === 'Shift') this.keys.delete('shift');

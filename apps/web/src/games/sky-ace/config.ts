@@ -264,7 +264,7 @@ export const BOSS_WARNING_SEC = 2.8;
 export const HOW_TO_PLAY: readonly string[] = [
   '이동: 방향키 / WASD · 모바일은 화면을 끌어서 이동',
   '사격: 자동 연사 · Shift 를 누르고 있으면 정밀 이동',
-  '필살기: X 또는 B 키 · 모바일은 오른쪽 아래 BOMB 버튼',
+  '필살기: 스페이스바 · 모바일은 오른쪽 아래 BOMB 버튼',
   '일시정지: Esc 또는 P',
   '[P] 주포 강화 (최대 3단계) · [B] 필살기 +1',
   '반짝이는 작은 점이 진짜 피격 판정이에요',
