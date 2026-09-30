@@ -1,6 +1,7 @@
 import { lazy, type ComponentType, type LazyExoticComponent } from 'react';
 import type { GameCategory, GameProps } from '@simsim/shared';
 import chosungQuizThumbnail from './chosung-quiz/thumbnail.svg';
+import flagQuizThumbnail from './flag-quiz/thumbnail.svg';
 import fruitSlicerThumbnail from './fruit-slicer/thumbnail.svg';
 import hintQuizThumbnail from './hint-quiz/thumbnail.svg';
 import imjin50Thumbnail from './imjin-50/thumbnail.svg';
@@ -67,6 +68,16 @@ export const GAMES: readonly GameMeta[] = [
     category: 'arcade',
     card: 3,
     component: lazy(() => import('./fruit-slicer')),
+  },
+  // 카드 5 (혁)
+  {
+    id: 'flag-quiz',
+    name: '국기 퀴즈',
+    description: '국기 보고 나라, 나라 보고 수도! 10초 안에 4지선다로 맞혀라',
+    thumbnail: flagQuizThumbnail,
+    category: 'quiz',
+    card: 5,
+    component: lazy(() => import('./flag-quiz')),
   },
 ];
 
