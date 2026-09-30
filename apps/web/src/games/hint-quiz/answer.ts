@@ -8,9 +8,13 @@ import type { HintQuizMeta, QuizItem } from '@simsim/shared';
  *    한국 사람 이름은 성을 뺀 이름 (예: '손흥민' → '흥민')
  * 3) 유사 정답: 자모 단위로 비교해 조금 다른 표기 (예: '음바페' ≈ '음밥페', '베컴' ≈ '배컴')
  *    ※ 한국 사람 이름은 한 글자만 달라도 다른 사람(김민재 ≠ 김민수)이라 유사 정답을 쓰지 않는다
+ * ※ 나라는 정확히 일치(별칭 포함)만 인정한다 — 이란 ≈ 이라크, 기니 ⊂ 적도 기니 처럼 다른 나라가 섞인다
  */
 
 export type AnswerMatch = 'exact' | 'partial' | 'similar' | 'wrong';
+
+/** 부분·유사 정답 없이 정확히 일치만 인정하는 장르 */
+const EXACT_ONLY_CATEGORIES = new Set(['나라']);
 
 /** NFD 로 풀리지 않는 라틴 특수 문자 */
 const LATIN_SPECIAL: Record<string, string> = {
@@ -169,6 +173,7 @@ export function matchAnswer(input: string, item: QuizItem<HintQuizMeta>): Answer
 
   const fullNames = [item.answer, ...(item.meta.aliases ?? [])];
   if (fullNames.some((name) => normalizeAnswer(name) === guess)) return 'exact';
+  if (EXACT_ONLY_CATEGORIES.has(item.meta.category)) return 'wrong';
 
   const koreanPerson = isKoreanPersonName(item);
   const parts = koreanPerson

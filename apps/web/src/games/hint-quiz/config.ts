@@ -8,9 +8,9 @@ export const GAME_ID = 'hint-quiz';
 export const CATEGORIES = [
   { id: '축구선수', icon: '⚽', description: '요즘 인기 선수 위주 국내외 약 1,000명' },
   { id: '야구선수', icon: '⚾', description: 'KBO 리그 인기 선수 약 300명' },
-  { id: '동물', icon: '🐾', description: '신기한 동물 이야기' },
-  { id: '나라', icon: '🌏', description: '세계 여러 나라' },
-  { id: '음식', icon: '🍜', description: '맛있는 음식' },
+  { id: '동물', icon: '🐾', description: '신기한 동물 50가지' },
+  { id: '나라', icon: '🌏', description: '세계 195개 나라' },
+  { id: '음식', icon: '🍜', description: '국내외 음식 50가지' },
 ] as const;
 
 /**
@@ -20,6 +20,7 @@ export const CATEGORIES = [
 export const CATEGORY_CREDIT: Partial<Record<string, string>> = {
   축구선수: '선수 이름: Data based on NEXON Open API · 선수 정보: 위키데이터',
   야구선수: '선수 정보: 위키데이터',
+  나라: '나라 정보: 위키데이터',
 };
 
 /** 고를 수 있는 문항 수 (문제 API 최대 50개 이하) */
