@@ -3,6 +3,13 @@ import {
   BOOST_AFTER_INVULN_SEC,
   BOOST_SPEED_MUL,
   CLEAR_HEIGHT,
+  COLLAPSE_FIRST_M,
+  COLLAPSE_GAP_MAX_M,
+  COLLAPSE_GAP_MIN_M,
+  COLLAPSE_HOLE_CHANCE,
+  COLLAPSE_RECOVER_MUL,
+  COLLAPSE_SEC,
+  COLLAPSE_TURN_MARGIN_M,
   CLOSE_ACTION_SEC,
   CLOSE_DODGE_SEC,
   CLOSE_POINTS,
@@ -10,6 +17,13 @@ import {
   COIN_POINTS,
   COIN_SPACING,
   COIN_TRAIL,
+  GOLDEN_DOUBLE_CHANCE,
+  GOLDEN_FIRST_M,
+  GOLDEN_GAP_MAX_M,
+  GOLDEN_GAP_MIN_M,
+  GOLDEN_ROW_M,
+  GOLDEN_SEC,
+  GOLDEN_TURN_MARGIN_M,
   GRACE_SEC,
   HIT_DEPTH,
   ITEM_INTERVAL_MAX_SEC,
@@ -23,11 +37,44 @@ import {
   MAGNET_RANGE,
   MAX_SCORE,
   EDGE_COLLAPSE_CHANCE,
+  FORK_CHANCE,
   MAX_SPEED,
   MULT_MAX,
   MULT_STEP_M,
   NARROW_CHANCE,
   NEXT_THEMES,
+  PURSUIT_BONUS,
+  CART_BEAM_CHANCE,
+  CART_HOLE_CHANCE,
+  RIDE_BONUS,
+  RIDE_GAP_MAX_M,
+  RIDE_GAP_MIN_M,
+  RIDE_KINDS,
+  RIDE_FIRST_M,
+  RIDE_ROW_MUL,
+  RIDE_SEC,
+  RIDE_SPEED_MUL,
+  RIDE_TURN_MARGIN_M,
+  ZIP_COIN_CHANCE,
+  ZIP_LIFT,
+  ZIP_RAMP_M,
+  type RideKind,
+  STAIRS_FIRST_M,
+  STAIRS_GAP_MAX_M,
+  STAIRS_GAP_MIN_M,
+  STAIRS_RAMP_RATIO,
+  STAIRS_RISE,
+  STAIRS_SEC,
+  STAIRS_STEPS,
+  STAIRS_TREAD_RATIO,
+  PURSUIT_FIRST_SEC,
+  PURSUIT_GAP_MAX_SEC,
+  PURSUIT_GAP_MIN_SEC,
+  PURSUIT_SEC,
+  PURSUIT_SPEED_MUL,
+  PURSUIT_WARN_SEC,
+  RAIN_LAND_Z,
+  RAIN_SLOPE,
   ROW_GAP_MIN_SEC,
   ROW_GAP_SHRINK_PER_SEC,
   ROW_GAP_START_SEC,
@@ -78,6 +125,8 @@ export interface Obstacle {
   nearChecked?: boolean;
   /** 가장자리만 무너진 구멍인지 (gap 중 바깥 레인 하나만 뚫린 것) */
   edge?: boolean;
+  /** 무너지는 다리의 구멍 — 닿기 직전까지는 금만 가 있다가 갑자기 뚫린다 */
+  sudden?: boolean;
 }
 
 export interface Coin {
@@ -89,6 +138,8 @@ export interface Coin {
   taken: boolean;
   /** 자석에 끌려오는 중인지 */
   pulled: boolean;
+  /** 황금 신전에서 쏟아지는 동전인지 — 멀리선 공중에서 떨어지는 중이다 */
+  rain?: boolean;
 }
 
 export interface Item {
@@ -109,6 +160,10 @@ export interface Turn {
   theme: Theme;
   /** 모퉁이를 돈 뒤가 좁은 길(외통나무·외길)인지 */
   narrow: boolean;
+  /** T자 갈림길이면 반대쪽 길의 지형 — dir 쪽은 theme·narrow, 반대쪽은 이 값 */
+  alt?: { theme: Theme; narrow: boolean };
+  /** 고른 방향 (회전을 예약하면 정해진다) */
+  chosen?: -1 | 1;
 }
 
 /** 부서진 장애물 파편 (연출용) */
@@ -136,7 +191,58 @@ export type RunEvent =
   | 'turn'
   | 'fall'
   | 'close'
-  | 'multUp';
+  | 'multUp'
+  | 'golden'
+  | 'goldenEnd'
+  | 'stairs'
+  | 'ride'
+  | 'rideEnd'
+  | 'collapse'
+  | 'collapseEnd'
+  | 'pursuit'
+  | 'pursuitEnd';
+
+/** 황금 신전 구간 — 누적 거리(m) 기준. 장애물이 없고 동전이 쏟아진다 */
+export interface Golden {
+  start: number;
+  end: number;
+  /** 동전 줄을 여기까지 만들었다 (누적 거리) */
+  cursor: number;
+  /** 동전 줄이 따라가는 레인 */
+  lane: Lane;
+  /** 플레이어가 들어왔는지 / 빠져나갔는지 */
+  entered: boolean;
+  exited: boolean;
+}
+
+/** 무너지는 다리 구간 — 누적 거리(m) 기준 */
+export interface Collapse {
+  start: number;
+  end: number;
+  entered: boolean;
+  exited: boolean;
+}
+
+/** 계단 구간 — 누적 거리(m) 기준. sign 1 = 올라갔다 내려오는 계단, -1 = 내려갔다 올라오는 계단 */
+export interface Stairs {
+  start: number;
+  end: number;
+  sign: 1 | -1;
+  entered: boolean;
+  exited: boolean;
+}
+
+/** 탈것 구간 — 누적 거리(m) 기준 */
+export interface Ride {
+  start: number;
+  end: number;
+  kind: RideKind;
+  entered: boolean;
+  exited: boolean;
+}
+
+/** 추격자 이벤트 단계 — warn = "도망쳐!" 경고, run = 빨라진 채 도망치는 중 */
+export type Pursuit = 'none' | 'warn' | 'run';
 
 export interface RunState {
   status: 'running' | 'caught';
@@ -215,6 +321,37 @@ export interface RunState {
   prevLane: Lane;
   lastJumpAt: number;
   lastSlideAt: number;
+  /** 지금 진행 중이거나 곧 나올 황금 신전 (없으면 null) */
+  golden: Golden | null;
+  /** 다음 줄 간격에 곱할 배율 — 점프 뒤 회복 시간이 필요할 때 늘어난다 (한 번 쓰면 1 로 돌아온다) */
+  rowGapMul: number;
+  /** 지금 진행 중이거나 곧 나올 탈것 구간(광차·짚라인) (없으면 null) */
+  ride: Ride | null;
+  nextRideAt: number;
+  rideCount: number;
+  /** 탈것 구간 속도 배율 (서서히 오르내린다) */
+  rideMul: number;
+  /** 지금 진행 중이거나 곧 나올 계단 구간 (없으면 null) */
+  stairs: Stairs | null;
+  nextStairsAt: number;
+  stairsCount: number;
+  /** 지금 진행 중이거나 곧 나올 무너지는 다리 (없으면 null) */
+  collapse: Collapse | null;
+  nextCollapseAt: number;
+  collapseCount: number;
+  /** 다음 황금 신전이 시작될 누적 거리(m) */
+  nextGoldenAt: number;
+  /** 지금까지 지나온 황금 신전 수 */
+  goldenCount: number;
+  pursuit: Pursuit;
+  /** 현재 단계가 시작된 뒤 지난 시간(초) */
+  pursuitT: number;
+  /** 다음 추격이 시작될 시각(초) */
+  nextPursuitAt: number;
+  /** 추격 중 속도 배율 (서서히 오르내린다) */
+  pursuitMul: number;
+  /** 끝까지 버틴 추격 수 */
+  pursuitCount: number;
 }
 
 function randomItemInterval(): number {
@@ -278,6 +415,25 @@ export function createRun(opts: RunOptions = {}): RunState {
     prevLane: 0,
     lastJumpAt: -Infinity,
     lastSlideAt: -Infinity,
+    rowGapMul: 1,
+    ride: null,
+    nextRideAt: RIDE_FIRST_M,
+    rideCount: 0,
+    rideMul: 1,
+    stairs: null,
+    nextStairsAt: STAIRS_FIRST_M,
+    stairsCount: 0,
+    collapse: null,
+    nextCollapseAt: COLLAPSE_FIRST_M,
+    collapseCount: 0,
+    golden: null,
+    nextGoldenAt: GOLDEN_FIRST_M,
+    goldenCount: 0,
+    pursuit: 'none',
+    pursuitT: 0,
+    nextPursuitAt: PURSUIT_FIRST_SEC,
+    pursuitMul: 1,
+    pursuitCount: 0,
   };
 }
 
@@ -324,8 +480,10 @@ export function moveLane(run: RunState, dir: -1 | 1, emit: (e: RunEvent) => void
   if (run.status !== 'running') return;
   // 모퉁이 앞에서 꺾이는 쪽으로 밀면 회전 예약 — 그 밖에는 레인 이동
   const t = turnInWindow(run);
-  if (t && t.dir === dir) {
+  // T자 갈림길은 어느 쪽으로든 돌 수 있다
+  if (t && (t.dir === dir || t.alt)) {
     t.committed = true;
+    t.chosen = dir;
     // 모퉁이 바로 앞에서 돌았으면 아슬아슬
     if (t.z < run.speed * CLOSE_TURN_SEC) close(run, emit);
     return;
@@ -371,7 +529,10 @@ export function step(run: RunState, dt: number, emit: (e: RunEvent) => void): vo
   tickTimers(run, dt);
 
   const base = Math.min(MAX_SPEED, START_SPEED + ACCELERATION * run.time);
-  const mul = (run.effects.boost > 0 ? BOOST_SPEED_MUL : 1) * (run.slowT > 0 ? STUMBLE_SLOW : 1);
+  tickPursuit(run, dt, emit);
+  // 부스트와 추격 가속은 겹치지 않고 더 큰 쪽만 적용한다
+  const boostMul = run.effects.boost > 0 ? BOOST_SPEED_MUL : 1;
+  const mul = Math.max(boostMul, run.pursuitMul, run.rideMul) * (run.slowT > 0 ? STUMBLE_SLOW : 1);
   run.speed = base * mul;
   const dz = run.speed * dt;
   run.distance += dz;
@@ -402,7 +563,11 @@ export function step(run: RunState, dt: number, emit: (e: RunEvent) => void): vo
   }
 
   for (const o of run.obstacles) o.z -= dz;
-  for (const c of run.coinList) c.z -= dz;
+  for (const c of run.coinList) {
+    c.z -= dz;
+    // 황금 신전 동전은 하늘에서 떨어져 가까워질수록 땅에 내려앉는다
+    if (c.rain && !c.pulled) c.y = Math.max(0, (c.z - RAIN_LAND_Z) * RAIN_SLOPE);
+  }
   for (const it of run.items) it.z -= dz;
   for (const t of run.turns) t.z -= dz;
   if (run.prevCorner) {
@@ -413,7 +578,11 @@ export function step(run: RunState, dt: number, emit: (e: RunEvent) => void): vo
   if (!updateTurns(run, emit)) return;
 
   // 바위 거리 — 비틀거리는 동안은 바짝 붙고, 아니면 서서히 물러난다
-  const chaseTarget = run.stumbleT > 0 ? 1 : 0;
+  // 추격 중엔 바위가 계속 바짝 붙어 있다
+  const pursuitChase = run.pursuit === 'run' ? 0.75 : run.pursuit === 'warn' ? 0.4 : 0;
+  // 다리가 무너지는 동안에도 바위가 가까이 따라온다
+  const collapsing = run.collapse?.entered && !run.collapse.exited ? 0.5 : 0;
+  const chaseTarget = Math.max(run.stumbleT > 0 ? 1 : 0, pursuitChase, collapsing);
   run.chase += (chaseTarget - run.chase) * Math.min(1, dt * (chaseTarget > run.chase ? 6 : 1.5));
 
   collectCoins(run, dt, emit);
@@ -427,13 +596,22 @@ export function step(run: RunState, dt: number, emit: (e: RunEvent) => void): vo
   run.items = run.items.filter((it) => it.z > -6 && !it.taken);
 
   spawnTurnIfDue(run);
+  updateGolden(run, emit);
+  updateCollapse(run, emit);
+  updateStairs(run, emit);
+  updateRide(run, emit);
 
   run.nextRowIn -= dt;
   if (run.nextRowIn <= 0) {
     spawnRow(run);
     const gap = Math.max(ROW_GAP_MIN_SEC, ROW_GAP_START_SEC - run.time * ROW_GAP_SHRINK_PER_SEC);
     // 간격에 약간의 흔들림을 줘서 리듬이 단조롭지 않게
-    run.nextRowIn = gap * (0.85 + Math.random() * 0.4);
+    run.nextRowIn =
+      gap *
+      (0.85 + Math.random() * 0.4) *
+      run.rowGapMul *
+      zoneRowMul(run, run.distance + SPAWN_DISTANCE);
+    run.rowGapMul = 1;
   }
 
   run.nextItemIn -= dt;
@@ -459,9 +637,12 @@ function updateTurns(run: RunState, emit: (e: RunEvent) => void): boolean {
   if (t.z > 0) return true;
   if (t.committed) {
     run.turns.shift();
-    run.prevCorner = { z: t.z, dir: t.dir, theme: run.theme, narrow: run.narrow };
-    run.theme = t.theme;
-    run.narrow = t.narrow;
+    // 갈림길은 고른 방향의 지형으로, 부스트로 알아서 돌 땐 원래 방향으로
+    const dir = t.chosen ?? t.dir;
+    const road = t.alt && dir !== t.dir ? t.alt : t;
+    run.prevCorner = { z: t.z, dir, theme: run.theme, narrow: run.narrow };
+    run.theme = road.theme;
+    run.narrow = road.narrow;
     run.turnCount += 1;
     // 새 길 가운데로 다시 선다
     run.lane = 0;
@@ -481,18 +662,30 @@ function spawnTurnIfDue(run: RunState): void {
   if (run.turns.length > 0) return;
   const z = run.nextTurnAt - run.distance;
   if (z > TURN_SPAWN_Z) return;
+  // 좁은 길은 물가·절벽에만 — 신전과 동굴은 언제나 넓은 길이다
+  const narrowOf = (th: Theme) =>
+    (th === 'river' || th === 'cliff') && Math.random() < NARROW_CHANCE;
   const theme = pick(NEXT_THEMES[run.theme]);
   const turn: Turn = {
     z,
     dir: Math.random() < 0.5 ? -1 : 1,
     committed: false,
     theme,
-    narrow: theme !== 'temple' && Math.random() < NARROW_CHANCE,
+    narrow: narrowOf(theme),
   };
+  // 신전에서는 가끔 T자 갈림길 — 반대쪽은 다른 지형
+  if (run.theme === 'temple' && Math.random() < FORK_CHANCE) {
+    const others = [...new Set(NEXT_THEMES[run.theme])].filter((th) => th !== theme);
+    if (others.length > 0) {
+      const altTheme = pick(others);
+      turn.alt = { theme: altTheme, narrow: narrowOf(altTheme) };
+    }
+  }
   run.turns.push(turn);
-  // 모퉁이 근처에 이미 놓인 것들은 치운다 (보통은 안개 속이라 보이지 않는다)
+  // 모퉁이 근처에 이미 놓인 것들은 치운다 (보통은 안개 속이라 보이지 않는다).
+  // 갈림길은 어느 길로 갈지 정해지기 전이라 모퉁이 너머를 전부 비운다
   const [before, after] = turnClearance(run);
-  const near = (zz: number) => zz > z - before && zz < z + after;
+  const near = (zz: number) => zz > z - before && (turn.alt !== undefined || zz < z + after);
   run.obstacles = run.obstacles.filter((o) => !near(o.z));
   run.coinList = run.coinList.filter((c) => !near(c.z));
   run.items = run.items.filter((it) => !near(it.z));
@@ -518,7 +711,8 @@ function turnClearance(run: RunState): [number, number] {
 /** 이 위치(z)가 모퉁이 근처라 장애물을 두면 안 되는지 */
 function nearTurn(run: RunState, z: number): boolean {
   const [before, after] = turnClearance(run);
-  return run.turns.some((t) => z > t.z - before && z < t.z + after);
+  // 갈림길은 모퉁이 너머가 어느 길이 될지 모르니 전부 비운다
+  return run.turns.some((t) => z > t.z - before && (t.alt !== undefined || z < t.z + after));
 }
 
 /** 이 위치(z)의 지형 — 앞 모퉁이를 지난 곳이면 모퉁이 뒤 지형 */
@@ -662,7 +856,8 @@ function checkObstacles(run: RunState, emit: (e: RunEvent) => void): boolean {
     // 가벼운 충돌 — 늦게 피하다 옆으로 스쳤거나, 통나무에 발이 걸렸다
     const offset = run.x - o.lane;
     const sideswipe = Math.abs(offset) > SIDESWIPE_OFFSET;
-    if ((sideswipe || o.kind === 'low') && run.stumbleT <= 0) {
+    // 추격 중엔 봐주지 않는다 — 바위가 바로 뒤라 한 번만 부딪혀도 잡힌다
+    if ((sideswipe || o.kind === 'low') && run.stumbleT <= 0 && run.pursuit !== 'run') {
       o.passed = true;
       o.nearChecked = true;
       resetMult(run);
@@ -726,10 +921,19 @@ function pushCoin(run: RunState, lane: Lane, z: number, y = 0): void {
  */
 function spawnRow(run: RunState): void {
   const z = SPAWN_DISTANCE;
+  // 황금 신전 구간엔 장애물을 두지 않는다
+  if (inGoldenZone(run, run.distance + z)) return;
+  // 무너지는 다리 구간 — 점프할 수 있는 간격이면 구멍 줄, 아니면 평소처럼 장애물 줄
+  if (inCollapseZone(run, run.distance + z) && spawnCollapseHole(run, z)) return;
+  // 탈것 구간 — 광차·짚라인 전용 줄
+  if (inRideZone(run, run.distance + z)) {
+    spawnRideRow(run, z);
+    return;
+  }
   if (nearTurn(run, z)) {
     // 모퉁이 뒤 비워 둔 곳엔 동전 줄 — 허전하지 않게. 매번 가운데면 단조로우니 모양을 섞는다
     const t = run.turns[0];
-    if (t && z > t.z + 5) spawnCornerCoins(run, z);
+    if (t && !t.alt && z > t.z + 5) spawnCornerCoins(run, z);
     return;
   }
   // 시간이 지날수록 한 줄에 놓이는 장애물 수가 늘어난다
@@ -752,6 +956,10 @@ function spawnRow(run: RunState): void {
   }
   if (theme === 'cliff') {
     spawnCliffRow(run, z, lanes, difficulty);
+    return;
+  }
+  if (theme === 'cave') {
+    spawnCaveRow(run, z, lanes, difficulty);
     return;
   }
 
@@ -869,6 +1077,25 @@ function spawnCliffRow(run: RunState, z: number, lanes: Lane[], difficulty: numb
 }
 
 /**
+ * 동굴 — 슬라이드로 지나는 낮은 천장(세 레인 전부 또는 일부)과 레인을 막는 석순 위주.
+ * 점프가 필요한 줄은 두지 않아 어두운 터널에서 "숙이고 비키는" 리듬이 된다.
+ */
+function spawnCaveRow(run: RunState, z: number, lanes: Lane[], difficulty: number): void {
+  if (Math.random() < 0.35) {
+    for (const lane of LANES) pushObstacle(run, 'high', lane, z);
+    return;
+  }
+  const count = Math.random() < 0.35 + difficulty * 0.45 ? 2 : 1;
+  const blocked = lanes.slice(0, count);
+  for (const lane of blocked) pushObstacle(run, Math.random() < 0.5 ? 'pillar' : 'high', lane, z);
+  pushCoinTrail(
+    run,
+    lanes.filter((l) => !blocked.includes(l)),
+    z,
+  );
+}
+
+/**
  * 모퉁이 뒤 동전 줄. 좁은 길은 가운데뿐이고, 넓은 길은
  * - 무작위 레인에 곧은 한 줄 (40%)
  * - 한 레인에서 시작해 옆 레인으로 갈아타는 줄 (40%) — 돈 뒤 레인 이동을 유도한다
@@ -933,4 +1160,367 @@ function spawnItem(run: RunState): boolean {
   // 같은 자리에 겹친 동전은 치운다 (아이템이 가려지지 않게)
   run.coinList = run.coinList.filter((c) => !(c.x === lane && Math.abs(c.z - z) < 1.5));
   return true;
+}
+
+// ---------- 황금 신전 ----------
+
+/** 누적 거리(at)가 황금 신전 구간 안인지 */
+function inGoldenZone(run: RunState, at: number): boolean {
+  const g = run.golden;
+  return g !== null && at >= g.start - 1 && at <= g.end + 1;
+}
+
+/**
+ * 황금 신전을 시작하고, 진행 중이면 동전 비를 이어서 만든다.
+ * 시작 조건: 앞에 모퉁이가 없는 평범한 신전 길일 때 (다른 지형·좁은 길·모퉁이 앞에선 미룬다).
+ * 구간 안에 모퉁이가 끼지 않도록 다음 모퉁이는 구간이 끝난 뒤로 밀어 둔다.
+ */
+function updateGolden(run: RunState, emit: (e: RunEvent) => void): void {
+  let g = run.golden;
+  if (!g) {
+    if (run.distance + SPAWN_DISTANCE < run.nextGoldenAt) return;
+    if (
+      run.turns.length > 0 ||
+      run.theme !== 'temple' ||
+      run.narrow ||
+      run.pursuit !== 'none' ||
+      run.collapse !== null ||
+      run.stairs !== null ||
+      run.ride !== null
+    ) {
+      return;
+    }
+    const start = run.distance + SPAWN_DISTANCE;
+    // 구간을 달리는 동안 오를 평균 속도로 10초 분량의 길이를 정한다
+    const avgSpeed = Math.min(
+      MAX_SPEED,
+      START_SPEED + ACCELERATION * (run.time + GOLDEN_SEC / 2 + 2),
+    );
+    const end = start + avgSpeed * GOLDEN_SEC;
+    g = { start, end, cursor: start, lane: pick(LANES), entered: false, exited: false };
+    run.golden = g;
+    run.nextTurnAt = Math.max(run.nextTurnAt, end + GOLDEN_TURN_MARGIN_M);
+  }
+
+  // 동전 비 — 보이는 거리(SPAWN_DISTANCE) 끝까지, 구간 끝을 넘지 않게
+  const limit = Math.min(run.distance + SPAWN_DISTANCE, g.end);
+  while (g.cursor <= limit) {
+    spawnGoldenRow(run, g, g.cursor - run.distance);
+    g.cursor += GOLDEN_ROW_M;
+  }
+
+  if (!g.entered && run.distance >= g.start) {
+    g.entered = true;
+    emit('golden');
+  }
+  if (g.entered && !g.exited && run.distance >= g.end) {
+    g.exited = true;
+    run.goldenCount += 1;
+    run.nextGoldenAt =
+      g.end + GOLDEN_GAP_MIN_M + Math.random() * (GOLDEN_GAP_MAX_M - GOLDEN_GAP_MIN_M);
+    emit('goldenEnd');
+  }
+  // 구간을 완전히 벗어나면 정리 (끝나는 빛이 사라질 여유로 조금 더 둔다)
+  if (g.exited && run.distance > g.end + 25) run.golden = null;
+}
+
+/** 동전 한 줄 — 레인을 따라 구불구불 이어지고, 가끔 옆 레인에 하나 더 */
+function spawnGoldenRow(run: RunState, g: Golden, z: number): void {
+  if (Math.random() < 0.55) {
+    const next = g.lane + (Math.random() < 0.5 ? -1 : 1);
+    if (next >= -1 && next <= 1) g.lane = next as Lane;
+  }
+  const lanes: Lane[] = [g.lane];
+  if (Math.random() < GOLDEN_DOUBLE_CHANCE) lanes.push(pick(LANES.filter((l) => l !== g.lane)));
+  for (const lane of lanes) {
+    run.coinList.push({ x: lane, z, y: 0, taken: false, pulled: false, rain: true });
+  }
+}
+
+// ---------- 추격자 ----------
+
+/** 추격 단계 진행 — 경고 → 빨라진 채 도망 → 끝까지 버티면 보너스 */
+function tickPursuit(run: RunState, dt: number, emit: (e: RunEvent) => void): void {
+  if (run.pursuit === 'none') {
+    // 황금 신전이 다가오거나 진행 중이면 겹치지 않게 기다린다
+    const golden = run.golden !== null || run.collapse !== null || run.ride !== null;
+    if (run.time >= run.nextPursuitAt && !golden && run.stumbleT <= 0) {
+      run.pursuit = 'warn';
+      run.pursuitT = 0;
+      emit('pursuit');
+    }
+  } else {
+    run.pursuitT += dt;
+    if (run.pursuit === 'warn' && run.pursuitT >= PURSUIT_WARN_SEC) {
+      run.pursuit = 'run';
+      run.pursuitT = 0;
+    } else if (run.pursuit === 'run' && run.pursuitT >= PURSUIT_SEC) {
+      run.pursuit = 'none';
+      run.pursuitT = 0;
+      run.pursuitCount += 1;
+      run.bonusScore += PURSUIT_BONUS * run.mult;
+      run.nextPursuitAt =
+        run.time +
+        PURSUIT_GAP_MIN_SEC +
+        Math.random() * (PURSUIT_GAP_MAX_SEC - PURSUIT_GAP_MIN_SEC);
+      emit('pursuitEnd');
+    }
+  }
+  // 속도 배율은 서서히 오르고 내린다
+  const target = run.pursuit === 'run' ? PURSUIT_SPEED_MUL : 1;
+  run.pursuitMul += (target - run.pursuitMul) * Math.min(1, dt * 3);
+  const ride = run.ride;
+  const riding = ride !== null && ride.entered && !ride.exited;
+  const rideTarget = riding ? RIDE_SPEED_MUL[ride.kind] : 1;
+  run.rideMul += (rideTarget - run.rideMul) * Math.min(1, dt * 3);
+}
+
+// ---------- 무너지는 다리 ----------
+
+/** 누적 거리(at)가 무너지는 다리 구간 안인지 */
+function inCollapseZone(run: RunState, at: number): boolean {
+  const c = run.collapse;
+  return c !== null && at >= c.start - 1 && at <= c.end + 1;
+}
+
+/**
+ * 무너지는 다리 구간을 시작하고 끝낸다. 시작 조건과 모퉁이 처리는 황금 신전과 같다
+ * (모퉁이 없는 평범한 신전 길, 구간 안에 모퉁이가 끼지 않게 다음 모퉁이를 뒤로 민다).
+ * 황금 신전·추격과 겹치지 않는다.
+ */
+function updateCollapse(run: RunState, emit: (e: RunEvent) => void): void {
+  let c = run.collapse;
+  if (!c) {
+    if (run.distance + SPAWN_DISTANCE < run.nextCollapseAt) return;
+    if (
+      run.turns.length > 0 ||
+      run.theme !== 'temple' ||
+      run.narrow ||
+      run.pursuit !== 'none' ||
+      run.golden !== null ||
+      run.stairs !== null ||
+      run.ride !== null
+    ) {
+      return;
+    }
+    const start = run.distance + SPAWN_DISTANCE;
+    const avgSpeed = Math.min(
+      MAX_SPEED,
+      START_SPEED + ACCELERATION * (run.time + COLLAPSE_SEC / 2 + 2),
+    );
+    const end = start + avgSpeed * COLLAPSE_SEC;
+    c = { start, end, entered: false, exited: false };
+    run.collapse = c;
+    run.nextTurnAt = Math.max(run.nextTurnAt, end + COLLAPSE_TURN_MARGIN_M);
+  }
+  if (!c.entered && run.distance >= c.start) {
+    c.entered = true;
+    emit('collapse');
+  }
+  if (c.entered && !c.exited && run.distance >= c.end) {
+    c.exited = true;
+    run.collapseCount += 1;
+    run.nextCollapseAt =
+      c.end + COLLAPSE_GAP_MIN_M + Math.random() * (COLLAPSE_GAP_MAX_M - COLLAPSE_GAP_MIN_M);
+    emit('collapseEnd');
+  }
+  if (c.exited && run.distance > c.end + 25) run.collapse = null;
+}
+
+/**
+ * 무너지는 다리의 구멍 줄 — 점프를 해도 되는 간격(앞의 점프 필수 줄과 충분히 떨어져 있을 때)이면
+ * 세 레인이 다 뚫린 구멍을 낸다 (닿기 직전에 갑자기 열린다). 구멍 위에는 뛰어서 먹는 공중 동전이 걸려 있다.
+ * 놓았으면 true — 못 놓은 줄은 평소처럼 장애물 줄이 된다.
+ */
+function spawnCollapseHole(run: RunState, z: number): boolean {
+  if (!canForceJump(run, z) || Math.random() >= COLLAPSE_HOLE_CHANCE) return false;
+  markForcedJump(run, z);
+  run.rowGapMul = COLLAPSE_RECOVER_MUL;
+  for (const lane of LANES) {
+    run.obstacles.push({ kind: 'gap', lane, z, passed: false, smashed: false, sudden: true });
+  }
+  if (Math.random() < 0.7) pushCoin(run, pick(LANES), z, JUMP_HEIGHT);
+  return true;
+}
+
+// ---------- 오르막·내리막 계단 ----------
+
+/** 0~1 사이 부드러운 보간 (3t² − 2t³) */
+function smooth01(t: number): number {
+  const c = Math.max(0, Math.min(1, t));
+  return c * c * (3 - 2 * c);
+}
+
+/** 계단 모양 — s 단(소수 가능)까지 올랐을 때의 단 수. 디딤판은 평평하고 단 사이만 비스듬히 오른다 */
+function stepsAt(s: number): number {
+  const whole = Math.floor(s);
+  const f = s - whole;
+  return whole + smooth01((f - STAIRS_TREAD_RATIO) / (1 - STAIRS_TREAD_RATIO));
+}
+
+/**
+ * 누적 거리(w)에서의 길 높이(m). 계단 구간 밖은 0.
+ * 구간 앞쪽 RAMP 비율은 오르고(또는 내리고), 가운데는 평지, 뒤쪽 RAMP 비율은 같은 모양으로 되돌아온다.
+ */
+export function stairHeight(run: RunState, w: number): number {
+  const st = run.stairs;
+  if (!st || w <= st.start || w >= st.end) return 0;
+  const u = (w - st.start) / (st.end - st.start);
+  const ramp = STAIRS_RAMP_RATIO;
+  let steps: number;
+  if (u < ramp) steps = stepsAt((u / ramp) * STAIRS_STEPS);
+  else if (u > 1 - ramp) steps = stepsAt(((1 - u) / ramp) * STAIRS_STEPS);
+  else steps = STAIRS_STEPS;
+  return st.sign * steps * STAIRS_RISE;
+}
+
+/**
+ * 계단 구간을 시작하고 끝낸다. 높이는 경로 거리로만 정해져서 모퉁이가 끼어도 되므로 모퉁이를 건드리지 않는다.
+ * 황금 신전·무너지는 다리·탈것과는 겹치지 않는다 (추격과는 함께 나올 수 있다).
+ */
+function updateStairs(run: RunState, emit: (e: RunEvent) => void): void {
+  let st = run.stairs;
+  if (!st) {
+    if (run.distance + SPAWN_DISTANCE < run.nextStairsAt) return;
+    if (run.golden !== null || run.collapse !== null || run.ride !== null) return;
+    const start = run.distance + SPAWN_DISTANCE;
+    const avgSpeed = Math.min(
+      MAX_SPEED,
+      START_SPEED + ACCELERATION * (run.time + STAIRS_SEC / 2 + 2),
+    );
+    const end = start + avgSpeed * STAIRS_SEC;
+    st = { start, end, sign: Math.random() < 0.5 ? 1 : -1, entered: false, exited: false };
+    run.stairs = st;
+  }
+  if (!st.entered && run.distance >= st.start) {
+    st.entered = true;
+    emit('stairs');
+  }
+  if (st.entered && !st.exited && run.distance >= st.end) {
+    st.exited = true;
+    run.stairsCount += 1;
+    run.nextStairsAt =
+      st.end + STAIRS_GAP_MIN_M + Math.random() * (STAIRS_GAP_MAX_M - STAIRS_GAP_MIN_M);
+  }
+  // 구간 끝이 화면 밖으로 완전히 나가면 정리
+  if (st.exited && run.distance > st.end + 90) run.stairs = null;
+}
+
+// ---------- 광차 · 짚라인 ----------
+
+/** 누적 거리(at)가 탈것 구간 안인지 */
+function inRideZone(run: RunState, at: number): boolean {
+  const r = run.ride;
+  return r !== null && at >= r.start - 1 && at <= r.end + 1;
+}
+
+/**
+ * 짚라인에 매달린 높이(m). 구간 앞뒤 ZIP_RAMP_M 에서 서서히 오르내린다.
+ * 광차이거나 구간 밖이면 0.
+ */
+export function rideLift(run: RunState, w: number): number {
+  const r = run.ride;
+  if (!r || r.kind !== 'zip' || w <= r.start || w >= r.end) return 0;
+  const up = Math.min(1, (w - r.start) / ZIP_RAMP_M);
+  const down = Math.min(1, (r.end - w) / ZIP_RAMP_M);
+  return ZIP_LIFT * smooth01(Math.min(up, down));
+}
+
+/**
+ * 탈것 구간을 시작하고 끝낸다. 시작 조건과 모퉁이 처리는 황금 신전과 같고,
+ * 다른 이벤트(황금 신전·무너지는 다리·계단·추격)와 겹치지 않는다.
+ */
+function updateRide(run: RunState, emit: (e: RunEvent) => void): void {
+  let r = run.ride;
+  if (!r) {
+    if (run.distance + SPAWN_DISTANCE < run.nextRideAt) return;
+    if (
+      run.turns.length > 0 ||
+      run.theme !== 'temple' ||
+      run.narrow ||
+      run.pursuit !== 'none' ||
+      run.golden !== null ||
+      run.collapse !== null ||
+      run.stairs !== null
+    ) {
+      return;
+    }
+    const kind = pick(RIDE_KINDS);
+    const start = run.distance + SPAWN_DISTANCE;
+    const avgSpeed = Math.min(
+      MAX_SPEED,
+      START_SPEED + ACCELERATION * (run.time + RIDE_SEC[kind] / 2 + 2),
+    );
+    const end = start + avgSpeed * RIDE_SEC[kind] * RIDE_SPEED_MUL[kind];
+    r = { start, end, kind, entered: false, exited: false };
+    run.ride = r;
+    run.nextTurnAt = Math.max(run.nextTurnAt, end + RIDE_TURN_MARGIN_M);
+  }
+  if (!r.entered && run.distance >= r.start) {
+    r.entered = true;
+    emit('ride');
+  }
+  if (r.entered && !r.exited && run.distance >= r.end) {
+    r.exited = true;
+    run.rideCount += 1;
+    run.bonusScore += RIDE_BONUS * run.mult;
+    run.nextRideAt = r.end + RIDE_GAP_MIN_M + Math.random() * (RIDE_GAP_MAX_M - RIDE_GAP_MIN_M);
+    emit('rideEnd');
+  }
+  if (r.exited && run.distance > r.end + 25) run.ride = null;
+}
+
+/** 탈것 구간의 한 줄 */
+function spawnRideRow(run: RunState, z: number): void {
+  const r = run.ride;
+  if (!r) return;
+  const lanes = shuffled(LANES);
+  const difficulty = Math.min(1, run.time / 75);
+
+  if (r.kind === 'cart') {
+    const roll = Math.random();
+    // 끊어진 레일 — 점프. 앞의 점프 필수 줄과 충분히 떨어져 있을 때만
+    if (roll < CART_HOLE_CHANCE && canForceJump(run, z)) {
+      markForcedJump(run, z);
+      run.rowGapMul = COLLAPSE_RECOVER_MUL;
+      for (const lane of LANES) pushObstacle(run, 'gap', lane, z);
+      if (Math.random() < 0.6) pushCoin(run, pick(LANES), z, JUMP_HEIGHT);
+      return;
+    }
+    // 낮은 들보 — 세 레인 전부 숙여서 지난다
+    if (roll < CART_HOLE_CHANCE + CART_BEAM_CHANCE) {
+      for (const lane of LANES) pushObstacle(run, 'high', lane, z);
+      return;
+    }
+    // 레일 위 바위 — 레인을 바꿔 피한다
+    const count = Math.random() < 0.35 + difficulty * 0.45 ? 2 : 1;
+    const blocked = lanes.slice(0, count);
+    for (const lane of blocked) pushObstacle(run, 'pillar', lane, z);
+    pushCoinTrail(
+      run,
+      lanes.filter((l) => !blocked.includes(l)),
+      z,
+    );
+    return;
+  }
+
+  // 짚라인 — 공중 바위(기둥 판정)만. 점프·슬라이드는 필요 없고 레인 이동으로 피한다
+  const count = Math.random() < 0.1 + difficulty * 0.15 ? 2 : 1;
+  const blocked = lanes.slice(0, count);
+  for (const lane of blocked) pushObstacle(run, 'pillar', lane, z);
+  const free = lanes.filter((l) => !blocked.includes(l));
+  if (free.length > 0 && Math.random() < ZIP_COIN_CHANCE) {
+    const lane = pick(free);
+    for (let i = 0; i < COIN_TRAIL; i++) pushCoin(run, lane, z - 4 + i * COIN_SPACING);
+  }
+}
+
+/**
+ * 탈것 구간 안에서 만든 줄 다음의 간격 배율. 이런 구간은 모퉁이를 뒤로 밀어 장애물 없는 쉼터가 없으므로
+ * 줄 간격을 넓혀서 평소와 비슷한 부담이 되게 한다. 구간 밖이면 1.
+ */
+function zoneRowMul(run: RunState, at: number): number {
+  const r = run.ride;
+  if (r && at >= r.start - 1 && at <= r.end + 1) return RIDE_ROW_MUL[r.kind];
+  return 1;
 }

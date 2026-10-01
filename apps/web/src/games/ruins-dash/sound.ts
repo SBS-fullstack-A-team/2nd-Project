@@ -73,6 +73,45 @@ export class RunSound {
         this.tone(784, 0.07, 'square', 0.06, 0.14);
         this.tone(1047, 0.14, 'square', 0.06, 0.21);
         break;
+      case 'golden':
+        // 반짝이는 다섯 음 — 황금 신전 입장
+        [784, 988, 1175, 1568, 1976].forEach((f, i) =>
+          this.tone(f, 0.12, 'triangle', 0.07, i * 0.07),
+        );
+        break;
+      case 'goldenEnd':
+        this.tone(1319, 0.08, 'triangle', 0.06);
+        this.tone(988, 0.16, 'triangle', 0.06, 0.08);
+        break;
+      case 'collapse':
+        // 쿠르릉 — 다리가 무너지기 시작하는 낮은 울림
+        this.sweep(120, 40, 0.9, 'sawtooth', 0.15);
+        this.sweep(70, 35, 0.9, 'triangle', 0.14, 0.1);
+        break;
+      case 'collapseEnd':
+        this.tone(523, 0.08, 'triangle', 0.06);
+        this.tone(784, 0.14, 'triangle', 0.06, 0.08);
+        break;
+      case 'ride':
+        // 덜컹 — 올라타는 소리
+        this.sweep(180, 90, 0.25, 'square', 0.08);
+        this.sweep(300, 700, 0.3, 'triangle', 0.08, 0.15);
+        break;
+      case 'rideEnd':
+        this.tone(698, 0.08, 'triangle', 0.06);
+        this.tone(988, 0.14, 'triangle', 0.06, 0.08);
+        break;
+      case 'pursuit':
+        // 쿵 — 바위가 달려드는 낮은 울림과 경고음
+        this.sweep(110, 45, 0.55, 'sawtooth', 0.14);
+        this.tone(740, 0.12, 'square', 0.07, 0.05);
+        this.tone(740, 0.12, 'square', 0.07, 0.3);
+        break;
+      case 'pursuitEnd':
+        this.tone(659, 0.08, 'square', 0.07);
+        this.tone(880, 0.08, 'square', 0.07, 0.08);
+        this.tone(1319, 0.2, 'square', 0.07, 0.16);
+        break;
     }
   }
 

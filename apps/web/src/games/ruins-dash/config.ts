@@ -70,14 +70,16 @@ export const COIN_SPACING = 2.4;
  * - temple: 돌길. 통나무·들보·기둥이 모두 나온다
  * - river: 물 위 나무다리. 점프로 넘는 것(통나무, 끊어진 판자)만 나온다
  * - cliff: 낭떠러지 위 돌길. 슬라이드로 지나는 아치와 바위만 나온다
+ * - cave: 어두운 동굴 터널. 낮은 천장(슬라이드)과 석순(레인 이동)이 주로 나온다
  */
-export type Theme = 'temple' | 'river' | 'cliff';
+export type Theme = 'temple' | 'river' | 'cliff' | 'cave';
 
 /** 모퉁이를 돌면 바뀔 수 있는 다음 지형 — 물가와 절벽은 바로 이어지지 않고 신전을 거친다 */
 export const NEXT_THEMES: Record<Theme, readonly Theme[]> = {
-  temple: ['temple', 'river', 'river', 'cliff', 'cliff'],
+  temple: ['temple', 'river', 'river', 'cliff', 'cliff', 'cave', 'cave'],
   river: ['temple'],
   cliff: ['temple'],
+  cave: ['temple'],
 };
 
 /**
@@ -96,6 +98,7 @@ export const THEME_LABEL: Record<Theme, string> = {
   temple: '신전',
   river: '물가',
   cliff: '절벽',
+  cave: '동굴',
 };
 
 // ---------- 갈림길 (90° 회전) ----------
@@ -126,6 +129,16 @@ export const TURN_WINDOW_SEC = 0.55;
 export const TURN_WINDOW_MIN_M = 9;
 /** 모퉁이를 이만큼(m) 지나쳐도 못 돌았으면 떨어진다 */
 export const TURN_LATE_M = 0.8;
+
+// ---------- T자 갈림길 ----------
+
+/**
+ * 신전에서 꺾이는 모퉁이가 T자 갈림길일 확률 — 왼쪽·오른쪽 둘 다 길이고 지형이 서로 다르다.
+ * 어느 쪽으로 돌지는 플레이어가 고른다 (돌기 전에 어느 쪽이 무슨 지형인지 화면에 표시된다).
+ */
+export const FORK_CHANCE = 0.35;
+/** 갈림길 안내를 이 거리(m) 안에서부터 보여 준다 */
+export const FORK_HINT_M = 80;
 
 // ---------- 비틀거림 ----------
 
@@ -216,6 +229,123 @@ export const CLOSE_ACTION_SEC = 0.2;
 export const CLOSE_DODGE_SEC = 0.25;
 /** 모퉁이를 마지막 이 시간(초) 안에 돌았으면 아슬아슬 */
 export const CLOSE_TURN_SEC = 0.15;
+
+// ---------- 황금 신전 (보너스 구간) ----------
+
+/**
+ * 가끔 신전 길 한가운데에 "황금 신전" 구간이 나온다 — 장애물이 없고 하늘에서 동전이 쏟아진다.
+ * 위험 없이 점수를 모으는 숨 돌리는 구간. 길이는 GOLDEN_SEC 초 동안 달릴 만큼(m).
+ */
+export const GOLDEN_SEC = 10;
+/** 첫 황금 신전이 시작되는 누적 거리(m) */
+export const GOLDEN_FIRST_M = 650;
+/** 한 구간이 끝난 뒤 다음 구간까지 거리(m) — 이 범위에서 무작위 */
+export const GOLDEN_GAP_MIN_M = 1100;
+export const GOLDEN_GAP_MAX_M = 1700;
+/** 동전 줄 사이 간격(m) */
+export const GOLDEN_ROW_M = 5.5;
+/** 한 줄에 동전이 하나 더 놓일 확률 */
+export const GOLDEN_DOUBLE_CHANCE = 0.15;
+/** 구간 끝과 다음 모퉁이 사이에 남기는 거리(m) */
+export const GOLDEN_TURN_MARGIN_M = 40;
+/** 동전이 이 거리(m) 앞에서 바닥에 닿는다 — 그보다 멀리선 공중에서 떨어지는 중 */
+export const RAIN_LAND_Z = 8;
+/** 떨어지는 동전의 높이 기울기 (m 당 높이) */
+export const RAIN_SLOPE = 0.2;
+
+// ---------- 무너지는 다리 ----------
+
+/**
+ * 신전 길 한 구간이 무너지기 시작한다 — 뒤쪽 길이 발밑까지 따라 무너지고,
+ * 앞쪽엔 금이 간 곳이 닿기 직전에 갑자기 뻥 뚫린다 (점프로 건넌다).
+ */
+export const COLLAPSE_SEC = 8;
+/** 첫 구간이 시작되는 누적 거리(m) */
+export const COLLAPSE_FIRST_M = 900;
+/** 한 구간이 끝난 뒤 다음 구간까지 거리(m) — 이 범위에서 무작위 */
+export const COLLAPSE_GAP_MIN_M = 1500;
+export const COLLAPSE_GAP_MAX_M = 2300;
+/** 구멍이 뚫리는 때 — 닿기 이 시간(초) 전. 그 전엔 금만 가 있다 */
+export const COLLAPSE_OPEN_SEC = 0.8;
+/** 구간 안에서 점프 필수 줄이 놓일 수 있는 칸마다 구멍을 낼 확률 */
+export const COLLAPSE_HOLE_CHANCE = 0.8;
+/** 구간 끝과 다음 모퉁이 사이에 남기는 거리(m) */
+export const COLLAPSE_TURN_MARGIN_M = 40;
+/** 구멍 줄 다음 줄까지 간격 배율 — 착지하고 다음 장애물을 피할 시간을 준다 */
+export const COLLAPSE_RECOVER_MUL = 1.7;
+
+// ---------- 오르막·내리막 계단 ----------
+
+/**
+ * 신전 길 한 구간이 계단이 된다 — 앞쪽 길이 계단처럼 올라갔다 내려오거나(또는 내려갔다 올라온다).
+ * 플레이어와 카메라 높이는 그대로고 앞쪽 월드만 오르내려서, 판정은 평소와 같다 (화면 연출).
+ * 높이는 달린 경로 거리만으로 정해져서 모퉁이가 끼어도 이어진다 — 모퉁이를 미루지 않는다.
+ */
+export const STAIRS_SEC = 8;
+/** 첫 구간이 시작되는 누적 거리(m) */
+export const STAIRS_FIRST_M = 450;
+/** 한 구간이 끝난 뒤 다음 구간까지 거리(m) — 이 범위에서 무작위 */
+export const STAIRS_GAP_MIN_M = 900;
+export const STAIRS_GAP_MAX_M = 1400;
+/** 계단 한 단의 높이(m)와 단 수 — 카메라(6.2m)보다 한참 낮아야 앞길이 능선 뒤로 가려지지 않는다 */
+export const STAIRS_RISE = 0.65;
+export const STAIRS_STEPS = 6;
+/** 구간 길이 중 오르는 부분·내려가는 부분 비율 (나머지는 평지) */
+export const STAIRS_RAMP_RATIO = 0.4;
+/** 한 단 안에서 평평한 디딤판 비율 (나머지는 비스듬한 오름) */
+export const STAIRS_TREAD_RATIO = 0.65;
+
+// ---------- 광차 · 짚라인 (탈것 구간) ----------
+
+/**
+ * 신전 길 한 구간에서 탈것을 탄다 (구간 안에는 모퉁이가 없다).
+ * - cart: 레일 위 광차 — 빨라지고(×CART_SPEED_MUL) 낮은 들보·바위·끊어진 레일이 나온다
+ * - zip: 짚라인 — 길이 사라지고 밧줄에 매달려 허공을 건넌다. 공중 바위를 레인 이동으로 피하며 동전을 모은다
+ */
+export type RideKind = 'cart' | 'zip';
+export const RIDE_KINDS: readonly RideKind[] = ['cart', 'zip'];
+export const RIDE_LABEL: Record<RideKind, string> = { cart: '광차', zip: '짚라인' };
+/** 탈것 구간이 달리는 시간(초) 목표 */
+export const RIDE_SEC: Record<RideKind, number> = { cart: 8, zip: 7 };
+/** 첫 구간이 시작되는 누적 거리(m) */
+export const RIDE_FIRST_M = 1500;
+/** 한 구간이 끝난 뒤 다음 구간까지 거리(m) — 이 범위에서 무작위 */
+export const RIDE_GAP_MIN_M = 2200;
+export const RIDE_GAP_MAX_M = 3200;
+/** 끝까지 타고 내렸을 때 보너스 (배율이 곱해진다) */
+export const RIDE_BONUS = 250;
+/** 구간 끝과 다음 모퉁이 사이에 남기는 거리(m) */
+export const RIDE_TURN_MARGIN_M = 40;
+/** 구간 안 장애물 줄 간격 배율 (쉼터가 사라지는 만큼 넓힌다 — 계단과 같은 이유) */
+export const RIDE_ROW_MUL: Record<RideKind, number> = { cart: 2.4, zip: 3.6 };
+/** 탈것 구간 속도 배율 */
+export const RIDE_SPEED_MUL: Record<RideKind, number> = { cart: 1.15, zip: 1.1 };
+/** 광차 — 끊어진 레일(점프) 줄이 놓일 확률과 들보(슬라이드) 줄 확률 */
+export const CART_HOLE_CHANCE = 0.25;
+export const CART_BEAM_CHANCE = 0.35;
+/** 짚라인 — 매달린 높이(m)와 타고 내리는 경사 거리(m) */
+export const ZIP_LIFT = 2.6;
+export const ZIP_RAMP_M = 8;
+/** 짚라인 — 빈 레인에 동전 줄이 놓일 확률 */
+export const ZIP_COIN_CHANCE = 0.8;
+
+// ---------- 추격자 이벤트 ----------
+
+/**
+ * 가끔 바위가 바짝 따라붙으며 빨라진다 — "도망쳐!" 경고 후 PURSUIT_SEC 초 동안 속도가 오르고,
+ * 이 사이엔 한 번만 부딪혀도 잡힌다 (비틀거림 봐주기 없음). 끝까지 버티면 보너스.
+ */
+export const PURSUIT_FIRST_SEC = 50;
+/** 한 번이 끝난 뒤 다음까지 시간(초) — 이 범위에서 무작위 */
+export const PURSUIT_GAP_MIN_SEC = 40;
+export const PURSUIT_GAP_MAX_SEC = 70;
+/** 경고만 하고 아직 빨라지지 않는 시간(초) */
+export const PURSUIT_WARN_SEC = 1.4;
+/** 빨라진 채 달리는 시간(초) */
+export const PURSUIT_SEC = 6;
+export const PURSUIT_SPEED_MUL = 1.2;
+/** 끝까지 버텼을 때 보너스 (배율이 곱해진다) */
+export const PURSUIT_BONUS = 150;
 
 // ---------- 연출 ----------
 
