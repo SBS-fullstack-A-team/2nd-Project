@@ -15,12 +15,15 @@
 .nav {
   display: flex;
   gap: 8px;
+  flex-shrink: 0;
 }
 .brand {
   font-size: 1.3rem;
   font-weight: 900;
   color: var(--text);
   text-decoration: none;
+  /* 좁은 화면에서 "심심오락 / 실" 처럼 꺾이지 않게 */
+  white-space: nowrap;
 }
 .main {
   flex: 1;
@@ -39,4 +42,25 @@
 .themeSelect {
   padding: 8px 12px;
   appearance: auto;
+}
+
+/* 휴대폰 — 로고·버튼·테마 선택이 한 줄에 들어가도록 줄인다 */
+@media (max-width: 480px) {
+  .header {
+    gap: 8px;
+    padding: 8px 12px;
+  }
+  .nav {
+    gap: 6px;
+  }
+  .brand {
+    font-size: 1.1rem;
+  }
+  .nav > :global(.btn) {
+    padding: 6px 10px;
+    font-size: 0.85rem;
+  }
+  .themeSelect {
+    padding: 6px 4px;
+  }
 }
