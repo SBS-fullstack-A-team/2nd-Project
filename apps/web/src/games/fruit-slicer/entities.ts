@@ -24,9 +24,10 @@ export type ParticleKind =
   | 'bubble'
   | 'crescent'
   | 'gust'
-  | 'feather'
-  | 'crown'
-  | 'ray';
+  | 'cloud'
+  | 'scale'
+  | 'ray'
+  | 'pearl';
 
 export interface ParticleOptions {
   x: number;
@@ -291,48 +292,55 @@ export class Particle {
         ctx.stroke();
         break;
       }
-      case 'feather': {
-        // 황금 깃털 — 하늘하늘 흔들리며 떨어지는 깃 + 가운데 깃대
-        const s = this.size;
+      case 'cloud': {
+        // 상서로운 구름 — 둥근 뭉게 3개 + 안쪽으로 말린 소용돌이 선
+        const s = this.size * (0.8 + t * 0.6);
         ctx.save();
         ctx.translate(this.x, this.y);
-        ctx.rotate(this.rot * 0.35 + Math.sin(this.age * 6) * 0.5);
-        const g = ctx.createLinearGradient(0, -s, 0, s);
-        g.addColorStop(0, '#fffbe0');
-        g.addColorStop(0.5, this.color);
-        g.addColorStop(1, 'rgba(180,107,255,0.6)');
-        ctx.fillStyle = g;
+        ctx.globalAlpha = alpha * 0.8;
         ctx.beginPath();
-        ctx.moveTo(0, -s);
-        ctx.bezierCurveTo(s * 0.55, -s * 0.5, s * 0.45, s * 0.5, 0, s);
-        ctx.bezierCurveTo(-s * 0.45, s * 0.5, -s * 0.55, -s * 0.5, 0, -s);
+        ctx.arc(-s * 0.6, 0, s * 0.5, 0, TAU);
+        ctx.arc(0, -s * 0.22, s * 0.68, 0, TAU);
+        ctx.arc(s * 0.62, 0.05 * s, s * 0.46, 0, TAU);
         ctx.fill();
-        ctx.strokeStyle = 'rgba(255,255,255,0.85)';
-        ctx.lineWidth = 0.8;
+        ctx.strokeStyle = '#5fd6bb';
+        ctx.lineWidth = 1.2;
+        ctx.lineCap = 'round';
         ctx.beginPath();
-        ctx.moveTo(0, -s * 0.9);
-        ctx.lineTo(0, s * 1.25);
+        ctx.arc(0, -s * 0.1, s * 0.32, Math.PI * 0.15, Math.PI * 1.55);
+        ctx.stroke();
+        ctx.beginPath();
+        ctx.arc(-s * 0.55, s * 0.05, s * 0.2, Math.PI * 1.1, Math.PI * 2.3);
         ctx.stroke();
         ctx.restore();
         break;
       }
-      case 'crown': {
-        // 벤 자리에서 떠오르는 왕관 문장 — 튀어나오듯 커졌다가 서서히 사라짐
-        const pop = t < 0.15 ? t / 0.15 : 1;
-        const s = this.size * (0.6 + 0.5 * pop) * (1 + t * 0.15);
+      case 'scale': {
+        // 용 비늘 조각 — 방패 모양, 돌면서 빛을 받아 반짝인다
+        const s = this.size;
+        const glint = 0.5 + 0.5 * Math.sin(this.rot * 3);
         ctx.save();
         ctx.translate(this.x, this.y);
-        ctx.globalCompositeOperation = 'lighter';
-        const halo = ctx.createRadialGradient(0, 0, 0, 0, 0, s * 2.2);
-        halo.addColorStop(0, 'rgba(255,215,0,0.55)');
-        halo.addColorStop(1, 'rgba(255,215,0,0)');
-        ctx.fillStyle = halo;
+        ctx.rotate(this.rot);
+        ctx.scale(1, 0.45 + 0.55 * Math.abs(Math.cos(this.rot * 1.3)));
         ctx.beginPath();
-        ctx.arc(0, 0, s * 2.2, 0, TAU);
+        ctx.moveTo(-s * 0.8, -s * 0.5);
+        ctx.quadraticCurveTo(0, -s * 0.85, s * 0.8, -s * 0.5);
+        ctx.quadraticCurveTo(s * 0.7, s * 0.55, 0, s);
+        ctx.quadraticCurveTo(-s * 0.7, s * 0.55, -s * 0.8, -s * 0.5);
         ctx.fill();
-        ctx.globalCompositeOperation = 'source-over';
-        drawCrown(ctx, s, this.age);
+        ctx.globalCompositeOperation = 'lighter';
+        ctx.fillStyle = `rgba(220,255,245,${0.5 * glint})`;
+        ctx.beginPath();
+        ctx.ellipse(-s * 0.2, -s * 0.15, s * 0.22, s * 0.45, 0.3, 0, TAU);
+        ctx.fill();
         ctx.restore();
+        break;
+      }
+      case 'pearl': {
+        // 여의주 — 벤 자리에서 떠오르며 빛을 뿜는다
+        const pop = t < 0.15 ? t / 0.15 : 1;
+        drawPearl(ctx, this.x, this.y, this.size * (0.5 + 0.5 * pop), this.age, alpha);
         break;
       }
       case 'ray': {
@@ -373,81 +381,182 @@ export class Particle {
   }
 }
 
-/** 4갈래 십자 광채 */
-function drawSparkle(
+/** 여의주 — 하얗게 빛나는 구슬 + 안에서 도는 소용돌이 + 바깥 불꽃 갈기 */
+function drawPearl(
   ctx: CanvasRenderingContext2D,
   x: number,
   y: number,
-  s: number,
-  rot: number,
+  r: number,
+  time: number,
   alpha: number,
 ) {
   ctx.save();
   ctx.translate(x, y);
-  ctx.rotate(rot);
   ctx.globalAlpha = alpha;
-  ctx.fillStyle = '#fffbe0';
+  ctx.globalCompositeOperation = 'lighter';
+  const halo = ctx.createRadialGradient(0, 0, 0, 0, 0, r * 3);
+  halo.addColorStop(0, 'rgba(200,255,240,0.8)');
+  halo.addColorStop(0.35, 'rgba(47,224,176,0.35)');
+  halo.addColorStop(1, 'rgba(47,224,176,0)');
+  ctx.fillStyle = halo;
   ctx.beginPath();
-  for (let i = 0; i < 8; i++) {
-    const rr = i % 2 === 0 ? s : s * 0.16;
-    const a = (i / 8) * TAU;
-    ctx.lineTo(Math.cos(a) * rr, Math.sin(a) * rr);
-  }
-  ctx.closePath();
+  ctx.arc(0, 0, r * 3, 0, TAU);
   ctx.fill();
+  // 구슬을 감싸고 도는 불꽃 갈기 3가닥
+  ctx.strokeStyle = 'rgba(127,255,224,0.85)';
+  ctx.lineWidth = Math.max(1, r * 0.22);
+  ctx.lineCap = 'round';
+  for (let k = 0; k < 3; k++) {
+    const a = time * 5 + (k / 3) * TAU;
+    ctx.beginPath();
+    ctx.arc(0, 0, r * 1.45, a, a + 1.1);
+    ctx.stroke();
+  }
+  ctx.globalCompositeOperation = 'source-over';
+  const body = ctx.createRadialGradient(-r * 0.35, -r * 0.35, 0, 0, 0, r);
+  body.addColorStop(0, '#ffffff');
+  body.addColorStop(0.55, '#c9fff0');
+  body.addColorStop(1, '#3fcfb0');
+  ctx.fillStyle = body;
+  ctx.beginPath();
+  ctx.arc(0, 0, r, 0, TAU);
+  ctx.fill();
+  // 안에서 도는 태극 모양 소용돌이
+  ctx.strokeStyle = 'rgba(11,143,122,0.55)';
+  ctx.lineWidth = Math.max(0.8, r * 0.14);
+  ctx.beginPath();
+  ctx.arc(0, 0, r * 0.55, time * 3, time * 3 + Math.PI * 1.2);
+  ctx.stroke();
   ctx.restore();
 }
 
-/** 왕관 모양 (가운데 기준, s = 반 너비) — 금빛 몸체 + 보석 3개 */
-function drawCrown(ctx: CanvasRenderingContext2D, s: number, time: number) {
-  const body = ctx.createLinearGradient(0, -s, 0, s * 0.6);
-  body.addColorStop(0, '#fff6b0');
-  body.addColorStop(0.45, '#ffd000');
-  body.addColorStop(1, '#b07800');
-  ctx.fillStyle = body;
-  ctx.strokeStyle = '#5a3a00';
-  ctx.lineWidth = Math.max(1, s * 0.09);
+/** 청룡 머리 — 오른쪽(+x)을 바라보는 기준으로 그리고 angle 만큼 돌린다 */
+function drawDragonHead(
+  ctx: CanvasRenderingContext2D,
+  x: number,
+  y: number,
+  angle: number,
+  time: number,
+  scale: number,
+) {
+  ctx.save();
+  ctx.translate(x, y);
+  ctx.rotate(angle);
+  ctx.scale(scale, scale);
+  // 진행 방향이 왼쪽이면 머리가 뒤집히지 않게 위아래를 맞춘다
+  if (Math.cos(angle) < 0) ctx.scale(1, -1);
+  ctx.lineCap = 'round';
   ctx.lineJoin = 'round';
+
+  // 갈기 — 머리 뒤로 흩날리는 옥빛 불꽃
+  ctx.globalCompositeOperation = 'lighter';
+  for (let k = 0; k < 5; k++) {
+    const sway = Math.sin(time * 14 + k * 1.3) * 3;
+    ctx.strokeStyle = k % 2 ? 'rgba(127,255,224,0.75)' : 'rgba(31,214,170,0.75)';
+    ctx.lineWidth = 3 - k * 0.35;
+    ctx.beginPath();
+    ctx.moveTo(-4, -5 + k * 1.2);
+    ctx.quadraticCurveTo(-14, -12 - k * 2 + sway, -24 - k * 2.5, -8 - k * 3.2 + sway);
+    ctx.stroke();
+  }
+  ctx.globalCompositeOperation = 'source-over';
+
+  // 뿔 — 뒤로 휘어진 금빛 뿔 2개 (가지 하나씩)
+  ctx.strokeStyle = '#ffcf4a';
+  for (const [sx, sy, ex, ey] of [
+    [-2, -6, -20, -15],
+    [-5, -4, -21, -8],
+  ] as const) {
+    ctx.lineWidth = 2.6;
+    ctx.beginPath();
+    ctx.moveTo(sx, sy);
+    ctx.quadraticCurveTo(-10, sy - 6, ex, ey);
+    ctx.stroke();
+    ctx.lineWidth = 1.4;
+    ctx.beginPath();
+    ctx.moveTo((sx + ex) / 2 - 1, (sy + ey) / 2 - 2);
+    ctx.lineTo((sx + ex) / 2 - 4, (sy + ey) / 2 - 7);
+    ctx.stroke();
+  }
+
+  // 아래턱 (살짝 벌린 입) + 이빨
+  ctx.fillStyle = '#073b36';
   ctx.beginPath();
-  ctx.moveTo(-s, s * 0.55);
-  ctx.lineTo(-s, -s * 0.35);
-  ctx.lineTo(-s * 0.5, s * 0.05);
-  ctx.lineTo(0, -s * 0.75);
-  ctx.lineTo(s * 0.5, s * 0.05);
-  ctx.lineTo(s, -s * 0.35);
-  ctx.lineTo(s, s * 0.55);
+  ctx.moveTo(0, 3);
+  ctx.quadraticCurveTo(12, 9, 19, 6);
+  ctx.lineTo(16, 4);
+  ctx.quadraticCurveTo(9, 5, 2, 1);
+  ctx.closePath();
+  ctx.fill();
+  ctx.fillStyle = '#ffffff';
+  for (const tx of [8, 12, 15]) {
+    ctx.beginPath();
+    ctx.moveTo(tx, 3.4);
+    ctx.lineTo(tx + 1.2, 5.6);
+    ctx.lineTo(tx + 2.2, 3.6);
+    ctx.fill();
+  }
+
+  // 머리뼈 + 주둥이
+  const skin = ctx.createLinearGradient(0, -9, 0, 6);
+  skin.addColorStop(0, '#3fe0b8');
+  skin.addColorStop(1, '#0b6f60');
+  ctx.fillStyle = skin;
+  ctx.strokeStyle = '#073b36';
+  ctx.lineWidth = 1.4;
+  ctx.beginPath();
+  ctx.moveTo(-8, 0);
+  ctx.quadraticCurveTo(-7, -9, 2, -8);
+  ctx.quadraticCurveTo(10, -7, 16, -4);
+  ctx.quadraticCurveTo(22, -3, 21, 1);
+  ctx.quadraticCurveTo(14, 3, 4, 2.5);
+  ctx.quadraticCurveTo(-4, 5, -8, 0);
   ctx.closePath();
   ctx.fill();
   ctx.stroke();
-  // 아래 띠
-  ctx.fillStyle = '#ffe36e';
-  ctx.fillRect(-s, s * 0.32, s * 2, s * 0.23);
-  // 꼭짓점 구슬
-  ctx.fillStyle = '#fffbe0';
-  for (const [px, py] of [
-    [-s, -s * 0.35],
-    [0, -s * 0.75],
-    [s, -s * 0.35],
-  ] as const) {
-    ctx.beginPath();
-    ctx.arc(px, py, s * 0.13, 0, TAU);
-    ctx.fill();
-  }
-  // 띠에 박힌 보석 3개
-  ['#ff2d6a', '#3fd8ff', '#b46bff'].forEach((color, i) => {
-    ctx.fillStyle = color;
-    ctx.beginPath();
-    ctx.arc((i - 1) * s * 0.62, s * 0.435, s * 0.1, 0, TAU);
-    ctx.fill();
-  });
-  // 반짝임
-  const tw = 0.5 + 0.5 * Math.sin(time * 14);
-  ctx.globalCompositeOperation = 'lighter';
-  ctx.fillStyle = `rgba(255,255,255,${0.35 + 0.5 * tw})`;
+  // 콧등의 금빛 줄
+  ctx.strokeStyle = '#ffcf4a';
+  ctx.lineWidth = 1.2;
   ctx.beginPath();
-  ctx.ellipse(-s * 0.35, -s * 0.05, s * 0.12, s * 0.32, -0.4, 0, TAU);
+  ctx.moveTo(2, -7);
+  ctx.quadraticCurveTo(11, -6, 18, -3);
+  ctx.stroke();
+  // 콧구멍
+  ctx.fillStyle = '#073b36';
+  ctx.beginPath();
+  ctx.ellipse(18.5, -1.5, 1.2, 0.8, 0.3, 0, TAU);
+  ctx.fill();
+
+  // 눈 — 금빛 눈동자에 세로 동공, 빛이 번진다
+  ctx.globalCompositeOperation = 'lighter';
+  const eyeGlow = ctx.createRadialGradient(3, -4, 0, 3, -4, 6);
+  eyeGlow.addColorStop(0, 'rgba(255,230,120,0.9)');
+  eyeGlow.addColorStop(1, 'rgba(255,200,60,0)');
+  ctx.fillStyle = eyeGlow;
+  ctx.beginPath();
+  ctx.arc(3, -4, 6, 0, TAU);
   ctx.fill();
   ctx.globalCompositeOperation = 'source-over';
+  ctx.fillStyle = '#ffd84a';
+  ctx.beginPath();
+  ctx.ellipse(3, -4, 2.4, 1.6, -0.2, 0, TAU);
+  ctx.fill();
+  ctx.fillStyle = '#5a0a00';
+  ctx.beginPath();
+  ctx.ellipse(3.3, -4, 0.5, 1.4, 0, 0, TAU);
+  ctx.fill();
+
+  // 수염 — 주둥이에서 뒤로 길게 흐르며 물결친다
+  ctx.strokeStyle = '#ffe9a0';
+  ctx.lineWidth = 1.1;
+  for (const side of [-1, 1]) {
+    const wv = Math.sin(time * 10 + side) * 6;
+    ctx.beginPath();
+    ctx.moveTo(17, side < 0 ? -2 : 2);
+    ctx.bezierCurveTo(12, side * 10, -8, side * 6 + wv, -28, side * 12 + wv * 1.5);
+    ctx.stroke();
+  }
+  ctx.restore();
 }
 
 /* =========================================================
@@ -666,8 +775,6 @@ interface TrailLayer {
 }
 
 const RAINBOW = 'rainbow';
-/** 'aurora' 면 청록 → 보라 → 분홍 사이에서 색이 일렁인다 (왕좌의 성검) */
-const AURORA = 'aurora';
 
 /** 스킨별 궤적 레이어 (바깥 광채 → 본체 → 가운데 심) */
 const TRAIL_LAYERS: Record<BladeId, TrailLayer[]> = {
@@ -752,12 +859,10 @@ const TRAIL_LAYERS: Record<BladeId, TrailLayer[]> = {
     { width: 0.35, color: '#ffffff', alpha: 1, glow: false },
   ],
   // ----- 랭커 전용 -----
-  sovereign: [
-    // 넓은 금빛 후광 → 오로라 빛띠 → 황금 칼날 → 하얀 심
-    { width: 5.2, color: '#ffb300', alpha: 0.2, glow: true },
-    { width: 3.4, color: AURORA, alpha: 0.4, glow: true },
-    { width: 1.7, color: '#ffd700', alpha: 0.95, glow: true },
-    { width: 0.6, color: '#fffbe0', alpha: 1, glow: false },
+  dragon: [
+    // 옥빛 기운만 은은하게 깔고, 몸통은 drawDragon 이 그린다
+    { width: 3.8, color: '#12d6a8', alpha: 0.2, glow: true },
+    { width: 0.5, color: '#e8fff8', alpha: 0.7, glow: false },
   ],
 };
 
@@ -831,8 +936,7 @@ export class Blade {
       for (const layer of this.fever ? [FEVER_LAYER, ...layers] : layers) {
         ctx.globalCompositeOperation = layer.glow ? 'lighter' : 'source-over';
         const rainbow = layer.color === RAINBOW;
-        const aurora = layer.color === AURORA;
-        if (!rainbow && !aurora) ctx.strokeStyle = layer.color;
+        if (!rainbow) ctx.strokeStyle = layer.color;
         for (let i = 1; i < n; i++) {
           const a = pts[i - 1]!;
           const b = pts[i]!;
@@ -844,8 +948,6 @@ export class Blade {
           if (w < 0.3) continue;
           // 무지개: 시간이 지나며 색이 궤적을 따라 흐른다
           if (rainbow) ctx.strokeStyle = `hsl(${(time * 360 + i * 9) % 360}, 100%, 62%)`;
-          if (aurora)
-            ctx.strokeStyle = `hsl(${235 + 75 * Math.sin(time * 5 + i * 0.18)}, 100%, 64%)`;
           ctx.globalAlpha = layer.alpha * fade;
           ctx.lineWidth = w;
           ctx.beginPath();
@@ -857,7 +959,7 @@ export class Blade {
       if (this.skin === 'neon') this.drawLightning(ctx, pts, time);
       if (this.skin === 'thunder') this.drawBranchingBolt(ctx, pts, time);
       if (this.skin === 'galaxy') this.drawStarDust(ctx, pts, time);
-      if (this.skin === 'sovereign') this.drawSovereign(ctx, pts, time);
+      if (this.skin === 'dragon') this.drawDragon(ctx, pts, time);
     }
     ctx.globalAlpha = 1;
     ctx.globalCompositeOperation = 'source-over';
@@ -908,88 +1010,121 @@ export class Blade {
   }
 
   /**
-   * 왕좌의 성검 — 궤적을 감싸며 꼬이는 황금·백금 쌍나선,
-   * 사이사이 반짝이는 십자 광채, 칼끝에서 회전하는 빛의 고리와 왕관 문장
+   * 청룡의 검 — 궤적을 따라 꿈틀대며 나는 청룡.
+   * 꼬리에서 머리로 굵어지는 비늘 몸통, 등 위 금빛 지느러미, 칼끝의 용 머리(뿔·수염·갈기)와 여의주
    */
-  private drawSovereign(ctx: CanvasRenderingContext2D, pts: TrailPoint[], time: number) {
+  private drawDragon(ctx: CanvasRenderingContext2D, pts: TrailPoint[], time: number) {
     const n = pts.length;
-    ctx.lineCap = 'round';
+    if (n < 4) return;
 
-    // 1) 쌍나선 — 진행 방향의 수직으로 벌어진 금빛·보랏빛 두 줄이 서로 꼬인다
-    //    (가산 혼합이면 밝은 궤적에 묻히므로 일반 혼합으로 또렷하게 그린다)
-    ctx.globalCompositeOperation = 'source-over';
-    for (const [phase, color] of [
-      [0, '#ffc21a'],
-      [Math.PI, '#a35cff'],
-    ] as const) {
-      ctx.strokeStyle = color;
-      for (let i = 1; i < n; i++) {
-        const a = pts[i - 1]!;
-        const b = pts[i]!;
-        const fade = Math.max(0, 1 - (time - b.t) / TRAIL_LIFE);
-        if (fade <= 0) continue;
-        const dx = b.x - a.x;
-        const dy = b.y - a.y;
-        const len = Math.hypot(dx, dy) || 1;
-        const nx = -dy / len;
-        const ny = dx / len;
-        const taper = i / (n - 1);
-        const amp = 17 * taper * fade;
-        const wa = Math.sin(i * 0.55 - time * 26 + phase) * amp;
-        const wb = Math.sin((i + 1) * 0.55 - time * 26 + phase) * amp;
-        ctx.globalAlpha = 0.85 * fade;
-        ctx.lineWidth = 1.2 + 1.6 * taper;
-        ctx.beginPath();
-        ctx.moveTo(a.x + nx * wa, a.y + ny * wa);
-        ctx.lineTo(b.x + nx * wb, b.y + ny * wb);
-        ctx.stroke();
-      }
-    }
-
-    // 2) 궤적을 따라 반짝이는 십자 광채
-    ctx.globalCompositeOperation = 'lighter';
-    for (let i = 3; i < n; i += 5) {
+    // 몸통 마디 — 머리 쪽은 궤적에 붙어 있고 꼬리 쪽일수록 크게 꿈틀댄다
+    const seg: { x: number; y: number; w: number; fade: number; nx: number; ny: number }[] = [];
+    for (let i = 0; i < n; i++) {
       const p = pts[i]!;
+      const prev = pts[Math.max(0, i - 1)]!;
+      const next = pts[Math.min(n - 1, i + 1)]!;
+      const len = Math.hypot(next.x - prev.x, next.y - prev.y) || 1;
+      const nx = -(next.y - prev.y) / len;
+      const ny = (next.x - prev.x) / len;
       const fade = Math.max(0, 1 - (time - p.t) / TRAIL_LIFE);
-      if (fade <= 0) continue;
-      const tw = 0.5 + 0.5 * Math.sin(time * 40 + i);
-      drawSparkle(ctx, p.x, p.y, (4 + 6 * tw) * fade, time * 3 + i, 0.9 * fade);
+      const k = i / (n - 1);
+      const wave = Math.sin(i * 0.3 - time * 16) * 10 * (1 - k) * fade;
+      const w = (2 + 11 * Math.sin(Math.min(1, k * 1.2) * Math.PI * 0.5)) * (0.45 + 0.55 * fade);
+      seg.push({ x: p.x + nx * wave, y: p.y + ny * wave, w, fade, nx, ny });
     }
 
-    // 3) 칼끝 — 금빛 후광, 서로 반대로 도는 빛의 고리 2겹, 십자 광채, 작은 왕관
-    const head = pts[n - 1]!;
-    const headFade = Math.max(0, 1 - (time - head.t) / TRAIL_LIFE);
-    if (headFade <= 0) return;
-    const glow = ctx.createRadialGradient(head.x, head.y, 0, head.x, head.y, 34);
-    glow.addColorStop(0, 'rgba(255,240,170,0.75)');
-    glow.addColorStop(0.4, 'rgba(255,190,40,0.3)');
-    glow.addColorStop(1, 'rgba(180,107,255,0)');
-    ctx.globalAlpha = headFade;
-    ctx.fillStyle = glow;
-    ctx.beginPath();
-    ctx.arc(head.x, head.y, 34, 0, TAU);
-    ctx.fill();
-
-    ctx.lineWidth = 1.6;
-    for (let k = 0; k < 2; k++) {
-      const r = 15 + k * 7;
-      const spin = time * (k === 0 ? 7 : -5);
-      ctx.strokeStyle = k === 0 ? '#ffd700' : `hsl(${235 + 75 * Math.sin(time * 5)}, 100%, 70%)`;
-      for (let seg = 0; seg < 3; seg++) {
-        const start = spin + (seg / 3) * TAU;
+    const strokeBody = (color: (k: number) => string, width: (w: number) => number, off = 0) => {
+      for (let i = 1; i < n; i++) {
+        const a = seg[i - 1]!;
+        const b = seg[i]!;
+        if (b.fade <= 0) continue;
+        ctx.globalAlpha = Math.min(1, b.fade * 1.4);
+        ctx.strokeStyle = color(i / (n - 1));
+        ctx.lineWidth = width(b.w);
         ctx.beginPath();
-        ctx.arc(head.x, head.y, r, start, start + TAU / 5);
+        ctx.moveTo(a.x + a.nx * a.w * off, a.y + a.ny * a.w * off);
+        ctx.lineTo(b.x + b.nx * b.w * off, b.y + b.ny * b.w * off);
         ctx.stroke();
       }
-    }
-    drawSparkle(ctx, head.x, head.y, 14, time * 2, headFade);
+    };
 
+    ctx.lineCap = 'round';
+    // 1) 옥빛 기운
+    ctx.globalCompositeOperation = 'lighter';
+    strokeBody(
+      () => 'rgba(31,214,170,0.35)',
+      (w) => w * 1.8,
+    );
+    // 2) 몸통 — 짙은 테두리 → 청록 비늘 → 배 쪽 연한 띠
     ctx.globalCompositeOperation = 'source-over';
-    ctx.globalAlpha = headFade;
-    ctx.save();
-    ctx.translate(head.x, head.y - 30);
-    drawCrown(ctx, 11, time);
-    ctx.restore();
+    strokeBody(
+      () => '#073b36',
+      (w) => w + 2.4,
+    );
+    strokeBody(
+      (k) => `hsl(${168 - 8 * k}, 72%, ${32 + 14 * k}%)`,
+      (w) => w,
+    );
+    strokeBody(
+      () => '#d9f7c8',
+      (w) => w * 0.32,
+      -0.22,
+    );
+
+    // 3) 비늘 무늬 — 뒤쪽을 향한 반달 모양을 엇갈려 찍는다
+    ctx.strokeStyle = '#0a5a50';
+    ctx.lineWidth = 1;
+    for (let i = 2; i < n - 3; i += 2) {
+      const b = seg[i]!;
+      if (b.fade <= 0 || b.w < 5) continue;
+      const a = Math.atan2(b.ny, b.nx) - Math.PI / 2;
+      const side = (i / 2) % 2 === 0 ? 0.22 : -0.05;
+      ctx.globalAlpha = b.fade;
+      ctx.beginPath();
+      ctx.arc(
+        b.x + b.nx * b.w * side,
+        b.y + b.ny * b.w * side,
+        b.w * 0.3,
+        a + Math.PI * 0.55,
+        a + Math.PI * 1.45,
+      );
+      ctx.stroke();
+    }
+
+    // 4) 등 지느러미 — 바깥쪽에 뾰족한 금빛 가시
+    ctx.fillStyle = '#ffcf4a';
+    for (let i = 3; i < n - 4; i += 3) {
+      const b = seg[i]!;
+      if (b.fade <= 0 || b.w < 4) continue;
+      const tx = -b.ny;
+      const ty = b.nx;
+      const bx = b.x + b.nx * b.w * 0.45;
+      const by = b.y + b.ny * b.w * 0.45;
+      const h = 3 + b.w * 0.45;
+      ctx.globalAlpha = b.fade;
+      ctx.beginPath();
+      ctx.moveTo(bx + tx * 3, by + ty * 3);
+      ctx.lineTo(bx + b.nx * h - tx * 4, by + b.ny * h - ty * 4);
+      ctx.lineTo(bx - tx * 3, by - ty * 3);
+      ctx.closePath();
+      ctx.fill();
+    }
+
+    // 5) 머리 + 여의주
+    const head = seg[n - 1]!;
+    const back = seg[Math.max(0, n - 5)]!;
+    if (head.fade <= 0) {
+      ctx.globalAlpha = 1;
+      return;
+    }
+    const angle = Math.atan2(head.y - back.y, head.x - back.x);
+    ctx.globalAlpha = Math.min(1, head.fade * 1.4);
+    drawDragonHead(ctx, head.x, head.y, angle, time, 1.7);
+    const px = head.x + Math.cos(angle) * 46;
+    const py = head.y + Math.sin(angle) * 46 + Math.sin(time * 7) * 3;
+    drawPearl(ctx, px, py, 8, time, Math.min(1, head.fade * 1.4));
+    ctx.globalAlpha = 1;
+    ctx.globalCompositeOperation = 'source-over';
   }
 
   /** 갤럭시 세이버 — 궤적 주변에 반짝이는 작은 별무리 */
@@ -1401,50 +1536,48 @@ export class Blade {
         }
         break;
       // ----- 랭커 전용 -----
-      case 'sovereign':
-        // 황금 깃털이 흩날리고, 오로라 불씨와 금가루가 뒤로 쏟아진다
-        if (Math.random() < 0.45) {
+      case 'dragon':
+        // 피어오르는 구름, 떨어져 나가는 비늘, 옥빛·금빛 불티
+        if (Math.random() < 0.35) {
           add({
             x: x + rand(-6, 6),
             y: y + rand(-6, 6),
-            vx: back.vx * 0.15 + rand(-50, 50),
-            vy: rand(-70, -10),
-            life: rand(1, 1.6),
-            size: rand(5, 8),
-            color: pick(['#ffd700', '#ffe36e', '#ffb300']),
-            kind: 'feather',
-            gravity: 0.07,
+            vx: back.vx * 0.1 + rand(-20, 20),
+            vy: rand(-40, -10),
+            life: rand(0.9, 1.4),
+            size: rand(6, 10),
+            color: pick(['#f2fffb', '#d4f7ec']),
+            kind: 'cloud',
+            gravity: -0.03,
             drag: 1.6,
           });
         }
-        for (let i = 0; i < 2; i++) {
+        if (Math.random() < 0.4) {
           add({
             x,
             y,
-            vx: back.vx * 0.5 + rand(-110, 110),
-            vy: back.vy * 0.5 + rand(-110, 110),
-            life: rand(0.25, 0.45),
-            size: 1.8,
-            color: `hsl(${Math.floor(rand(160, 320))}, 100%, 70%)`,
-            kind: 'neon',
-            gravity: 0,
-            drag: 3,
-          });
-        }
-        if (Math.random() < 0.6) {
-          add({
-            x: x + rand(-8, 8),
-            y: y + rand(-8, 8),
-            vx: rand(-30, 30),
-            vy: rand(-40, 20),
+            vx: back.vx * 0.3 + rand(-60, 60),
+            vy: back.vy * 0.3 + rand(-80, 20),
             life: rand(0.5, 0.9),
-            size: rand(2.5, 5),
-            color: pick(['#fff6b0', '#ffd700', '#ffffff']),
-            kind: 'star',
-            gravity: 0.1,
-            drag: 2,
+            size: rand(3, 5),
+            color: pick(['#2fe0b0', '#1fb59a', '#ffcf4a']),
+            kind: 'scale',
+            gravity: 0.4,
+            drag: 1.5,
           });
         }
+        add({
+          x,
+          y,
+          vx: back.vx * 0.5 + rand(-100, 100),
+          vy: back.vy * 0.5 + rand(-100, 100),
+          life: rand(0.2, 0.4),
+          size: 1.6,
+          color: pick(['#7fffe0', '#ffe9a0']),
+          kind: 'spark',
+          gravity: 0.2,
+          drag: 3,
+        });
         break;
     }
 
@@ -1672,61 +1805,61 @@ export class Blade {
           drag: 2,
         }));
         break;
-      // ----- 랭커 전용: 3겹 충격파 + 빛줄기 + 떠오르는 왕관 + 깃털·별 폭발 -----
-      case 'sovereign': {
-        ring('#ffd700', 110);
-        ring('#b46bff', 80);
-        ring('#ffffff', 45);
+      // ----- 랭커 전용: 옥빛 충격파 + 빛줄기 + 떠오르는 여의주 + 구름·비늘 폭발 -----
+      case 'dragon': {
+        ring('#2fe0b0', 110);
+        ring('#ffcf4a', 70);
+        ring('#ffffff', 40);
         const offset = rand(0, TAU);
-        for (let i = 0; i < 10; i++) {
+        for (let i = 0; i < 8; i++) {
           const ray = new Particle({
             x,
             y,
             vx: 0,
             vy: 0,
             life: 0.4,
-            size: i % 2 === 0 ? 120 : 70,
-            color: i % 2 === 0 ? '#ffd700' : `hsl(${200 + i * 12}, 100%, 70%)`,
+            size: i % 2 === 0 ? 110 : 65,
+            color: i % 2 === 0 ? '#2fe0b0' : '#ffcf4a',
             kind: 'ray',
             gravity: 0,
           });
-          ray.setAngle(offset + (i / 10) * TAU);
+          ray.setAngle(offset + (i / 8) * TAU);
           out.push(ray);
         }
         out.push(
           new Particle({
             x,
-            y: y - 10,
+            y,
             vx: 0,
-            vy: -70,
+            vy: -60,
             life: 0.9,
-            size: 18,
-            color: '#ffd700',
-            kind: 'crown',
+            size: 10,
+            color: '#ffffff',
+            kind: 'pearl',
             gravity: 0,
             drag: 2,
           }),
         );
-        burst(10, 0.55, () => ({
-          life: rand(1.1, 1.7),
-          size: rand(6, 10),
-          color: pick(['#ffd700', '#ffe36e', '#ffb300']),
-          kind: 'feather',
-          gravity: 0.08,
-          drag: 1.8,
-        }));
-        burst(16, 1.2, () => ({
-          life: rand(0.5, 0.9),
-          size: rand(3, 6),
-          color: pick(['#fff6b0', '#ffd700', '#ffffff']),
-          kind: 'star',
-          gravity: 0.15,
+        burst(7, 0.35, () => ({
+          life: rand(1, 1.5),
+          size: rand(8, 13),
+          color: pick(['#f2fffb', '#d4f7ec']),
+          kind: 'cloud',
+          gravity: -0.04,
           drag: 2,
         }));
-        burst(14, 1.6, () => ({
+        burst(16, 1.1, () => ({
+          life: rand(0.6, 1),
+          size: rand(3.5, 6),
+          color: pick(['#2fe0b0', '#1fb59a', '#0b8f7a', '#ffcf4a']),
+          kind: 'scale',
+          gravity: 0.5,
+          drag: 1.6,
+        }));
+        burst(12, 1.6, () => ({
           life: rand(0.25, 0.45),
           size: 2,
-          color: `hsl(${Math.floor(rand(160, 320))}, 100%, 70%)`,
+          color: pick(['#7fffe0', '#ffe9a0']),
           kind: 'neon',
           gravity: 0,
           drag: 3,
