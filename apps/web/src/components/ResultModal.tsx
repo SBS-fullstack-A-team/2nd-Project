@@ -8,6 +8,8 @@ import { Window } from './Window';
 import classicStyles from './ResultModal.classic.module.css';
 import xpStyles from './ResultModal.xp.module.css';
 import win98Styles from './ResultModal.win98.module.css';
+import win7Styles from './ResultModal.win7.module.css';
+import win11Styles from './ResultModal.win11.module.css';
 
 const NICKNAME_STORAGE_KEY = 'simsim:nickname';
 
@@ -41,7 +43,13 @@ export function ResultModal({ gameId, gameName, score, onRetry }: ResultModalPro
   const [error, setError] = useState<string | null>(null);
   const [submitted, setSubmitted] = useState<SubmitScoreResponse | null>(null);
   const { theme } = useTheme();
-  const styles = { classic: classicStyles, xp: xpStyles, win98: win98Styles }[theme];
+  const styles = {
+    classic: classicStyles,
+    xp: xpStyles,
+    win98: win98Styles,
+    win7: win7Styles,
+    win11: win11Styles,
+  }[theme];
 
   async function handleSubmit(e: FormEvent) {
     e.preventDefault();

@@ -1,0 +1,155 @@
+/* 바탕화면 — 짙은 파랑 위로 번지는 빛줄기 (CSS 그라디언트로만 그림) */
+.desktop {
+  min-height: 100vh;
+  display: flex;
+  flex-direction: column;
+  padding-bottom: var(--taskbar-height);
+  background:
+    radial-gradient(ellipse 60% 45% at 50% 42%, rgb(120 200 255 / 0.55), transparent 70%),
+    conic-gradient(
+      from 200deg at 50% 45%,
+      transparent 0deg,
+      rgb(140 210 255 / 0.25) 20deg,
+      transparent 40deg,
+      rgb(140 210 255 / 0.18) 70deg,
+      transparent 95deg,
+      rgb(140 210 255 / 0.22) 130deg,
+      transparent 160deg
+    ),
+    radial-gradient(
+      ellipse 120% 90% at 50% 45%,
+      var(--desktop-light) 0%,
+      var(--desktop) 45%,
+      var(--desktop-dark) 100%
+    );
+  background-attachment: fixed;
+}
+
+.main {
+  flex: 1;
+  width: 100%;
+  max-width: 1000px;
+  margin: 0 auto;
+  padding: 24px 16px 32px;
+}
+
+/* 작업 표시줄 — 어두운 유리 */
+.taskbar {
+  position: fixed;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  z-index: 5;
+  height: var(--taskbar-height);
+  display: flex;
+  align-items: center;
+  background: var(--taskbar);
+  border-top: 1px solid rgb(255 255 255 / 0.35);
+  box-shadow: inset 0 1px 0 rgb(0 0 0 / 0.4);
+  backdrop-filter: blur(10px) saturate(1.4);
+  -webkit-backdrop-filter: blur(10px) saturate(1.4);
+  color: #fff;
+}
+
+.startArea {
+  height: 100%;
+  flex-shrink: 0;
+  display: flex;
+  align-items: center;
+  padding: 0 6px 0 4px;
+}
+/* 둥근 시작 버튼(오브) — 글자는 화면 읽기 프로그램용으로만 남긴다 */
+.start {
+  display: grid;
+  place-items: center;
+  width: 38px;
+  height: 38px;
+  padding: 0;
+  border: 1px solid rgb(0 20 50 / 0.8);
+  border-radius: 50%;
+  background:
+    radial-gradient(ellipse 70% 45% at 50% 22%, rgb(255 255 255 / 0.75), transparent 70%),
+    radial-gradient(circle at 50% 75%, #6fd0ff 0%, #1d7fd1 45%, #0b3d7a 100%);
+  box-shadow:
+    inset 0 0 0 1px rgb(255 255 255 / 0.35),
+    0 0 6px rgb(0 0 0 / 0.5);
+  font-family: inherit;
+  font-size: 1.25rem;
+  cursor: pointer;
+}
+.start span:last-child {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip: rect(0 0 0 0);
+  white-space: nowrap;
+}
+.start:hover {
+  box-shadow:
+    inset 0 0 0 1px rgb(255 255 255 / 0.45),
+    0 0 12px rgb(120 210 255 / 0.9);
+}
+.startOpen {
+  background:
+    radial-gradient(ellipse 70% 45% at 50% 22%, rgb(255 255 255 / 0.5), transparent 70%),
+    radial-gradient(circle at 50% 75%, #4ab6f0 0%, #125fae 45%, #062a57 100%);
+}
+
+.tasks {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  gap: 3px;
+  height: 100%;
+  padding: 2px 0;
+  overflow: hidden;
+}
+/* 열린 창 — 유리 버튼 */
+.task {
+  min-width: 0;
+  max-width: 180px;
+  display: flex;
+  align-items: center;
+  padding: 0 12px;
+  border: 1px solid rgb(255 255 255 / 0.15);
+  border-radius: 3px;
+  background: linear-gradient(180deg, rgb(255 255 255 / 0.12) 0%, rgb(255 255 255 / 0.03) 100%);
+  color: #fff;
+  font-size: 0.85rem;
+  text-decoration: none;
+  text-shadow: 0 0 4px rgb(0 0 0 / 0.7);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+a.task:hover {
+  background: linear-gradient(180deg, rgb(255 255 255 / 0.28) 0%, rgb(255 255 255 / 0.1) 100%);
+}
+.taskActive {
+  border-color: rgb(255 255 255 / 0.4);
+  background:
+    radial-gradient(ellipse 80% 60% at 50% 100%, rgb(120 200 255 / 0.55), transparent 80%),
+    linear-gradient(180deg, rgb(255 255 255 / 0.25) 0%, rgb(255 255 255 / 0.08) 100%);
+  box-shadow: inset 0 0 0 1px rgb(0 0 0 / 0.3);
+}
+
+.tray {
+  height: 100%;
+  display: flex;
+  align-items: center;
+  margin-left: 6px;
+  padding: 0 14px;
+  border-left: 1px solid rgb(0 0 0 / 0.4);
+  box-shadow: inset 1px 0 rgb(255 255 255 / 0.15);
+  font-size: 0.85rem;
+  text-shadow: 0 0 4px rgb(0 0 0 / 0.7);
+  white-space: nowrap;
+  flex-shrink: 0;
+}
+
+@media (max-width: 480px) {
+  .tray {
+    padding: 0 8px;
+  }
+}

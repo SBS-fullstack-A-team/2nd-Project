@@ -214,7 +214,7 @@ pnpm db:seed:local                                    # 로컬 D1 에 적용해�
   - `config.ts`(규칙 상수), `*.module.css`, `thumbnail.svg`(16:9) 도 이 폴더에 둡니다.
   - 점수 등록·결과창·랭킹은 공통 페이지가 처리하므로 게임에서 만들지 않습니다.
   - 공통 UI 가 필요하면 `components/` 의 `Timer` 등을 가져다 씁니다.
-  - 색·모서리는 직접 쓰지 말고 **테마 토큰**(`var(--accent)` 등)을 씁니다. 그래야 XP·98·클래식 모든 테마에서 자연스럽습니다 (아래 "디자인 테마" 참고).
+  - 색·모서리는 직접 쓰지 말고 **테마 토큰**(`var(--accent)` 등)을 씁니다. 그래야 XP·98·7·11·클래식 모든 테마에서 자연스럽습니다 (아래 "디자인 테마" 참고).
 - [ ] **2. registry 등록** — `apps/web/src/games/registry.ts` 의 `GAMES` 에 **내 카드 번호 위치**에 추가
   ```ts
   {
@@ -241,20 +241,22 @@ pnpm db:seed:local                                    # 로컬 D1 에 적용해�
 - [ ] **5. 확인** — `pnpm typecheck && pnpm lint && pnpm build` 통과, `pnpm dev` 로 한 판 끝까지 플레이 → 점수 등록 → 랭킹 확인
 - [ ] **6. PR** — 새 테이블이나 API 는 필요 없습니다. 필요해 보이면 먼저 팀과 상의하세요.
 
-## 디자인 테마 (XP / 98 / 클래식)
+## 디자인 테마 (XP / 98 / 7 / 11 / 클래식)
 
-사이트는 세 가지 테마를 골라 쓸 수 있습니다. 기본은 **XP** 입니다.
+사이트는 다섯 가지 테마를 골라 쓸 수 있습니다. 기본은 **XP** 입니다.
 
 | 테마   | 모습                                                                    | 바꾸는 곳                   |
 | ------ | ----------------------------------------------------------------------- | --------------------------- |
 | XP     | 추억의 윈도우 XP 느낌 — 하늘·언덕 바탕화면, 파란 제목 표시줄 창         | [시작] 메뉴 맨 아래 🎨 테마 |
 | 98     | 추억의 윈도우 98 느낌 — 청록색 바탕화면, 회색 입체 창, 남색 제목 표시줄 | [시작] 메뉴 맨 아래 🎨 테마 |
+| 7      | 윈도우 7 느낌 — 빛줄기 바탕화면, 반투명 유리(Aero) 창, 둥근 시작 버튼   | [시작] 메뉴 맨 아래 🎨 테마 |
+| 11     | 윈도우 11 느낌 — 둥근 모서리, 반투명 창, 가운데 정렬 작업 표시줄        | [시작] 메뉴 맨 아래 🎨 테마 |
 | 클래식 | 처음 디자인 — 크림색 배경, 두꺼운 테두리 카드                           | 헤더 오른쪽 테마 선택 목록  |
 
-- XP·98 은 화면 구조(바탕화면 · 창 · 작업 표시줄 · 시작 메뉴)가 같고 스타일만 다릅니다. [시작] 메뉴에는 게임 목록, Q&A(`/qna`), 프로젝트 소개 바로가기와 테마 선택이 있습니다.
+- XP·98·7·11 은 화면 구조(바탕화면 · 창 · 작업 표시줄 · 시작 메뉴)가 같고 스타일만 다릅니다. [시작] 메뉴에는 게임 목록, Q&A(`/qna`), 프로젝트 소개 바로가기와 테마 선택이 있습니다.
 - 클래식은 헤더의 Q&A 버튼과 테마 선택 목록을 씁니다.
 - 선택한 테마는 브라우저(`localStorage` 의 `simsim:theme`)에 저장되어 다음 방문에도 유지됩니다.
-- 테마는 `<html data-theme="xp|win98|classic">` 로 적용되고, 로딩 중 깜빡이지 않도록 `index.html` 에서 먼저 적용합니다.
+- 테마는 `<html data-theme="xp|win98|win7|win11|classic">` 로 적용되고, 로딩 중 깜빡이지 않도록 `index.html` 에서 먼저 적용합니다.
 - 게임 도중 테마를 바꾸면 화면 틀이 바뀌면서 게임이 처음부터 다시 시작될 수 있습니다.
 
 **게임 담당자:** 게임 폴더의 CSS 에서는 색·모서리를 직접 적지 말고 `styles/global.css` 의 토큰을 쓰세요.
@@ -264,9 +266,9 @@ pnpm db:seed:local                                    # 로컬 D1 에 적용해�
 **공통 UI 담당자:** 구조
 
 - 테마 상태: `lib/theme.ts` (`useTheme`, `useThemeStyles`, `isDesktopTheme`), `components/ThemeProvider.tsx`, `components/ThemeSelect.tsx`
-- 테마별 토큰·공통 버튼: `styles/global.css` (`:root` = 클래식, `:root[data-theme='xp']`, `:root[data-theme='win98']`)
-- 공통 컴포넌트·페이지 스타일은 테마별 파일로 나눕니다: `Xxx.classic.module.css` / `Xxx.xp.module.css` / `Xxx.win98.module.css`
-  - 구조가 같으면 `useThemeStyles({ classic, xp, win98 })` 로 스타일만 바꿔 끼우고 (`GameCard`, `RankingList`, `Timer`, `Window`, `StartMenu`)
+- 테마별 토큰·공통 버튼: `styles/global.css` (`:root` = 클래식, `:root[data-theme='xp']`, `win98`, `win7`, `win11`)
+- 공통 컴포넌트·페이지 스타일은 테마별 파일로 나눕니다: `Xxx.classic.module.css` / `Xxx.xp.module.css` / `Xxx.win98.module.css` / `Xxx.win7.module.css` / `Xxx.win11.module.css`
+  - 구조가 같으면 `useThemeStyles({ classic, xp, win98, win7, win11 })` 로 스타일만 바꿔 끼우고 (`GameCard`, `RankingList`, `Timer`, `Window`, `StartMenu`)
   - 구조가 다르면 클래식 / 바탕화면 테마(`isDesktopTheme`)로 화면 틀만 나눕니다 (`Layout`, `HomePage`, `GamePage`, `ResultModal`, `QnaPage`)
 - 바탕화면 테마의 창 틀은 `components/Window.tsx` 공통 컴포넌트를 씁니다.
 - **테마 추가 방법:** `Theme` 타입에 추가 → `global.css` 토큰 → 각 `*.<테마>.module.css` → `index.html` 초기 스크립트 허용값. 타입 검사가 빠진 곳을 알려 줍니다.

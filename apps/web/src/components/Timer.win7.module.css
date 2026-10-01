@@ -1,0 +1,34 @@
+.timer {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+/* 7 진행 막대 — 광택 있는 초록 막대 */
+.track {
+  flex: 1;
+  height: 16px;
+  background: linear-gradient(180deg, #f3f3f3 0%, #e0e0e0 100%);
+  border: 1px solid #bcbcbc;
+  border-radius: 3px;
+  box-shadow: inset 0 1px 2px rgb(0 0 0 / 0.1);
+  overflow: hidden;
+}
+.bar {
+  height: 100%;
+  background: linear-gradient(180deg, #d6f7d6 0%, #5fe05f 45%, #06b025 50%, #3bcf3b 100%);
+  transform-origin: left;
+  transition: transform 0.1s linear;
+}
+.label {
+  min-width: 3.5em;
+  text-align: right;
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+}
+/* 시간이 얼마 안 남으면 빨간 막대 (7 의 "오류" 진행 막대 색) */
+.urgent .bar {
+  background: linear-gradient(180deg, #fbd0d0 0%, #f07070 45%, #da2626 50%, #ea5a5a 100%);
+}
+.urgent .label {
+  color: var(--danger);
+}

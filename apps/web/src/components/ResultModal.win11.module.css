@@ -1,0 +1,87 @@
+.backdrop {
+  position: fixed;
+  inset: 0;
+  background: rgb(0 0 0 / 0.3);
+  display: grid;
+  place-items: center;
+  padding: 16px;
+  z-index: 10;
+}
+.modal {
+  width: 100%;
+  max-width: 440px;
+  max-height: calc(100vh - 32px);
+  overflow-y: auto;
+  border-radius: var(--radius);
+}
+.body {
+  padding: 24px;
+  text-align: center;
+}
+.title {
+  margin: 0;
+  font-size: 1.4rem;
+  font-weight: 600;
+}
+.score {
+  margin: 8px 0 16px;
+  font-size: 1.1rem;
+}
+.score strong {
+  font-size: 2.8rem;
+  font-weight: 600;
+  color: var(--accent);
+}
+.form {
+  display: flex;
+  gap: 8px;
+}
+/* Fluent 입력칸 — 선택되면 아래쪽 선이 강조색으로 두꺼워진다 */
+.input {
+  flex: 1;
+  min-width: 0;
+  font: inherit;
+  padding: 6px 10px;
+  border: 1px solid var(--stroke);
+  border-bottom-color: rgb(0 0 0 / 0.45);
+  border-radius: var(--radius-sm);
+  background: rgb(255 255 255 / 0.7);
+  color: var(--text);
+}
+.input:hover {
+  background: #f9f9f9;
+}
+.input:focus {
+  outline: none;
+  background: #fff;
+  border-bottom: 2px solid var(--accent);
+  padding-bottom: 5px;
+}
+.registered {
+  font-weight: 600;
+  margin: 0;
+}
+.error {
+  color: var(--danger);
+  margin: 8px 0 0;
+  font-size: 0.9rem;
+}
+.rankingTitle {
+  margin: 20px 0 6px;
+  font-size: 0.95rem;
+  font-weight: 600;
+  text-align: left;
+}
+.ranking {
+  text-align: left;
+  background: var(--surface);
+  border: 1px solid var(--stroke);
+  border-radius: var(--radius);
+  padding: 4px;
+}
+.actions {
+  display: flex;
+  gap: 8px;
+  justify-content: center;
+  margin-top: 20px;
+}

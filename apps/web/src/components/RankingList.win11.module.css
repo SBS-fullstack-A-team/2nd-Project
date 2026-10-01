@@ -1,0 +1,56 @@
+.message {
+  color: var(--text-muted);
+  font-size: 0.9rem;
+  margin: 8px;
+}
+.list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+.item {
+  position: relative;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 7px 10px;
+  border-radius: var(--radius-sm);
+}
+.item + .item {
+  margin-top: 2px;
+}
+.rank {
+  width: 1.8em;
+  text-align: center;
+  font-weight: 600;
+  color: var(--text-muted);
+}
+.item:nth-child(-n + 3) .rank {
+  color: var(--accent);
+}
+.nickname {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.score {
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+}
+/* 방금 등록한 내 기록 — 11 목록 선택 표시 (연한 배경 + 왼쪽 강조 막대) */
+.mine {
+  background: rgb(0 95 184 / 0.1);
+}
+.mine::before {
+  content: '';
+  position: absolute;
+  left: 0;
+  top: 50%;
+  width: 3px;
+  height: 16px;
+  border-radius: 2px;
+  background: var(--accent);
+  transform: translateY(-50%);
+}
