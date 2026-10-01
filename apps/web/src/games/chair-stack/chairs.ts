@@ -118,8 +118,13 @@ export interface ChairPick {
   colors: readonly [string, string];
 }
 
-export function randomChair(random: () => number = Math.random): ChairPick {
-  const def = CHAIRS[Math.floor(random() * CHAIRS.length)]!;
+/** chairIds 중에서 무작위로 고른다 (비우면 모든 의자) */
+export function randomChair(
+  chairIds: readonly string[] = [],
+  random: () => number = Math.random,
+): ChairPick {
+  const pool = chairIds.length ? CHAIRS.filter((c) => chairIds.includes(c.id)) : CHAIRS;
+  const def = pool[Math.floor(random() * pool.length)]!;
   const colors = PALETTE[Math.floor(random() * PALETTE.length)]!;
   return { def, colors };
 }

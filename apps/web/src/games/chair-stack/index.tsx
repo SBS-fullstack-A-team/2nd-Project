@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from 'react';
 import type { GameProps } from '@simsim/shared';
-import { CONTROLS, HOW_TO_PLAY } from './config';
+import { CONTROLS, DIFFICULTIES, HOW_TO_PLAY, type Difficulty } from './config';
 import { ChairStackEngine, type GameSummary, type Hud } from './engine';
 import styles from './ChairStack.module.css';
 
@@ -11,7 +11,7 @@ const WHEEL_THROTTLE_MS = 120;
 
 /**
  * 의자 탑 쌓기 — matter-js 물리로 의자를 떨어뜨려 높이 쌓는 게임.
- * 시작 → 의자를 옮기고 돌려서 떨어뜨리기 반복 → 하나라도 받침대 아래로 떨어지면 끝.
+ * 난이도 선택 → 의자를 옮기고 돌려서 떨어뜨리기 반복 → 하나라도 받침대 아래로 떨어지면 끝.
  * 점수는 최고 높이(cm). 점수 등록·랭킹은 GamePage 의 공통 결과창이 처리한다.
  */
 export default function ChairStack({ onFinish }: GameProps) {
@@ -21,6 +21,7 @@ export default function ChairStack({ onFinish }: GameProps) {
   const onFinishRef = useRef(onFinish);
   const [screen, setScreen] = useState<Screen>({ name: 'menu' });
   const [hud, setHud] = useState<Hud | null>(null);
+  const [difficulty, setDifficulty] = useState<Difficulty>('easy');
   const [paused, setPaused] = useState(false);
   const [engineError, setEngineError] = useState<string | null>(null);
 
@@ -59,7 +60,8 @@ export default function ChairStack({ onFinish }: GameProps) {
   const playing = screen.name === 'playing' && !paused;
 
   function start() {
-    engineRef.current?.start();
+    const def = DIFFICULTIES.find((d) => d.id === difficulty)!;
+    engineRef.current?.start(def);
     setPaused(false);
     setScreen({ name: 'playing' });
   }
@@ -87,7 +89,10 @@ export default function ChairStack({ onFinish }: GameProps) {
       if (target && (target.tagName === 'INPUT' || target.tagName === 'TEXTAREA')) return;
       const k = e.key.toLowerCase();
       if (screen.name === 'menu') {
-        if (k === 'enter') {
+        if (k === 'arrowleft' || k === 'arrowright') {
+          e.preventDefault();
+          setDifficulty((d) => (d === 'easy' ? 'hard' : 'easy'));
+        } else if (k === 'enter') {
           e.preventDefault();
           start();
         }
@@ -206,7 +211,7 @@ export default function ChairStack({ onFinish }: GameProps) {
               <small>cm</small>
             </span>
             <span className={styles.hudSub}>
-              최고 {hud.best}cm · 의자 {hud.chairs}개
+              {difficulty === 'easy' ? '쉬움' : '어려움'} · 최고 {hud.best}cm · 의자 {hud.chairs}개
             </span>
           </div>
         )}
@@ -243,6 +248,21 @@ export default function ChairStack({ onFinish }: GameProps) {
                 ))}
               </dl>
               <p className={styles.hint}>휴대폰은 화면을 끌어서 옮기고 아래 버튼을 눌러요</p>
+              <div className={styles.levels} role="radiogroup" aria-label="난이도">
+                {DIFFICULTIES.map((d) => (
+                  <button
+                    key={d.id}
+                    type="button"
+                    role="radio"
+                    aria-checked={d.id === difficulty}
+                    className={`${styles.level} ${d.id === difficulty ? styles.levelOn : ''}`}
+                    onClick={() => setDifficulty(d.id)}
+                  >
+                    <strong>{d.label}</strong>
+                    <span className={styles.levelDesc}>{d.description}</span>
+                  </button>
+                ))}
+              </div>
               <button type="button" className="btn btn-primary" onClick={start}>
                 시작하기
               </button>
@@ -266,7 +286,12 @@ export default function ChairStack({ onFinish }: GameProps) {
           <div className={styles.overlay}>
             <div className={styles.panel}>
               <h2 className={styles.title}>💥 와르르!</h2>
-              <p className={styles.bigScore}>{screen.summary.score.toLocaleString()}cm</p>
+              <p className={styles.bigScore}>{screen.summary.score.toLocaleString()}점</p>
+              <p className={styles.summary}>
+                {screen.summary.difficulty.label} · 최고 높이 {screen.summary.bestHeight}cm
+                {screen.summary.difficulty.multiplier !== 1 &&
+                  ` × ${screen.summary.difficulty.multiplier}`}
+              </p>
               <p className={styles.summary}>
                 의자 {screen.summary.chairs}개를 쌓았어요
                 {screen.summary.bestHeight >= 100 &&
