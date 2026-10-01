@@ -214,7 +214,7 @@ export class PlayerBullet {
   target: Target | null = null;
 
   constructor(
-    public kind: 'plasma' | 'pierce' | 'rapid' | 'drone' | 'missile',
+    public kind: 'plasma' | 'pierce' | 'rapid' | 'drone' | 'missile' | 'flare',
     public x: number,
     public y: number,
     public vx: number,
@@ -278,6 +278,23 @@ export class PlayerBullet {
       case 'drone':
         drawSprite(ctx, glowSprite('#9ae6ff', 3), this.x, this.y);
         break;
+      case 'flare': {
+        // 피닉스 주포 — 금빛 심에 분홍·보라 테두리가 도는 프리즘 탄
+        ctx.save();
+        ctx.translate(this.x, this.y);
+        ctx.rotate(Math.atan2(this.vy, this.vx) + Math.PI / 2);
+        const hue = (this.age * 900 + this.x) % 360;
+        ctx.drawImage(
+          glowSprite(`hsl(${Math.round(hue / 30) * 30}, 100%, 62%)`, 7),
+          -7,
+          -16,
+          14,
+          32,
+        );
+        ctx.drawImage(glowSprite('#ffb02e', 4), -4, -9, 8, 18);
+        ctx.restore();
+        break;
+      }
       case 'missile': {
         ctx.save();
         ctx.translate(this.x, this.y);

@@ -18,7 +18,8 @@ export type SfxName =
   | 'laser'
   | 'phase'
   | 'clear'
-  | 'select';
+  | 'select'
+  | 'secret';
 
 type AudioContextCtor = typeof AudioContext;
 
@@ -209,6 +210,12 @@ export class SoundManager {
         break;
       case 'select':
         this.tone('square', 660, 990, 0.08, 0.1);
+        break;
+      case 'secret':
+        // 반짝이는 상승 아르페지오 — 숨은 기체 등장
+        [0, 4, 7, 11, 14, 19, 24].forEach((s, i) =>
+          this.note(72 + s, now + i * 0.055, 0.16, 'triangle', 0.18),
+        );
         break;
     }
   }

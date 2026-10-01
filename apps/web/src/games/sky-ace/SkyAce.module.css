@@ -64,6 +64,30 @@
 .logo span {
   color: #ffcf3a;
 }
+/* 제목 = 이스터에그 버튼. 겉보기엔 평범한 글자처럼 보이게 한다 */
+.logoButton {
+  padding: 0;
+  font: inherit;
+  letter-spacing: inherit;
+  color: inherit;
+  text-shadow: inherit;
+  background: none;
+  border: 0;
+  cursor: pointer;
+}
+.logoButton:focus-visible {
+  outline: 2px dashed #8a90a6;
+  outline-offset: 4px;
+}
+/* 숨은 기체를 연 상태 — 제목이 회색으로 바랜다 */
+.logoSecret,
+.logoSecret span {
+  color: #8a90a6;
+  text-shadow: 3px 3px 0 #2a2e3c;
+  transition:
+    color 0.4s,
+    text-shadow 0.4s;
+}
 
 .subtitle {
   margin: 4px 0 12px;
@@ -110,6 +134,66 @@
 .aircraftType {
   color: #8f9bc8;
   font-size: 0.72rem;
+}
+.aircraftLabel {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 2px;
+}
+
+/* 숨은 기체 카드 — 한 줄을 다 쓰고, 금빛·분홍·보라 테두리가 흐른다 */
+.aircraftSecret {
+  grid-column: 1 / -1;
+  flex-direction: row;
+  justify-content: center;
+  gap: 14px;
+  border: 2px solid transparent;
+  background:
+    linear-gradient(135deg, #2a1a3e, #1a1430 60%, #3a2410) padding-box,
+    linear-gradient(90deg, #ffb02e, #ff5aa8, #8a5aff, #5ad8ff, #ffb02e) border-box;
+  background-size:
+    100% 100%,
+    300% 100%;
+  animation:
+    secretIn 0.45s ease-out,
+    secretFlow 3s linear infinite;
+}
+.aircraftSecret .aircraftLabel {
+  align-items: flex-start;
+}
+.aircraftSecret strong {
+  font-size: 1rem;
+  background: linear-gradient(90deg, #fff3c4, #ffb02e, #ff8ad0);
+  -webkit-background-clip: text;
+  background-clip: text;
+  color: transparent;
+}
+.aircraftSecret .aircraftType {
+  color: #ffcf6a;
+  letter-spacing: 0.08em;
+}
+.aircraftSecret.aircraftOn {
+  box-shadow:
+    0 0 16px rgba(255, 176, 46, 0.55),
+    0 0 32px rgba(255, 90, 168, 0.3);
+}
+@keyframes secretIn {
+  from {
+    opacity: 0;
+    transform: translateY(8px) scale(0.94);
+  }
+}
+@keyframes secretFlow {
+  to {
+    background-position:
+      0 0,
+      300% 0;
+  }
+}
+.specSecret {
+  color: #ffcf6a;
+  font-weight: 700;
 }
 
 .preview {
@@ -282,5 +366,11 @@
   }
   to {
     opacity: 1;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .aircraftSecret {
+    animation: none;
   }
 }

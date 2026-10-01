@@ -4,6 +4,7 @@ import {
   BOSS_WARNING_SEC,
   INVINCIBLE_SEC,
   MAX_BOMBS,
+  MAX_BOMBS_SECRET,
   MAX_POWER,
   MAX_SCORE,
   PLAYER_BODY_RADIUS,
@@ -51,6 +52,7 @@ import {
   TAU,
   drawBigBomber,
   drawDrone,
+  drawFirebird,
   drawPlayerPlane,
   drawSprite,
   glowSprite,
@@ -307,6 +309,8 @@ export class SkyAceEngine implements World {
   private paused = false;
 
   player: Player = new Player(getAircraft('p38'), START_LIVES, START_BOMBS);
+  /** 피닉스 필살기 — 불사조가 지나간 높이 (그리기·판정 공용) */
+  private firebirdY = 0;
   private bullets: PlayerBullet[] = [];
   private enemyBullets: EnemyBullet[] = [];
   private lasers: EnemyLaser[] = [];
@@ -365,7 +369,8 @@ export class SkyAceEngine implements World {
   /* ---------------- 외부 제어 ---------------- */
 
   start(aircraft: AircraftId) {
-    this.player = new Player(getAircraft(aircraft), START_LIVES, START_BOMBS);
+    const def = getAircraft(aircraft);
+    this.player = new Player(def, def.lives, def.bombs);
     this.player.invincible = 2;
     this.bullets = [];
     this.enemyBullets = [];
@@ -438,6 +443,11 @@ export class SkyAceEngine implements World {
       this.clearEnemyBullets();
     } else if (p.def.id === 'shinden') {
       this.flashColor = '#ffb060';
+    } else if (p.def.id === 'phoenix') {
+      this.flashColor = '#ffcf6a';
+      this.clearEnemyBullets();
+      this.firebirdY = VIEW_H + 160;
+      this.popup(VIEW_W / 2, VIEW_H * 0.55, '불사조 강림!', '#ffcf6a', 28);
     } else {
       this.flashColor = '#a8c8ff';
       this.timeStop = BOMB_SEC;
@@ -688,7 +698,7 @@ export class SkyAceEngine implements World {
         p.x = VIEW_W / 2;
         p.y = VIEW_H - 90;
         p.invincible = INVINCIBLE_SEC;
-        p.bombs = Math.max(p.bombs, START_BOMBS);
+        p.bombs = Math.max(p.bombs, p.def.bombs);
       }
       return;
     }
@@ -760,6 +770,26 @@ export class SkyAceEngine implements World {
         this.sound.play('shot');
       }
       this.fireBeam(dt);
+    } else if (p.def.id === 'phoenix') {
+      // 주포: 부채꼴 프리즘 플레어 (3 → 5 → 7방향)
+      if (p.shotCool <= 0) {
+        p.shotCool += 0.075;
+        const ways = [3, 5, 7][lv - 1]!;
+        for (let i = 0; i < ways; i++) {
+          const a = (i - (ways - 1) / 2) * 0.09;
+          this.shot('flare', p.x + a * 40, p.y - 20, a, 1050, 1.3, 6);
+        }
+        this.sound.play('shot');
+      }
+      // 서브: 날개 끝에서 양쪽으로 퍼졌다가 꺾이는 유도 미사일
+      if (p.subCool <= 0) {
+        p.subCool += [0.42, 0.34, 0.26][lv - 1]!;
+        for (const s of [-1, 1]) {
+          this.bullets.push(
+            new PlayerBullet('missile', p.x + s * 26, p.y + 8, s * 220, -160, 3.4, 6),
+          );
+        }
+      }
     } else {
       if (p.shotCool <= 0) {
         p.shotCool += 0.065;
@@ -896,6 +926,47 @@ export class SkyAceEngine implements World {
         this.shake(5);
         this.bombDamage((x, y, rad) => Math.hypot(x - VORTEX_X, y - VORTEX_Y) < r + rad, 4, 3);
       }
+    } else if (bomb.kind === 'phoenix') {
+      // 불사조가 아래에서 위로 날아오르며, 지나간 자리의 적탄을 태우고 화염 폭발을 남긴다
+      const k = Math.min(1, bomb.t / (BOMB_SEC * 0.8));
+      const ease = 1 - (1 - k) ** 2;
+      this.firebirdY = VIEW_H + 160 - (VIEW_H + 420) * ease;
+      const fy = this.firebirdY;
+      for (const b of this.enemyBullets) {
+        if (b.y > fy - 120) {
+          b.dead = true;
+          this.score.add(10);
+          if (this.particles.length < MAX_PARTICLES) {
+            this.particle('fire', b.x, b.y, 0, -60, 0.35, 7, '#ffb050');
+          }
+        }
+      }
+      if (tick) {
+        for (let i = 0; i < 4; i++) {
+          this.explode(
+            rand(20, VIEW_W - 20),
+            clamp(fy + rand(-40, 160), 0, VIEW_H),
+            rand(0.9, 1.6),
+          );
+        }
+        for (let i = 0; i < 6; i++) {
+          this.particle(
+            'spark',
+            rand(0, VIEW_W),
+            fy + rand(0, 120),
+            rand(-120, 120),
+            rand(-320, -120),
+            rand(0.4, 0.8),
+            2.5,
+            i % 2 ? '#ffe08a' : '#ff7ab0',
+          );
+        }
+        this.shake(9);
+        this.sound.play('explode');
+        // 화면 전체에 화염 피해 + 불사조 몸통 근처는 추가 피해
+        this.bombDamage(() => true, 3, 2.4);
+        this.bombDamage((_x, y, rad) => Math.abs(y - fy) < 140 + rad, 3, 2.4);
+      }
     } else {
       for (const s of bomb.slashes) {
         if (!s.done && bomb.t >= s.at) {
@@ -933,11 +1004,15 @@ export class SkyAceEngine implements World {
     enemyDmg: number,
     bossDmg: number,
   ) {
+    // 기체마다 필살기 화력 배율이 다르다 (숨은 기체가 더 강함)
+    const power = this.player.def.bombPower;
     for (const e of this.enemies) {
-      if (!e.dead && e.y > -e.radius && inRange(e.x, e.y, e.radius)) this.damage(e, enemyDmg);
+      if (!e.dead && e.y > -e.radius && inRange(e.x, e.y, e.radius)) {
+        this.damage(e, enemyDmg * power);
+      }
     }
     const b = this.boss;
-    if (b && inRange(b.x, b.y, b.rx * 0.5)) this.damage(b, bossDmg);
+    if (b && inRange(b.x, b.y, b.rx * 0.5)) this.damage(b, bossDmg * power);
   }
 
   /* ---------------- 충돌 ---------------- */
@@ -1107,7 +1182,7 @@ export class SkyAceEngine implements World {
       }
       this.sound.play('power');
     } else {
-      if (p.bombs < MAX_BOMBS) {
+      if (p.bombs < (p.def.secret ? MAX_BOMBS_SECRET : MAX_BOMBS)) {
         p.bombs += 1;
         this.popup(p.x, p.y - 30, 'BOMB +1', '#8ab8ff', 16);
       } else {
@@ -1317,6 +1392,17 @@ export class SkyAceEngine implements World {
       }
       ctx.lineCap = 'butt';
       ctx.restore();
+    } else if (bomb.kind === 'phoenix') {
+      const fade = Math.min(1, (BOMB_SEC - t) / 0.5, t / 0.15);
+      // 화면 아래를 물들이는 불길
+      const fy = this.firebirdY;
+      const glow = ctx.createLinearGradient(0, fy - 40, 0, VIEW_H);
+      glow.addColorStop(0, 'rgba(255,140,40,0)');
+      glow.addColorStop(0.2, `rgba(255,110,40,${0.28 * fade})`);
+      glow.addColorStop(1, `rgba(200,40,120,${0.12 * fade})`);
+      ctx.fillStyle = glow;
+      ctx.fillRect(0, fy - 40, VIEW_W, VIEW_H - fy + 40);
+      drawFirebird(ctx, VIEW_W / 2 + Math.sin(t * 3) * 30, fy, 1, this.t, fade);
     } else {
       // 환영 칼날 — 궤적을 따라 기체 잔상이 지나간다
       for (const s of bomb.slashes) {
@@ -1374,9 +1460,10 @@ export class SkyAceEngine implements World {
 
     // 남은 기체
     ctx.textAlign = 'left';
+    const lifeGap = p.lives > 5 ? 16 : 22;
     for (let i = 0; i < p.lives; i++) {
       ctx.save();
-      ctx.translate(18 + i * 22, VIEW_H - 40);
+      ctx.translate(18 + i * lifeGap, VIEW_H - 40);
       ctx.fillStyle = p.def.color;
       ctx.beginPath();
       ctx.moveTo(0, -8);
@@ -1388,8 +1475,9 @@ export class SkyAceEngine implements World {
       ctx.restore();
     }
     // 남은 폭탄
+    const bombGap = p.bombs > 6 ? 19 : 22;
     for (let i = 0; i < p.bombs; i++) {
-      const x = 18 + i * 22;
+      const x = 18 + i * bombGap;
       const y = VIEW_H - 16;
       ctx.fillStyle = '#3a8aff';
       ctx.beginPath();
