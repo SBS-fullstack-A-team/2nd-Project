@@ -913,13 +913,14 @@ export class Blade {
    */
   private drawSovereign(ctx: CanvasRenderingContext2D, pts: TrailPoint[], time: number) {
     const n = pts.length;
-    ctx.globalCompositeOperation = 'lighter';
     ctx.lineCap = 'round';
 
-    // 1) 쌍나선 — 진행 방향의 수직으로 벌어진 두 줄이 서로 꼬인다
+    // 1) 쌍나선 — 진행 방향의 수직으로 벌어진 금빛·보랏빛 두 줄이 서로 꼬인다
+    //    (가산 혼합이면 밝은 궤적에 묻히므로 일반 혼합으로 또렷하게 그린다)
+    ctx.globalCompositeOperation = 'source-over';
     for (const [phase, color] of [
-      [0, '#ffd700'],
-      [Math.PI, '#e6fbff'],
+      [0, '#ffc21a'],
+      [Math.PI, '#a35cff'],
     ] as const) {
       ctx.strokeStyle = color;
       for (let i = 1; i < n; i++) {
@@ -933,7 +934,7 @@ export class Blade {
         const nx = -dy / len;
         const ny = dx / len;
         const taper = i / (n - 1);
-        const amp = 11 * taper * fade;
+        const amp = 17 * taper * fade;
         const wa = Math.sin(i * 0.55 - time * 26 + phase) * amp;
         const wb = Math.sin((i + 1) * 0.55 - time * 26 + phase) * amp;
         ctx.globalAlpha = 0.85 * fade;
@@ -946,6 +947,7 @@ export class Blade {
     }
 
     // 2) 궤적을 따라 반짝이는 십자 광채
+    ctx.globalCompositeOperation = 'lighter';
     for (let i = 3; i < n; i += 5) {
       const p = pts[i]!;
       const fade = Math.max(0, 1 - (time - p.t) / TRAIL_LIFE);
@@ -985,8 +987,8 @@ export class Blade {
     ctx.globalCompositeOperation = 'source-over';
     ctx.globalAlpha = headFade;
     ctx.save();
-    ctx.translate(head.x, head.y - 24);
-    drawCrown(ctx, 7, time);
+    ctx.translate(head.x, head.y - 30);
+    drawCrown(ctx, 11, time);
     ctx.restore();
   }
 
