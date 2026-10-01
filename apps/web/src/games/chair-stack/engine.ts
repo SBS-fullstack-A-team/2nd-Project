@@ -17,6 +17,7 @@ import {
   SETTLE_TIMEOUT,
   VIEW_HEIGHT,
   VIEW_WIDTH,
+  type DifficultyDef,
 } from './config';
 
 /** 화면 위에 React 로 보여 줄 값 — 바뀔 때만 알린다 */
@@ -31,9 +32,11 @@ export interface Hud {
 }
 
 export interface GameSummary {
+  /** 최고 높이 × 난이도 배율 */
   score: number;
   bestHeight: number;
   chairs: number;
+  difficulty: DifficultyDef;
 }
 
 interface Callbacks {
@@ -73,6 +76,7 @@ export class ChairStackEngine {
   private paused = false;
 
   private state: State = 'idle';
+  private difficulty: DifficultyDef | null = null;
   private chairs: Body[] = [];
   private holding: Body | null = null;
   private next: ChairPick = randomChair();
@@ -110,8 +114,11 @@ export class ChairStackEngine {
 
   // ───────────── 바깥에서 부르는 조작 ─────────────
 
-  start() {
+  start(difficulty: DifficultyDef) {
+    this.difficulty = difficulty;
     this.resetWorld();
+    // 시작 전 미리 뽑아 둔 다음 의자는 난이도와 상관없이 뽑혔으므로 다시 뽑는다
+    this.pickNext();
     this.state = 'holding';
     this.paused = false;
     this.spawnNext();
@@ -200,9 +207,13 @@ export class ChairStackEngine {
     this.holding = createChairBody(this.next, this.holdX, this.holdY);
     this.holdAngle = 0;
     this.targetAngle = 0;
-    this.next = randomChair();
-    this.nextPreview = createChairBody(this.next, 0, 0);
+    this.pickNext();
     this.emitHud();
+  }
+
+  private pickNext() {
+    this.next = randomChair(this.difficulty?.chairIds);
+    this.nextPreview = createChairBody(this.next, 0, 0);
   }
 
   private holdTargetY() {
@@ -287,10 +298,12 @@ export class ChairStackEngine {
 
   private finish() {
     this.state = 'over';
+    const difficulty = this.difficulty!;
     this.callbacks.onEnd({
-      score: Math.min(MAX_SCORE, this.best),
+      score: Math.min(MAX_SCORE, Math.round(this.best * difficulty.multiplier)),
       bestHeight: this.best,
       chairs: this.stacked,
+      difficulty,
     });
   }
 

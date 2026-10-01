@@ -54,10 +54,42 @@ export const CHAIR_PHYSICS = {
  */
 export const CHAIR_INERTIA_SCALE = 4;
 
+/**
+ * 난이도 — 쉬움은 모두 같은 기본 의자, 어려움은 7가지 의자가 무작위로 나온다.
+ * 랭킹은 하나라서 어려움에 점수 배율을 준다. (점수 = 최고 높이(cm) × 배율)
+ */
+export type Difficulty = 'easy' | 'hard';
+
+export interface DifficultyDef {
+  id: Difficulty;
+  label: string;
+  description: string;
+  /** 나올 수 있는 의자 id (chairs.ts 의 CHAIRS) — 비우면 전부 */
+  chairIds: readonly string[];
+  multiplier: number;
+}
+
+export const DIFFICULTIES: readonly DifficultyDef[] = [
+  {
+    id: 'easy',
+    label: '쉬움',
+    description: '모두 같은 기본 의자 · 점수 = 높이',
+    chairIds: ['basic'],
+    multiplier: 1,
+  },
+  {
+    id: 'hard',
+    label: '어려움',
+    description: '7가지 의자가 무작위로 · 점수 ×1.5',
+    chairIds: [],
+    multiplier: 1.5,
+  },
+];
+
 export const HOW_TO_PLAY = [
   '위에서 의자를 골라 놓을 자리를 정하고 떨어뜨려요.',
   '의자가 받침대 아래로 하나라도 떨어지면 게임 끝!',
-  '점수는 쌓은 탑의 최고 높이(cm)예요.',
+  '점수는 쌓은 탑의 최고 높이(cm)예요. 어려움은 ×1.5!',
 ] as const;
 
 export const CONTROLS = [

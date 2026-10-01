@@ -129,6 +129,39 @@
   color: var(--text-muted);
 }
 
+/* 난이도 선택 */
+.levels {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 8px;
+  margin: 0 0 14px;
+}
+.level {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  padding: 8px 10px;
+  border: 2px solid var(--border);
+  border-radius: var(--radius-sm);
+  background: var(--surface);
+  color: var(--text);
+  font: inherit;
+  cursor: pointer;
+}
+.level:hover {
+  border-color: var(--accent);
+}
+.levelOn,
+.levelOn:hover {
+  border-color: var(--accent);
+  background: var(--accent);
+  color: #fff;
+}
+.levelDesc {
+  font-size: 0.75rem;
+  opacity: 0.85;
+}
+
 .hint {
   margin: 10px 0;
   color: var(--text-muted);
