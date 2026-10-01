@@ -33,20 +33,6 @@ function rivets(ctx: CanvasRenderingContext2D, pts: [number, number][], r = 1.6)
   }
 }
 
-/** 톱니바퀴 경로 */
-function gearPath(ctx: CanvasRenderingContext2D, r: number, teeth: number, depth: number) {
-  ctx.beginPath();
-  const step = TAU / teeth;
-  for (let i = 0; i < teeth; i++) {
-    const a = i * step;
-    ctx.lineTo(Math.cos(a) * r, Math.sin(a) * r);
-    ctx.lineTo(Math.cos(a + step * 0.15) * (r + depth), Math.sin(a + step * 0.15) * (r + depth));
-    ctx.lineTo(Math.cos(a + step * 0.45) * (r + depth), Math.sin(a + step * 0.45) * (r + depth));
-    ctx.lineTo(Math.cos(a + step * 0.6) * r, Math.sin(a + step * 0.6) * r);
-  }
-  ctx.closePath();
-}
-
 /** 빛나는 구체 (코어·렌즈) */
 function glowOrb(
   ctx: CanvasRenderingContext2D,
@@ -736,255 +722,430 @@ export function drawKraken(ctx: CanvasRenderingContext2D, b: BossLook) {
 /* =========================================================
  * Stage 3 — 시공간 메카 크로노스
  * ========================================================= */
+/** 2단계 — 장갑 이음매가 갈라져 안쪽 열기가 새어 나오는 선 */
 const CHRONOS_CRACKS: number[][] = [
-  [-20, -60, -8, -40, -18, -20, -4, 0],
-  [30, -50, 18, -30, 34, -10],
-  [-44, 10, -26, 26, -34, 50],
-  [40, 20, 22, 40, 30, 62],
+  [-24, -46, -14, -30, -26, -16, -12, 0],
+  [28, -44, 16, -28, 32, -10],
+  [-38, 26, -24, 38, -30, 58],
+  [36, 22, 22, 40, 28, 60],
+  [-88, -34, -70, -24, -60, -8],
+  [92, -38, 74, -22, 66, -6],
 ];
 
+/** 손상 자국 위치 (체력이 줄수록 앞에서부터 하나씩 늘어난다) */
+const CHRONOS_SCORCH: [number, number, number][] = [
+  [-30, 36, 9],
+  [36, -32, 8],
+  [-84, -30, 8],
+  [90, -28, 7],
+  [22, 54, 7],
+  [-40, -50, 7],
+  [62, 4, 6],
+];
+
+/** 2단계 — 왜곡장에 생기는 시공간 균열 */
+const CHRONOS_RIFTS: number[][] = [
+  [-150, -40, -132, -52, -138, -30, -118, -36],
+  [146, 30, 128, 22, 136, 44, 114, 40],
+  [-120, 96, -104, 84, -100, 104],
+  [110, -104, 96, -90, 116, -82],
+];
+
+/** 금속판 그라디언트 — 왼쪽 위에서 빛을 받는다 */
+function metal(
+  ctx: CanvasRenderingContext2D,
+  x0: number,
+  y0: number,
+  x1: number,
+  y1: number,
+  light: string,
+  mid: string,
+  dark: string,
+) {
+  const g = ctx.createLinearGradient(x0, y0, x1, y1);
+  g.addColorStop(0, light);
+  g.addColorStop(0.45, mid);
+  g.addColorStop(1, dark);
+  return g;
+}
+
+/** 꺾인 선 하나 (패널 이음선·균열용) */
+function polyline(ctx: CanvasRenderingContext2D, pts: readonly number[]) {
+  ctx.beginPath();
+  for (let i = 0; i < pts.length; i += 2) {
+    if (i === 0) ctx.moveTo(pts[i]!, pts[i + 1]!);
+    else ctx.lineTo(pts[i]!, pts[i + 1]!);
+  }
+  ctx.stroke();
+}
+
+/**
+ * 크로노스 — 시공간 엔진을 품은 중장갑 전함형 메카.
+ * 건메탈 장갑 선체 + 뒤로 꺾인 장갑 날개 + 쌍발 엔진, 가운데 장갑 하우징 안에서 자이로 고리가 도는 시공간 코어.
+ * 2단계(광란)에서는 코어 셔터가 열리고 날개 끝에 에너지 칼날이 돋으며, 장갑 틈과 주변 공간이 갈라진다.
+ */
 export function drawChronos(ctx: CanvasRenderingContext2D, b: BossLook) {
   const t = b.t;
   const rage = b.phase === 2;
-  const main = rage ? '#ff5a3a' : '#b88aff';
-  const gold = rage ? '#ffb05a' : '#e8c86a';
+  /** 주 발광색 / 보조 발광색 */
+  const glow = rage ? '#ff5a2a' : '#a36bff';
+  const glow2 = rage ? '#ffc04a' : '#6ad8ff';
+  const glowRgb = rage ? '255,90,42' : '163,107,255';
+  /** 황동 테두리 — 얇은 강조선으로만 쓴다 */
+  const trim = '#c9a45a';
+  const spin = rage ? 3.2 : 1;
+  const pulse = 0.65 + 0.35 * Math.sin(t * (rage ? 9 : 3));
+
   ctx.save();
   ctx.translate(b.x, b.y);
 
-  dropShadow(ctx, 30, 110, 130, 40);
+  dropShadow(ctx, 26, 124, 150, 42);
 
-  // 오라
-  const aura = ctx.createRadialGradient(0, 0, 30, 0, 0, 170);
-  aura.addColorStop(0, rage ? 'rgba(255,60,30,0.35)' : 'rgba(150,90,255,0.3)');
+  // ---------- 1) 시공간 왜곡장 — 비스듬히 누운 홀로그램 고리 3겹 ----------
+  const aura = ctx.createRadialGradient(0, 0, 40, 0, 0, 180);
+  aura.addColorStop(0, `rgba(${glowRgb},0.26)`);
   aura.addColorStop(1, 'rgba(0,0,0,0)');
   ctx.fillStyle = aura;
-  ellipse(ctx, 0, 0, 170, 170);
+  ellipse(ctx, 0, 0, 180, 180);
 
-  // 뒤쪽 시계판 링 (로마 숫자 대신 굵고 가는 눈금)
   ctx.save();
-  ctx.rotate(t * 0.4 * (rage ? 4 : 1));
-  ctx.strokeStyle = main;
-  ctx.globalAlpha = 0.9;
-  ctx.lineWidth = 4;
-  ctx.beginPath();
-  ctx.arc(0, 0, 112, 0, TAU);
-  ctx.stroke();
-  ctx.lineWidth = 1.5;
-  ctx.beginPath();
-  ctx.arc(0, 0, 100, 0, TAU);
-  ctx.stroke();
-  for (let i = 0; i < 60; i++) {
-    const a = (i / 60) * TAU;
-    const major = i % 5 === 0;
-    ctx.lineWidth = major ? 4 : 1.2;
-    ctx.beginPath();
-    ctx.moveTo(Math.cos(a) * (major ? 101 : 104), Math.sin(a) * (major ? 101 : 104));
-    ctx.lineTo(Math.cos(a) * 111, Math.sin(a) * 111);
-    ctx.stroke();
-    if (major) {
-      ctx.fillStyle = gold;
-      ellipse(ctx, Math.cos(a) * 120, Math.sin(a) * 120, 3.5, 3.5);
-    }
-  }
-  ctx.restore();
-  ctx.globalAlpha = 1;
-
-  // 반대로 도는 톱니바퀴 2개
-  for (const [gx, gy, r, dir] of [
-    [-62, -44, 26, 1],
-    [62, -44, 26, -1],
+  ctx.globalCompositeOperation = 'lighter';
+  ctx.scale(1, 0.78);
+  for (const [r, speed, segs, alpha] of [
+    [118, 0.25, 6, 0.45],
+    [134, -0.35, 10, 0.32],
+    [150, 0.15, 3, 0.25],
   ] as const) {
     ctx.save();
-    ctx.translate(gx, gy);
-    ctx.rotate(t * dir * (rage ? 4 : 1.2));
-    const gg = ctx.createRadialGradient(-6, -6, 2, 0, 0, r + 6);
-    gg.addColorStop(0, '#fff2c0');
-    gg.addColorStop(1, rage ? '#8a3a1a' : '#8a6a2a');
-    ctx.fillStyle = gg;
-    gearPath(ctx, r, 12, 6);
-    ctx.fill();
-    ctx.fillStyle = '#1a1428';
-    ellipse(ctx, 0, 0, r * 0.4, r * 0.4);
-    for (let i = 0; i < 4; i++) {
-      ctx.rotate(TAU / 4);
-      ctx.fillRect(-2, r * 0.4, 4, r * 0.45);
+    ctx.rotate(t * speed * spin);
+    ctx.strokeStyle = glow;
+    ctx.globalAlpha = alpha;
+    ctx.lineWidth = 1.6;
+    for (let i = 0; i < segs; i++) {
+      const a0 = (i / segs) * TAU;
+      ctx.beginPath();
+      ctx.arc(0, 0, r, a0, a0 + (TAU / segs) * 0.72);
+      ctx.stroke();
     }
     ctx.restore();
   }
-
-  // 진자 — 몸 아래에서 흔들린다
-  const swing = Math.sin(t * (rage ? 5 : 2)) * 0.5;
+  // 가장 안쪽 고리의 눈금 (시계 눈금을 은은하게 남긴다)
   ctx.save();
-  ctx.translate(0, 50);
-  ctx.rotate(swing);
-  ctx.strokeStyle = gold;
-  ctx.lineWidth = 3;
+  ctx.rotate(-t * 0.5 * spin);
+  ctx.strokeStyle = glow2;
+  ctx.globalAlpha = 0.35;
+  ctx.lineWidth = 1;
   ctx.beginPath();
-  ctx.moveTo(0, 0);
-  ctx.lineTo(0, 64);
+  for (let i = 0; i < 60; i++) {
+    const a = (i / 60) * TAU;
+    const inner = i % 5 === 0 ? 100 : 104;
+    ctx.moveTo(Math.cos(a) * inner, Math.sin(a) * inner);
+    ctx.lineTo(Math.cos(a) * 108, Math.sin(a) * 108);
+  }
   ctx.stroke();
-  const bob = ctx.createRadialGradient(-5, 60, 2, 0, 66, 16);
-  bob.addColorStop(0, '#fffbe0');
-  bob.addColorStop(1, gold);
-  ctx.fillStyle = bob;
-  ellipse(ctx, 0, 66, 14, 14);
-  glowOrb(ctx, 0, 66, 8, main);
+  ctx.restore();
   ctx.restore();
 
-  // 시곗바늘 날개 (양옆 3장씩)
-  for (const s of [-1, 1]) {
-    ctx.save();
-    ctx.scale(s, 1);
-    const flap = Math.sin(t * (rage ? 9 : 2)) * 0.07;
-    for (let i = 0; i < 3; i++) {
-      ctx.save();
-      ctx.translate(46, -20 + i * 14);
-      ctx.rotate(-0.55 + i * 0.35 + flap * (i + 1));
-      const len = 100 - i * 18;
-      const wg = ctx.createLinearGradient(0, -6, 0, 6);
-      wg.addColorStop(0, rage ? '#5a1a1a' : '#2a2050');
-      wg.addColorStop(0.5, rage ? '#c8402a' : '#6a58b0');
-      wg.addColorStop(1, rage ? '#3a0a0a' : '#1a1438');
-      ctx.fillStyle = wg;
-      poly(ctx, [0, -6, len * 0.7, -8, len, 0, len * 0.7, 8, 0, 6]);
-      ctx.strokeStyle = gold;
-      ctx.lineWidth = 1.5;
-      ctx.stroke();
-      ctx.fillStyle = main;
-      ellipse(ctx, len * 0.55, 0, 3, 3);
-      if (rage) {
-        ctx.save();
-        ctx.globalCompositeOperation = 'lighter';
-        ctx.strokeStyle = 'rgba(255,140,60,0.8)';
-        ctx.lineWidth = 2;
-        ctx.beginPath();
-        ctx.moveTo(len * 0.7, -8);
-        ctx.lineTo(len, 0);
-        ctx.lineTo(len * 0.7, 8);
-        ctx.stroke();
-        ctx.restore();
-      }
-      ctx.restore();
-    }
-    ctx.restore();
-  }
-
-  // 몸체 장갑
-  const body = ctx.createLinearGradient(-60, -70, 60, 70);
-  body.addColorStop(0, rage ? '#6a1e28' : '#4a3a86');
-  body.addColorStop(0.5, rage ? '#3a0c14' : '#2a2058');
-  body.addColorStop(1, rage ? '#1a0408' : '#120e2a');
-  ctx.fillStyle = body;
-  const shape = [0, -72, 46, -46, 60, 8, 34, 62, -34, 62, -60, 8, -46, -46];
-  poly(ctx, shape);
-  ctx.strokeStyle = gold;
-  ctx.lineWidth = 2.5;
-  ctx.stroke();
-  // 안쪽 장식선
-  ctx.strokeStyle = rage ? 'rgba(255,150,90,0.4)' : 'rgba(220,200,255,0.35)';
-  ctx.lineWidth = 1;
-  poly(ctx, [0, -60, 36, -40, 48, 6, 28, 52, -28, 52, -48, 6, -36, -40]);
-  ctx.fillStyle = 'rgba(0,0,0,0)';
-  ctx.stroke();
-  // 어깨 장갑
-  for (const s of [-1, 1]) {
-    const sg = ctx.createRadialGradient(46 * s - 4, -40, 2, 46 * s, -36, 20);
-    sg.addColorStop(0, '#fff2c0');
-    sg.addColorStop(1, gold);
-    ctx.fillStyle = sg;
-    ctx.beginPath();
-    ctx.ellipse(46 * s, -36, 18, 13, s * 0.4, 0, TAU);
-    ctx.fill();
-    if (rage) {
-      ctx.fillStyle = '#ff6a3a';
-      poly(ctx, [40 * s, -46, 70 * s, -78, 56 * s, -40]);
-      poly(ctx, [54 * s, -34, 86 * s, -50, 62 * s, -26]);
-    }
-  }
-
-  // 광란 — 갈라진 틈에서 빛이 샌다
+  // 2단계 — 공간이 찢어진 균열이 깜빡인다
   if (rage) {
     ctx.save();
     ctx.globalCompositeOperation = 'lighter';
-    ctx.strokeStyle = `rgba(255,${140 + Math.floor(Math.sin(t * 12) * 60)},60,0.9)`;
-    ctx.lineWidth = 2.5;
-    for (const c of CHRONOS_CRACKS) {
-      ctx.beginPath();
-      for (let i = 0; i < c.length; i += 2) {
-        if (i === 0) ctx.moveTo(c[i]!, c[i + 1]!);
-        else ctx.lineTo(c[i]!, c[i + 1]!);
+    ctx.lineJoin = 'miter';
+    CHRONOS_RIFTS.forEach((r, i) => {
+      const f = 0.5 + 0.5 * Math.sin(t * 11 + i * 1.7);
+      ctx.strokeStyle = `rgba(255,120,60,${0.35 * f})`;
+      ctx.lineWidth = 6;
+      polyline(ctx, r);
+      ctx.strokeStyle = `rgba(255,236,200,${0.9 * f})`;
+      ctx.lineWidth = 1.6;
+      polyline(ctx, r);
+    });
+    ctx.restore();
+  }
+
+  // ---------- 2) 쌍발 엔진 (뒤쪽 = 위) ----------
+  for (const s of [-1, 1]) {
+    const ex = s * 30;
+    ctx.save();
+    ctx.translate(ex, -92);
+    ctx.scale(1, -1);
+    drawThrust(
+      ctx,
+      0,
+      0,
+      13,
+      rage ? 40 : 28,
+      t + s,
+      rage ? '#ffe0b0' : '#efe6ff',
+      rage ? '#ff4a1a' : '#8a5aff',
+    );
+    ctx.restore();
+    ctx.fillStyle = metal(ctx, ex - 10, 0, ex + 10, 0, '#6a707c', '#3a3f4a', '#16181e');
+    ctx.fillRect(ex - 10, -92, 20, 44);
+    ctx.fillStyle = '#0e1015';
+    for (const by of [-84, -70, -56]) ctx.fillRect(ex - 10, by, 20, 2.5);
+    ctx.fillStyle = `rgba(${glowRgb},${0.6 * pulse})`;
+    ctx.fillRect(ex - 6, -95, 12, 4);
+  }
+
+  // ---------- 3) 장갑 날개 (뒤로 꺾임) + 2단계 에너지 칼날 ----------
+  const hover = Math.sin(t * 1.6) * 0.02;
+  for (const s of [-1, 1]) {
+    ctx.save();
+    ctx.scale(s, 1);
+    ctx.rotate(hover);
+
+    if (rage) {
+      // 날개 끝에서 돋는 에너지 칼날
+      ctx.save();
+      ctx.globalCompositeOperation = 'lighter';
+      const flick = 0.75 + 0.25 * Math.sin(t * 17);
+      for (const blade of [
+        [128, -60, 176, -110, 146, -50],
+        [120, -40, 172, -70, 136, -32],
+        [104, -22, 150, -36, 116, -14],
+      ]) {
+        const g = ctx.createLinearGradient(blade[0]!, blade[1]!, blade[2]!, blade[3]!);
+        g.addColorStop(0, `rgba(255,200,120,${0.9 * flick})`);
+        g.addColorStop(1, 'rgba(255,60,20,0)');
+        ctx.fillStyle = g;
+        poly(ctx, blade);
+        // 칼날 바깥 모서리 — 하얗게 달아오른 날
+        ctx.strokeStyle = `rgba(255,236,200,${0.95 * flick})`;
+        ctx.lineWidth = 1.6;
+        polyline(ctx, [blade[0]!, blade[1]!, blade[2]!, blade[3]!]);
       }
-      ctx.stroke();
+      ctx.restore();
+    }
+
+    // 날개 아래판 (그림자 쪽 두께)
+    ctx.fillStyle = '#0e1015';
+    poly(ctx, [34, -28, 92, -52, 134, -64, 142, -50, 120, -28, 72, 0, 40, 18]);
+    // 날개 윗판
+    ctx.fillStyle = metal(ctx, 40, -60, 120, 10, '#727a88', '#3e4450', '#1c1f26');
+    poly(ctx, [38, -26, 92, -48, 130, -60, 136, -51, 116, -31, 70, -5, 42, 12]);
+    // 패널 이음선
+    ctx.strokeStyle = 'rgba(0,0,0,0.55)';
+    ctx.lineWidth = 1;
+    polyline(ctx, [62, -36, 58, 3]);
+    polyline(ctx, [88, -46, 90, -14]);
+    polyline(ctx, [112, -55, 112, -32]);
+    ctx.strokeStyle = 'rgba(255,255,255,0.12)';
+    polyline(ctx, [63, -36, 59, 3]);
+    polyline(ctx, [89, -46, 91, -14]);
+    // 앞전 황동 테두리
+    ctx.strokeStyle = trim;
+    ctx.lineWidth = 1.3;
+    polyline(ctx, [136, -51, 116, -31, 70, -5, 42, 12]);
+    // 발광 배기구 3줄 (앞전과 나란히)
+    ctx.save();
+    ctx.globalCompositeOperation = 'lighter';
+    ctx.lineCap = 'round';
+    for (let k = 0; k < 3; k++) {
+      const off = 7 + k * 6;
+      ctx.strokeStyle = `rgba(${glowRgb},${0.85 * pulse})`;
+      ctx.lineWidth = 2.2;
+      polyline(ctx, [70 + k * 6, -5 - off, 104 + k * 4, -24 - off]);
+    }
+    ctx.restore();
+    rivets(
+      ctx,
+      [
+        [48, 2],
+        [76, -12],
+        [100, -26],
+        [124, -44],
+      ],
+      1.1,
+    );
+    // 날개 끝 무장 포드
+    ctx.fillStyle = metal(ctx, 122, -66, 136, -36, '#7a808c', '#3a3f4a', '#15181e');
+    ctx.beginPath();
+    ctx.ellipse(130, -50, 7, 16, -0.35, 0, TAU);
+    ctx.fill();
+    ctx.strokeStyle = trim;
+    ctx.lineWidth = 1;
+    ctx.stroke();
+    ctx.restore();
+  }
+  // 날개 끝 포신 — 좌우 반전 밖에서 그려야 조준 방향이 맞다
+  for (const s of [-1, 1]) {
+    barrel(ctx, s * 130, -40, b.aim, 16, 4);
+    glowOrb(ctx, s * 130, -50, 5, `rgba(${glowRgb},0.9)`, 0.8 * pulse);
+  }
+
+  // ---------- 4) 선체 ----------
+  const hull = [
+    0, 86, 18, 72, 30, 46, 50, 18, 58, -14, 48, -48, 30, -78, 12, -88, -12, -88, -30, -78, -48, -48,
+    -58, -14, -50, 18, -30, 46, -18, 72,
+  ];
+  ctx.fillStyle = '#0b0d12';
+  poly(ctx, hull);
+  ctx.save();
+  ctx.scale(0.94, 0.95);
+  ctx.fillStyle = metal(ctx, -50, -80, 50, 80, '#6c7380', '#373c47', '#14161c');
+  poly(ctx, hull);
+  ctx.restore();
+  // 왼쪽 위에서 받는 빛 — 장갑 모서리 하이라이트
+  ctx.fillStyle = 'rgba(255,255,255,0.10)';
+  poly(ctx, [-44, -44, -28, -74, -14, -80, -32, -40, -46, -10]);
+  // 장갑판 이음선 (어두운 선 + 1px 아래 밝은 선으로 홈을 표현)
+  for (const [color, dy] of [
+    ['rgba(0,0,0,0.6)', 0],
+    ['rgba(255,255,255,0.12)', 1],
+  ] as const) {
+    ctx.strokeStyle = color;
+    ctx.lineWidth = 1;
+    polyline(ctx, [-40, -56 + dy, 0, -64 + dy, 40, -56 + dy]);
+    polyline(ctx, [-50, 16 + dy, 0, 34 + dy, 50, 16 + dy]);
+    polyline(ctx, [-28, 48 + dy, 0, 58 + dy, 28, 48 + dy]);
+    polyline(ctx, [0, -88 + dy, 0, -64 + dy]);
+    polyline(ctx, [-46, -44 + dy, -54, -14 + dy]);
+    polyline(ctx, [46, -44 + dy, 54, -14 + dy]);
+  }
+  // 옆구리 방열판
+  for (const s of [-1, 1]) {
+    for (let k = 0; k < 5; k++) {
+      const fy = -34 + k * 7;
+      ctx.fillStyle = '#101218';
+      ctx.fillRect(s > 0 ? 40 : -50, fy, 10, 4);
+      ctx.fillStyle = `rgba(${glowRgb},${0.45 * pulse})`;
+      ctx.fillRect(s > 0 ? 41 : -49, fy + 1.4, 8, 1.2);
+    }
+  }
+  ctx.strokeStyle = trim;
+  ctx.globalAlpha = 0.75;
+  ctx.lineWidth = 1.2;
+  poly(ctx, hull);
+  ctx.fillStyle = 'rgba(0,0,0,0)';
+  ctx.stroke();
+  ctx.globalAlpha = 1;
+  rivets(
+    ctx,
+    [
+      [-30, -58],
+      [30, -58],
+      [-36, 24],
+      [36, 24],
+      [-18, 52],
+      [18, 52],
+      [-50, -20],
+      [50, -20],
+    ],
+    1.3,
+  );
+
+  // ---------- 5) 시공간 코어 ----------
+  const cy = -14;
+  // 하우징 — 움푹 들어간 원통 + 볼트 고리
+  ctx.fillStyle = '#07080c';
+  ellipse(ctx, 0, cy, 34, 34);
+  ctx.strokeStyle = metal(ctx, -34, cy - 34, 34, cy + 34, '#8a909c', '#3a3f4a', '#111318');
+  ctx.lineWidth = 6;
+  ctx.beginPath();
+  ctx.arc(0, cy, 31, 0, TAU);
+  ctx.stroke();
+  ctx.strokeStyle = trim;
+  ctx.lineWidth = 1;
+  ctx.beginPath();
+  ctx.arc(0, cy, 34.5, 0, TAU);
+  ctx.stroke();
+  for (let i = 0; i < 10; i++) {
+    const a = (i / 10) * TAU + Math.PI / 10;
+    rivets(ctx, [[Math.cos(a) * 31, cy + Math.sin(a) * 31]], 1.2);
+  }
+
+  // 코어 빛
+  ctx.save();
+  ctx.globalCompositeOperation = 'lighter';
+  glowOrb(ctx, 0, cy, rage ? 54 : 40, `rgba(${glowRgb},0.55)`, 0.6 * pulse);
+  ctx.restore();
+  const core = ctx.createRadialGradient(-4, cy - 4, 1, 0, cy, 15);
+  core.addColorStop(0, '#ffffff');
+  core.addColorStop(0.35, glow2);
+  core.addColorStop(0.8, glow);
+  core.addColorStop(1, rage ? '#4a0a00' : '#1a0a40');
+  ctx.fillStyle = core;
+  ellipse(ctx, 0, cy, 13 + pulse * 1.5, 13 + pulse * 1.5);
+
+  // 자이로 고리 3개 — 각자 다른 축으로 기울며 돈다
+  ctx.save();
+  ctx.translate(0, cy);
+  for (let i = 0; i < 3; i++) {
+    ctx.save();
+    ctx.rotate((i * TAU) / 3 + t * 0.6 * spin);
+    ctx.scale(1, 0.15 + 0.85 * Math.abs(Math.cos(t * (1.1 + i * 0.45) * spin + i)));
+    ctx.strokeStyle = i === 0 ? trim : glow2;
+    ctx.lineWidth = i === 0 ? 2.2 : 1.4;
+    ctx.beginPath();
+    ctx.arc(0, 0, 19 + i * 2.5, 0, TAU);
+    ctx.stroke();
+    ctx.restore();
+  }
+  ctx.restore();
+
+  // 장갑 셔터 4장 — 1단계는 반쯤 닫혀 있고, 2단계는 활짝 열린다
+  const inner = rage ? 27 : 18;
+  ctx.save();
+  ctx.translate(0, cy);
+  ctx.rotate(Math.PI / 4);
+  for (let i = 0; i < 4; i++) {
+    ctx.rotate(TAU / 4);
+    ctx.fillStyle = metal(ctx, -10, -30, 10, -inner, '#5a606c', '#2c3038', '#121419');
+    ctx.beginPath();
+    ctx.arc(0, 0, 29, -0.42 - Math.PI / 2, 0.42 - Math.PI / 2);
+    ctx.arc(0, 0, inner, 0.42 - Math.PI / 2, -0.42 - Math.PI / 2, true);
+    ctx.closePath();
+    ctx.fill();
+    ctx.strokeStyle = 'rgba(0,0,0,0.6)';
+    ctx.lineWidth = 1;
+    ctx.stroke();
+  }
+  ctx.restore();
+
+  // ---------- 6) 센서 바이저 + 쌍열 주포 ----------
+  ctx.fillStyle = '#05060a';
+  poly(ctx, [-20, 22, 20, 22, 14, 31, -14, 31]);
+  ctx.strokeStyle = trim;
+  ctx.lineWidth = 1;
+  ctx.stroke();
+  const scan = Math.sin(t * 2.2 * spin) * 12;
+  ctx.save();
+  ctx.globalCompositeOperation = 'lighter';
+  glowOrb(ctx, scan, 26.5, 10, rage ? 'rgba(255,40,40,0.9)' : 'rgba(106,216,255,0.9)');
+  ctx.fillStyle = rage ? 'rgba(255,80,60,0.5)' : 'rgba(106,216,255,0.45)';
+  ctx.fillRect(-16, 26, 32, 1.2);
+  ctx.restore();
+
+  for (const s of [-1, 1]) barrel(ctx, s * 7, 54, b.aim, 30, 5);
+  ctx.fillStyle = metal(ctx, -14, 42, 14, 66, '#7a808c', '#3a3f4a', '#15181e');
+  ellipse(ctx, 0, 54, 14, 11);
+  ctx.strokeStyle = trim;
+  ctx.lineWidth = 1;
+  ctx.beginPath();
+  ctx.ellipse(0, 54, 14, 11, 0, 0, TAU);
+  ctx.stroke();
+  glowOrb(ctx, 0, 54, 6, `rgba(${glowRgb},0.9)`, 0.9 * pulse);
+
+  // ---------- 7) 손상 표현 ----------
+  scorch(ctx, CHRONOS_SCORCH, Math.max(0, (1 - b.hp) * 1.4), t);
+  if (rage) {
+    ctx.save();
+    ctx.globalCompositeOperation = 'lighter';
+    ctx.lineJoin = 'miter';
+    const heat = 140 + Math.floor(Math.sin(t * 12) * 60);
+    for (const c of CHRONOS_CRACKS) {
+      ctx.strokeStyle = 'rgba(255,90,30,0.45)';
+      ctx.lineWidth = 5;
+      polyline(ctx, c);
+      ctx.strokeStyle = `rgba(255,${heat},80,0.95)`;
+      ctx.lineWidth = 1.8;
+      polyline(ctx, c);
     }
     ctx.restore();
   }
 
-  // 모래시계 문양
-  ctx.save();
-  ctx.translate(0, 38);
-  ctx.fillStyle = gold;
-  ctx.fillRect(-10, -14, 20, 3);
-  ctx.fillRect(-10, 11, 20, 3);
-  ctx.fillStyle = 'rgba(200,230,255,0.25)';
-  poly(ctx, [-8, -11, 8, -11, 1, 0, 8, 11, -8, 11, -1, 0]);
-  const sand = (t * 0.25) % 1;
-  ctx.fillStyle = main;
-  poly(ctx, [-8 * (1 - sand), -11 + 11 * sand, 8 * (1 - sand), -11 + 11 * sand, 0, 0]);
-  poly(ctx, [-8 * sand, 11 - 11 * sand, 8 * sand, 11 - 11 * sand, 8, 11, -8, 11]);
-  ctx.fillRect(-0.8, 0, 1.6, 11);
-  ctx.restore();
-
-  // 시계 문자판 코어 + 바늘
-  glowOrb(ctx, 0, -6, 44, rage ? 'rgba(255,90,40,0.6)' : 'rgba(170,120,255,0.55)');
-  const face = ctx.createRadialGradient(-6, -12, 2, 0, -6, 30);
-  face.addColorStop(0, '#2a2240');
-  face.addColorStop(1, '#07050e');
-  ctx.fillStyle = face;
-  ellipse(ctx, 0, -6, 28, 28);
-  ctx.strokeStyle = gold;
-  ctx.lineWidth = 3;
-  ctx.beginPath();
-  ctx.arc(0, -6, 28, 0, TAU);
-  ctx.stroke();
-  ctx.strokeStyle = rage ? '#ffd0a0' : '#efe4ff';
-  for (let i = 0; i < 12; i++) {
-    const a = (i / 12) * TAU;
-    ctx.lineWidth = i % 3 === 0 ? 3 : 1.5;
-    ctx.beginPath();
-    ctx.moveTo(Math.cos(a) * 20, -6 + Math.sin(a) * 20);
-    ctx.lineTo(Math.cos(a) * 25, -6 + Math.sin(a) * 25);
-    ctx.stroke();
-  }
-  const h = t * (rage ? 9 : 1.5);
-  ctx.lineCap = 'round';
-  ctx.lineWidth = 3.5;
-  ctx.beginPath();
-  ctx.moveTo(0, -6);
-  ctx.lineTo(Math.cos(h) * 13, -6 + Math.sin(h) * 13);
-  ctx.stroke();
-  ctx.lineWidth = 2;
-  ctx.strokeStyle = main;
-  ctx.beginPath();
-  ctx.moveTo(0, -6);
-  ctx.lineTo(Math.cos(h * 12) * 22, -6 + Math.sin(h * 12) * 22);
-  ctx.stroke();
-  ctx.lineCap = 'butt';
-  ctx.fillStyle = gold;
-  ellipse(ctx, 0, -6, 3.5, 3.5);
-
-  // 머리 — 왕관 뿔 + 바이저 눈
-  ctx.fillStyle = gold;
-  poly(ctx, [-18, -62, -24, -86, -10, -70, 0, -92, 10, -70, 24, -86, 18, -62]);
-  ctx.fillStyle = '#0a0814';
-  poly(ctx, [-26, -56, 26, -56, 20, -44, -20, -44]);
-  const eye = rage ? '#ff2a2a' : '#8af0ff';
-  glowOrb(ctx, -11, -50, 9, eye);
-  glowOrb(ctx, 11, -50, 9, eye);
-  ctx.fillStyle = '#ffffff';
-  ellipse(ctx, -11, -50, 3, 1.6);
-  ellipse(ctx, 11, -50, 3, 1.6);
-
-  hitFlash(ctx, b.flash, 90, 90);
+  hitFlash(ctx, b.flash, 95, 95);
   morphFlash(ctx, b.morph);
   ctx.restore();
 }
