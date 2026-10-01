@@ -1,4 +1,5 @@
 import {
+  useCallback,
   useEffect,
   useRef,
   useState,
@@ -11,6 +12,8 @@ import { api, getErrorMessage } from '../../lib/api';
 import { useFetch } from '../../lib/useFetch';
 import {
   BLADES,
+  CHAMPION_BLADE_ID,
+  CHAMPION_RANK,
   GAME_ID,
   HOW_TO_PLAY,
   QUESTS,
@@ -18,6 +21,7 @@ import {
   TIER_LABEL,
   type BladeDef,
   type BladeId,
+  type BladeTier,
 } from './config';
 import { FruitSlicerEngine } from './engine';
 import { QuestManager, type QuestSnapshot } from './QuestManager';
@@ -60,6 +64,10 @@ export default function FruitSlicer(_props: GameProps) {
   const [engineError, setEngineError] = useState<string | null>(null);
   const [settings, setSettings] = useState<GameSettings>(loadSettings);
   const [settingsOpen, setSettingsOpen] = useState(false);
+  /** 값이 바뀔 때마다 랭커 전용 검 자격을 서버 랭킹으로 다시 확인한다 */
+  const [championCheck, setChampionCheck] = useState(0);
+  const toastSeq = useRef(0);
+  const toastTimers = useRef(new Set<number>());
 
   /** 설정 창이 게임 도중에 열렸는지 (= 일시정지 상태) */
   const pausedInGame = settingsOpen && screen.name === 'playing';
@@ -73,23 +81,36 @@ export default function FruitSlicer(_props: GameProps) {
   useEffect(() => () => sound.destroy(), [sound]);
 
   useEffect(() => {
+    const timers = toastTimers.current;
+    return () => {
+      for (const t of timers) window.clearTimeout(t);
+    };
+  }, []);
+
+  /** 검 해금 알림 — 효과음 + 3초 동안 토스트 */
+  const showUnlocks = useCallback(
+    (blades: BladeDef[]) => {
+      sound.play('unlock');
+      const added = blades.map((blade) => ({ id: ++toastSeq.current, blade }));
+      setToasts((prev) => [...prev, ...added]);
+      const timer = window.setTimeout(() => {
+        toastTimers.current.delete(timer);
+        setToasts((prev) => prev.filter((t) => !added.includes(t)));
+      }, 3000);
+      toastTimers.current.add(timer);
+    },
+    [sound],
+  );
+
+  useEffect(() => {
     const canvas = canvasRef.current;
     if (!canvas) return;
-    const timers = new Set<number>();
-    let toastId = 0;
     let engine: FruitSlicerEngine;
     try {
       engine = new FruitSlicerEngine(canvas, quests, sound, {
         onUnlock: (blades) => {
-          sound.play('unlock');
           setSnapshot(quests.snapshot());
-          const added = blades.map((blade) => ({ id: ++toastId, blade }));
-          setToasts((prev) => [...prev, ...added]);
-          const timer = window.setTimeout(() => {
-            timers.delete(timer);
-            setToasts((prev) => prev.filter((t) => !added.includes(t)));
-          }, 3000);
-          timers.add(timer);
+          showUnlocks(blades);
         },
         onGameOver: (score) => {
           setSnapshot(quests.snapshot());
@@ -106,10 +127,35 @@ export default function FruitSlicer(_props: GameProps) {
       engine.destroy();
       engineRef.current = null;
       sound.stopBgm();
-      for (const t of timers) window.clearTimeout(t);
       quests.save();
     };
-  }, [quests, sound]);
+  }, [quests, sound, showUnlocks]);
+
+  // 랭커 전용 검 — 서버 랭킹 TOP 3 안에 내 닉네임(마지막으로 등록한 이름)이 있으면 쓸 수 있다
+  useEffect(() => {
+    let cancelled = false;
+    const nickname = loadNickname().trim();
+    const check = nickname
+      ? api
+          .getRanking(GAME_ID, CHAMPION_RANK)
+          .then((res) => res.items.some((entry) => entry.nickname === nickname))
+      : Promise.resolve(false);
+    check
+      .then((eligible) => {
+        if (cancelled) return;
+        const gained = quests.setChampion(eligible);
+        engineRef.current?.setBlade(quests.selected);
+        setSnapshot(quests.snapshot());
+        const blade = BLADES.find((b) => b.id === CHAMPION_BLADE_ID);
+        if (gained && blade) showUnlocks([blade]);
+      })
+      .catch(() => {
+        // 랭킹을 못 불러오면 이전 상태를 그대로 둔다
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [quests, showUnlocks, championCheck]);
 
   function startGame() {
     sound.unlock(); // 브라우저 자동재생 정책 — 클릭 안에서 오디오를 깨운다
@@ -239,9 +285,11 @@ export default function FruitSlicer(_props: GameProps) {
               <NameEntry
                 score={screen.score}
                 isBest={screen.score > 0 && screen.score >= snapshot.stats.highScore}
-                onDone={(submitted) =>
-                  setScreen({ name: 'ranking', score: screen.score, submitted })
-                }
+                onDone={(submitted) => {
+                  setScreen({ name: 'ranking', score: screen.score, submitted });
+                  // 등록했으면 순위가 바뀌었을 수 있으니 랭커 전용 검 자격을 다시 확인
+                  if (submitted) setChampionCheck((n) => n + 1);
+                }}
               />
             </div>
           </div>
@@ -394,6 +442,20 @@ function MainMenu({
   );
 }
 
+const TIER_CLASS: Record<BladeTier, string> = {
+  normal: '',
+  epic: styles.bladeEpic ?? '',
+  legend: styles.bladeLegend ?? '',
+  champion: styles.bladeChampion ?? '',
+};
+
+const TIER_BADGE_CLASS: Record<BladeTier, string | undefined> = {
+  normal: undefined,
+  epic: styles.epicBadge,
+  legend: styles.legendBadge,
+  champion: styles.championBadge,
+};
+
 function BladeInventory({
   snapshot,
   onSelect,
@@ -409,12 +471,11 @@ function BladeInventory({
           const unlocked = snapshot.unlocked.has(blade.id);
           const selected = snapshot.selected === blade.id;
           const quest = QUESTS.find((q) => q.reward === blade.id);
-          const tierClass =
-            blade.tier === 'legend'
-              ? styles.bladeLegend
-              : blade.tier === 'epic'
-                ? styles.bladeEpic
-                : '';
+          const condition =
+            blade.tier === 'champion'
+              ? `전체 랭킹 TOP ${CHAMPION_RANK} 안에 이름 올리기 (마지막으로 등록한 이름 기준)`
+              : (quest?.title ?? '-');
+          const tierClass = TIER_CLASS[blade.tier];
           return (
             <li key={blade.id}>
               <button
@@ -425,7 +486,7 @@ function BladeInventory({
                 onClick={() => onSelect(blade.id)}
               >
                 <span
-                  className={`${styles.bladeSwatch} ${blade.tier !== 'normal' ? styles.swatchShine : ''}`}
+                  className={`${styles.bladeSwatch} ${blade.tier !== 'normal' ? styles.swatchShine : ''} ${blade.tier === 'champion' ? styles.swatchChampion : ''}`}
                   style={{ background: blade.preview }}
                 />
                 <span className={styles.bladeInfo}>
@@ -433,16 +494,10 @@ function BladeInventory({
                     {unlocked ? '' : '🔒 '}
                     {blade.name}
                     {blade.tier !== 'normal' && (
-                      <span
-                        className={blade.tier === 'legend' ? styles.legendBadge : styles.epicBadge}
-                      >
-                        {TIER_LABEL[blade.tier]}
-                      </span>
+                      <span className={TIER_BADGE_CLASS[blade.tier]}>{TIER_LABEL[blade.tier]}</span>
                     )}
                   </strong>
-                  <small>
-                    {unlocked ? blade.description : `해금 조건: ${quest?.title ?? '-'}`}
-                  </small>
+                  <small>{unlocked ? blade.description : `해금 조건: ${condition}`}</small>
                 </span>
                 {selected && <span className={styles.equipped}>장착중</span>}
               </button>
@@ -871,6 +926,9 @@ function RankingBoard({
           {submitted && ` · 전체 ${submitted.rank}위`}
         </p>
       )}
+      <p className={styles.championHint}>
+        👑 TOP {CHAMPION_RANK} 안에 들면 랭커 전용 검 「왕좌의 성검」을 쓸 수 있어요
+      </p>
       {ranking.status === 'loading' && <p className={styles.panelText}>랭킹을 불러오는 중…</p>}
       {ranking.status === 'error' && (
         <p className={styles.error}>랭킹을 불러오지 못했어요. ({ranking.error})</p>

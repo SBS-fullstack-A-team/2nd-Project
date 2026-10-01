@@ -235,6 +235,63 @@
     transform: translateX(100%);
   }
 }
+/* 랭커 전용(TOP 3) — 금빛·오로라 테두리가 흐르고 은은하게 빛난다 */
+.bladeChampion {
+  position: relative;
+  border: 2px solid transparent;
+  background:
+    linear-gradient(135deg, #fffaf0, #fff1c8 45%, #f6ecff) padding-box,
+    linear-gradient(90deg, #ffd700, #5ff0d0, #b46bff, #ff5ec8, #ffd700) border-box;
+  background-size:
+    100% 100%,
+    300% 100%;
+  box-shadow: 0 0 14px rgba(255, 196, 0, 0.45);
+  animation: championFlow 4s linear infinite;
+}
+.bladeChampion:hover:not(:disabled) {
+  border-color: transparent;
+}
+.bladeChampion.bladeSelected {
+  box-shadow:
+    0 0 0 2px var(--accent),
+    0 0 18px rgba(255, 196, 0, 0.6);
+}
+.bladeChampion:disabled {
+  box-shadow: none;
+  animation: none;
+}
+@keyframes championFlow {
+  to {
+    background-position:
+      0 0,
+      300% 0;
+  }
+}
+.championBadge {
+  display: inline-block;
+  margin-left: 6px;
+  padding: 1px 7px;
+  font-size: 0.68rem;
+  font-weight: 900;
+  color: #3a2400;
+  vertical-align: 2px;
+  background: linear-gradient(90deg, #fff3a0, #ffd700, #ffb300, #ffd700, #fff3a0);
+  background-size: 200% 100%;
+  border: 1px solid #b07800;
+  border-radius: 999px;
+  animation: championFlow 2.5s linear infinite;
+}
+.swatchChampion {
+  box-shadow:
+    0 0 8px rgba(255, 215, 0, 0.9),
+    0 0 16px rgba(180, 107, 255, 0.5);
+}
+.championHint {
+  margin: -6px 0 12px;
+  font-size: 0.82rem;
+  font-weight: 700;
+  color: #b07800;
+}
 .bladeInfo {
   display: flex;
   flex-direction: column;
@@ -631,6 +688,8 @@
   .overlay,
   .panel,
   .toast,
+  .bladeChampion,
+  .championBadge,
   .swatchShine::after {
     animation: none;
   }

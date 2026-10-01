@@ -1,4 +1,11 @@
-import { BLADES, QUESTS, type BladeDef, type BladeId, type PlayerStats } from './config';
+import {
+  BLADES,
+  CHAMPION_BLADE_ID,
+  QUESTS,
+  type BladeDef,
+  type BladeId,
+  type PlayerStats,
+} from './config';
 
 const STORAGE_KEY = 'simsim:fruit-slicer:v1';
 
@@ -58,10 +65,17 @@ function load(): SaveData {
     if (Array.isArray(parsed.unlocked)) {
       data.unlocked = [
         'basic',
-        ...parsed.unlocked.filter(isBladeId).filter((id) => id !== 'basic'),
+        // 랭커 전용 검은 저장하지 않는다 — 매번 서버 랭킹으로 확인한다
+        ...parsed.unlocked
+          .filter(isBladeId)
+          .filter((id) => id !== 'basic' && id !== CHAMPION_BLADE_ID),
       ];
     }
-    if (isBladeId(parsed.selected) && data.unlocked.includes(parsed.selected)) {
+    // 랭커 전용 검은 선택 기록만 남겨 두고, 랭킹 확인이 끝나면 다시 장착된다
+    if (
+      isBladeId(parsed.selected) &&
+      (data.unlocked.includes(parsed.selected) || parsed.selected === CHAMPION_BLADE_ID)
+    ) {
       data.selected = parsed.selected;
     }
   } catch {
@@ -75,9 +89,13 @@ function load(): SaveData {
  * ========================================================= */
 export class QuestManager {
   private data: SaveData = load();
+  /** 서버 랭킹 TOP 3 안에 내 닉네임이 있는지 (저장하지 않음 — 매번 확인) */
+  private champion = false;
 
+  /** 실제로 장착되는 검 — 고른 검이 잠겨 있으면 마지막으로 해금한 검을 대신 쓴다 */
   get selected(): BladeId {
-    return this.data.selected;
+    if (this.isUnlocked(this.data.selected)) return this.data.selected;
+    return this.data.unlocked[this.data.unlocked.length - 1] ?? 'basic';
   }
 
   get highScore(): number {
@@ -87,13 +105,23 @@ export class QuestManager {
   snapshot(): QuestSnapshot {
     return {
       stats: { ...this.data.stats },
-      unlocked: new Set(this.data.unlocked),
-      selected: this.data.selected,
+      unlocked: new Set(
+        this.champion ? [...this.data.unlocked, CHAMPION_BLADE_ID] : this.data.unlocked,
+      ),
+      selected: this.selected,
     };
   }
 
   isUnlocked(id: BladeId): boolean {
+    if (id === CHAMPION_BLADE_ID) return this.champion;
     return this.data.unlocked.includes(id);
+  }
+
+  /** 랭킹 확인 결과를 반영한다. 이번에 새로 자격을 얻었으면 true */
+  setChampion(eligible: boolean): boolean {
+    const gained = eligible && !this.champion;
+    this.champion = eligible;
+    return gained;
   }
 
   /** 해금된 검만 선택할 수 있다. 선택하면 바로 저장한다. */
