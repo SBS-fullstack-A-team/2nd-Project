@@ -4,7 +4,12 @@ import {
   CAUGHT_DELAY_MS,
   MULT_STEP_M,
   MULT_MAX,
+  PURSUIT_SEC,
   CLOSE_POINTS,
+  FORK_HINT_M,
+  type RideKind,
+  THEME_LABEL,
+  type Theme,
   COIN_POINTS,
   HOW_TO_PLAY,
   ITEM_KINDS,
@@ -70,6 +75,17 @@ interface Hud {
   multRatio: number;
   bestMult: number;
   closeCount: number;
+  /** 황금 신전 안이면 남은 비율(0~1), 아니면 null */
+  golden: number | null;
+  /** 무너지는 다리 안인지 */
+  collapse: boolean;
+  /** 탈것 구간 안이면 종류와 남은 비율 */
+  ride: { kind: RideKind; ratio: number } | null;
+  /** 앞에 T자 갈림길이 있으면 왼쪽·오른쪽 지형 */
+  fork: { left: Theme; right: Theme } | null;
+  /** 추격 단계와 남은 비율(0~1) */
+  pursuit: RunState['pursuit'];
+  pursuitRatio: number;
 }
 
 const EMPTY_HUD: Hud = {
@@ -83,7 +99,22 @@ const EMPTY_HUD: Hud = {
   multRatio: 0,
   bestMult: 1,
   closeCount: 0,
+  golden: null,
+  collapse: false,
+  ride: null,
+  fork: null,
+  pursuit: 'none',
+  pursuitRatio: 0,
 };
+
+/** 앞에 아직 고르지 않은 T자 갈림길이 가까이 있으면 방향별 지형 */
+function forkOf(run: RunState): Hud['fork'] {
+  const t = run.turns[0];
+  if (!t?.alt || t.committed || t.z > FORK_HINT_M || t.z < -2) return null;
+  return t.dir === -1
+    ? { left: t.theme, right: t.alt.theme }
+    : { left: t.alt.theme, right: t.theme };
+}
 
 function hudOf(run: RunState): Hud {
   return {
@@ -100,6 +131,21 @@ function hudOf(run: RunState): Hud {
     multRatio: run.mult >= run.multMax ? 1 : run.multProgress / MULT_STEP_M,
     bestMult: run.bestMult,
     closeCount: run.closeCount,
+    golden:
+      run.golden?.entered && !run.golden.exited
+        ? Math.max(0, (run.golden.end - run.distance) / (run.golden.end - run.golden.start))
+        : null,
+    collapse: !!run.collapse && run.collapse.entered && !run.collapse.exited,
+    ride:
+      run.ride?.entered && !run.ride.exited
+        ? {
+            kind: run.ride.kind,
+            ratio: Math.max(0, (run.ride.end - run.distance) / (run.ride.end - run.ride.start)),
+          }
+        : null,
+    fork: forkOf(run),
+    pursuit: run.pursuit,
+    pursuitRatio: run.pursuit === 'run' ? 1 - run.pursuitT / PURSUIT_SEC : 1,
   };
 }
 
@@ -661,6 +707,59 @@ export default function RuinsDash({ onFinish }: GameProps) {
         {screen === 'playing' && missionToast && (
           <div key={missionToast.id} className={styles.missionToast} role="status">
             ✅ 미션 완료 · {missionToast.text}
+          </div>
+        )}
+
+        {screen === 'playing' && hud.golden !== null && (
+          <div className={styles.golden} role="status">
+            <span>✨ 황금 신전! 동전이 쏟아진다</span>
+            <span className={styles.goldenBar}>
+              <span className={styles.goldenFill} style={{ width: `${hud.golden * 100}%` }} />
+            </span>
+          </div>
+        )}
+
+        {screen === 'playing' && hud.ride && (
+          <div className={styles.ride} role="status">
+            <span>
+              {hud.ride.kind === 'cart'
+                ? '🛒 광차 질주! 들보는 숙이고 끊긴 레일은 점프'
+                : '🪢 짚라인! 공중 바위는 옆으로 피하며 동전을 모아라'}
+            </span>
+            <span className={styles.goldenBar}>
+              <span className={styles.goldenFill} style={{ width: `${hud.ride.ratio * 100}%` }} />
+            </span>
+          </div>
+        )}
+
+        {screen === 'playing' && hud.fork && (
+          <div className={styles.fork} role="status">
+            <span>← {THEME_LABEL[hud.fork.left]}</span>
+            <strong>갈림길!</strong>
+            <span>{THEME_LABEL[hud.fork.right]} →</span>
+          </div>
+        )}
+
+        {screen === 'playing' && hud.collapse && (
+          <div className={styles.collapse} role="alert">
+            <span>⚠ 다리가 무너진다! 금 간 곳은 점프</span>
+          </div>
+        )}
+
+        {screen === 'playing' && hud.pursuit !== 'none' && (
+          <div className={styles.pursuit} role="alert">
+            <strong>{hud.pursuit === 'warn' ? '도망쳐!' : '🔥 바위가 쫓아온다!'}</strong>
+            {hud.pursuit === 'run' && (
+              <>
+                <span>부딪히면 바로 끝 · 끝까지 버티면 보너스</span>
+                <span className={styles.pursuitBar}>
+                  <span
+                    className={styles.pursuitFill}
+                    style={{ width: `${hud.pursuitRatio * 100}%` }}
+                  />
+                </span>
+              </>
+            )}
           </div>
         )}
 

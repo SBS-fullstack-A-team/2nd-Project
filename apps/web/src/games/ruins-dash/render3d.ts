@@ -7,7 +7,15 @@ import {
   START_SPEED,
   type Theme,
 } from './config';
-import { isSliding, jumpHeight, type Obstacle, type RunState } from './engine';
+import { COLLAPSE_OPEN_SEC } from './config';
+import {
+  isSliding,
+  jumpHeight,
+  rideLift,
+  stairHeight,
+  type Obstacle,
+  type RunState,
+} from './engine';
 import type { Look } from './looks';
 import {
   add,
@@ -65,6 +73,12 @@ const SIDE_W = 22;
  * 길 옆과 모퉁이 너머가 모두 이만큼 떨어지는 낭떠러지라 아찔하다.
  */
 const TEMPLE_DROP = 36;
+/** 동굴 벽 높이(m) — 카메라(6.2m)보다 낮아서 위에서 내려다보면 터널 안이 보인다 */
+const CAVE_H = 4.4;
+/** 길이 무너지는 동안 길 뒤쪽이 잘려 나가는 위치(z) — 발밑 바로 뒤까지 따라온다 */
+const CRUMBLE_Z = -1.6;
+/** 광차 바닥 높이(m) — 타면 이만큼 올라선다 */
+const CART_FLOOR = 0.3;
 /** 가장자리가 무너진 구멍 길이의 절반(m) — 화면용 */
 const EDGE_HOLE_HALF = 1.6;
 /** 모퉁이를 돌 때 화면이 돌아가는 시간(초) */
@@ -127,8 +141,29 @@ const COL = {
   rockMoss: hex('#5f7d45'),
   cliffFace: hex('#5d5f58'),
   spire: hex('#4c4e48'),
+  // 동굴
+  caveA: hex('#6e6458'),
+  caveB: hex('#625a4f'),
+  caveC: hex('#585046'),
+  caveWallA: hex('#4d463e'),
+  caveWallB: hex('#433d36'),
+  caveWallC: hex('#39342e'),
+  caveRib: hex('#5a5249'),
+  caveSpike: hex('#7a7266'),
+  caveFog: hex('#150f0c'),
+  // 무너지는 다리
+  crack: hex('#2a231c'),
+  // 광차 · 짚라인
+  rail: hex('#7b8187'),
+  sleeper: hex('#5a3f28'),
+  cartA: hex('#7a5a3a'),
+  cartB: hex('#8e6a44'),
+  cartWheel: hex('#33302c'),
+  rope: hex('#cdb98a'),
+  tower: hex('#5b4a38'),
   // 공통
   coin: hex('#f5c02e'),
+  goldRoad: hex('#e8b53a'),
   coinFace: hex('#ffd95a'),
   boulder: hex('#6d655a'),
   boulderStripe: hex('#5a5349'),
@@ -198,6 +233,10 @@ interface ViewState {
   /** 지난 프레임부터 흐른 시간(초) — 일시정지 중엔 0 */
   dt: number;
   trail: TrailFx;
+  /** 동굴 어둠 정도 0~1 — 동굴에 들어서면 서서히 어두워진다 */
+  dark: number;
+  /** 길 뒤쪽이 무너진 정도 0~1 */
+  crumble: number;
 }
 
 /** 한 판(RunState)마다 하나 — 판이 끝나면 함께 사라진다 */
@@ -215,6 +254,8 @@ function viewFor(run: RunState): ViewState {
       lastT: null,
       dt: 0,
       trail: new TrailFx(),
+      dark: run.theme === 'cave' ? 1 : 0,
+      crumble: 0,
     };
     views.set(run, s);
   }
@@ -335,7 +376,13 @@ function segTransform(seg: Seg, viewYaw: number): (p: Vec3) => Vec3 {
     rotY(add(v3(0, 0, seg.anchor), rotY(v3(p.x, p.y, p.z - seg.anchor), seg.yaw)), viewYaw);
 }
 
-function buildSegments(run: RunState): { prev: Seg | null; cur: Seg; next: Seg | null } {
+function buildSegments(run: RunState): {
+  prev: Seg | null;
+  cur: Seg;
+  next: Seg | null;
+  /** T자 갈림길의 반대쪽 길 */
+  next2: Seg | null;
+} {
   const pc = run.prevCorner;
   const turn = run.turns[0] ?? null;
   const cur: Seg = {
@@ -356,8 +403,10 @@ function buildSegments(run: RunState): { prev: Seg | null; cur: Seg; next: Seg |
   if (turn) cur.platforms.push(turn.z);
   if (pc) cur.openings.push({ z: pc.z, side: pc.dir });
   if (turn) cur.openings.push({ z: turn.z, side: turn.dir });
+  // T자 갈림길은 반대쪽도 열려 있다
+  if (turn?.alt) cur.openings.push({ z: turn.z, side: -turn.dir as -1 | 1 });
   if (pc?.theme === 'cliff') cur.cliffCorners.push(pc.z);
-  if (turn?.theme === 'cliff') cur.cliffCorners.push(turn.z);
+  if (turn?.theme === 'cliff' || turn?.alt?.theme === 'cliff') cur.cliffCorners.push(turn.z);
   const curCliff = run.theme === 'cliff';
 
   const prev: Seg | null = pc
@@ -394,11 +443,29 @@ function buildSegments(run: RunState): { prev: Seg | null; cur: Seg; next: Seg |
         platforms: [],
       }
     : null;
-  return { prev, cur, next };
+  const alt = turn?.alt;
+  const next2: Seg | null =
+    turn && alt && next
+      ? {
+          ...next,
+          theme: alt.theme,
+          yaw: -turn.dir * (Math.PI / 2),
+          openings: [{ z: turn.z, side: -turn.dir as -1 | 1 }],
+          gaps: [],
+          edgeHoles: [],
+          cliffCorners: [...next.cliffCorners],
+          narrow: alt.narrow,
+          platforms: [],
+        }
+      : null;
+  return { prev, cur, next, next2 };
 }
 
 /** 이 z 가 어느 구간에 속하는지 */
-function segAt(z: number, segs: { prev: Seg | null; cur: Seg; next: Seg | null }): Seg {
+function segAt(
+  z: number,
+  segs: { prev: Seg | null; cur: Seg; next: Seg | null; next2: Seg | null },
+): Seg {
   if (segs.next && z > segs.next.anchor) return segs.next;
   if (segs.prev && z < segs.prev.anchor) return segs.prev;
   return segs.cur;
@@ -419,20 +486,74 @@ export function drawFrame(ctx: CanvasRenderingContext2D, v: View, run: RunState,
   anim.follow(run.x, f.t);
   const px = anim.x * LANE_W;
   const cam = makeCamera(v, run, f, px);
-  const scene = new Scene(cam, LIGHT);
+  // 동굴에선 안개가 어둡고 빛이 약하다 — 들어서고 나설 때 서서히 바뀐다
+  vs.dark += ((run.theme === 'cave' ? 1 : 0) - vs.dark) * Math.min(1, vs.dt * 4);
+  const dark = vs.dark < 0.01 ? 0 : vs.dark;
+  const scene = new Scene(
+    cam,
+    dark > 0
+      ? {
+          ...LIGHT,
+          fog: mixRgb(COL.fog, COL.caveFog, dark),
+          ambient: LIGHT.ambient - 0.18 * dark,
+          fogStart: LIGHT.fogStart - 8 * dark,
+        }
+      : LIGHT,
+  );
 
   const segs = buildSegments(run);
+  // 무너지는 다리의 구멍은 닿기 직전(COLLAPSE_OPEN_SEC 전)까지 금만 가 있다가 갑자기 뚫린다
+  const openZ = run.speed * COLLAPSE_OPEN_SEC;
+  const cracks: number[] = [];
   for (const o of run.obstacles) {
     if (o.kind === 'gap' && o.edge) segAt(o.z, segs).edgeHoles.push({ z: o.z, lane: o.lane });
-    else if (o.kind === 'gap' && o.lane === 0) segAt(o.z, segs).gaps.push(o.z);
+    else if (o.kind === 'gap' && o.lane === 0) {
+      if (o.sudden && o.z > openZ) cracks.push(o.z);
+      else segAt(o.z, segs).gaps.push(o.z);
+    }
   }
-  const list = [segs.prev, segs.cur, segs.next].filter((s): s is Seg => s !== null);
-  const xf = new Map(list.map((s) => [s, segTransform(s, vs.yaw)]));
+  // 길 뒤쪽이 무너진다 — 구간에 들어서면 발밑 바로 뒤까지 잘려 나가고, 구간을 벗어나 한참 뒤 복구
+  const cz = run.collapse;
+  const crumbling = cz !== null && cz.entered && run.distance < cz.end + 14;
+  vs.crumble += ((crumbling ? 1 : 0) - vs.crumble) * Math.min(1, vs.dt * 5);
+  const crumbleK = vs.crumble < 0.02 ? 0 : vs.crumble;
+  const crumbleFrom = crumbleK > 0 ? -14 + (CRUMBLE_Z + 14) * crumbleK : null;
+  const list = [segs.prev, segs.cur, segs.next, segs.next2].filter((s): s is Seg => s !== null);
+  // 계단 구간 — 플레이어 높이는 그대로 두고 앞쪽 월드만 계단 높이만큼 오르내린다
+  const baseH = run.stairs ? stairHeight(run, run.distance) : 0;
+  const xf = new Map(
+    list.map((s) => {
+      const base = segTransform(s, vs.yaw);
+      // 세그먼트 좌표의 z 는 모퉁이를 넘어도 이어지는 경로 거리라서 모든 세그먼트에 같은 식을 쓴다
+      if (!run.stairs) return [s, base] as const;
+      const lift = (p: Vec3) =>
+        base(v3(p.x, p.y + stairHeight(run, run.distance + p.z) - baseH, p.z));
+      return [s, lift] as const;
+    }),
+  );
   const inSeg = (seg: Seg) => {
     scene.xform = xf.get(seg) ?? null;
   };
+  // 짚라인 — 길은 사라지고 물체·플레이어만 매달린 높이만큼 올라간다 (길·벽은 그대로)
+  const zip = run.ride?.kind === 'zip' ? run.ride : null;
+  const xfObj = zip
+    ? new Map(
+        list.map((s) => {
+          const base = xf.get(s) as (p: Vec3) => Vec3;
+          return [
+            s,
+            (p: Vec3) => base(v3(p.x, p.y + rideLift(run, run.distance + p.z), p.z)),
+          ] as const;
+        }),
+      )
+    : xf;
+  const inObj = (seg: Seg) => {
+    scene.xform = xfObj.get(seg) ?? null;
+  };
+  const hangLift = rideLift(run, run.distance);
 
   drawSky(ctx, v, cam);
+  if (dark > 0) drawCaveDark(ctx, v.w, v.h, dark);
 
   // 바닥 층 — 옆 지형(물·풀) → 길 → 길 위 무늬 → 그림자 순서로 칠한다
   // 옆 지형(정글 바닥·성벽·절벽 단면·물)은 발밑 층 — 길에 가려진다
@@ -442,12 +563,40 @@ export function drawFrame(ctx: CanvasRenderingContext2D, v: View, run: RunState,
     buildSideGround(scene, seg, run.distance);
   }
   scene.below = false;
+  // 황금 신전 구간(현재 길의 z 범위) — 길 돌을 금빛으로 칠한다
+  const g = run.golden;
+  const goldZ: readonly [number, number] | null = g
+    ? [g.start - run.distance, g.end - run.distance]
+    : null;
   for (const seg of list) {
     inSeg(seg);
-    buildRoad(scene, seg, run.distance);
+    buildRoad(
+      scene,
+      seg,
+      run.distance,
+      seg === segs.cur ? goldZ : null,
+      seg === segs.cur ? crumbleFrom : null,
+      seg === segs.cur && zip ? [zip.start - run.distance + 1, zip.end - run.distance - 1] : null,
+    );
+  }
+  // 광차 — 레일과 침목
+  if (run.ride?.kind === 'cart') {
+    inSeg(segs.cur);
+    buildRails(
+      scene,
+      run.ride.start - run.distance,
+      run.ride.end - run.distance,
+      run.distance,
+      segs.cur.gaps,
+    );
+  }
+  if (crumbleK > 0) {
+    inSeg(segs.cur);
+    buildCrumbleChunks(scene, f.t, crumbleFrom ?? CRUMBLE_Z, crumbleK);
   }
   scene.xform = xf.get(segs.cur) ?? null;
-  buildShadow(scene, run, px);
+  // 짚라인에 매달려 있으면 발밑 그림자는 없다
+  if (hangLift < 0.2) buildShadow(scene, run, px);
 
   // 길가 장식
   for (const seg of list) {
@@ -456,7 +605,7 @@ export function drawFrame(ctx: CanvasRenderingContext2D, v: View, run: RunState,
   }
 
   // 발밑 깊은 곳에서 선회하는 새 떼·흘러가는 구름 — 얼마나 높은 곳을 달리는지 느껴지게
-  if (run.theme !== 'river') {
+  if (run.theme !== 'river' && run.theme !== 'cave') {
     inSeg(segs.cur);
     const depth = run.theme === 'temple' ? TEMPLE_DROP : 14;
     buildAbyssBirds(scene, f.t, depth);
@@ -469,14 +618,26 @@ export function drawFrame(ctx: CanvasRenderingContext2D, v: View, run: RunState,
     for (const h of seg.edgeHoles) buildEdgeHoleRim(scene, h.z, h.lane, seg.theme);
   }
 
+  // 짚라인 밧줄과 양끝 탑
+  if (zip) {
+    inObj(segs.cur);
+    buildZipRopes(scene, zip.start - run.distance, zip.end - run.distance);
+  }
+
+  // 금이 간 길 — 곧 구멍이 뚫릴 곳
+  for (const z of cracks) {
+    inSeg(segAt(z, segs));
+    buildCracks(scene, z, f.t);
+  }
+
   // 물체
   for (const o of run.obstacles) {
     const seg = segAt(o.z, segs);
-    inSeg(seg);
-    buildObstacle(scene, o, seg.theme, seg.narrow);
+    inObj(seg);
+    buildObstacle(scene, o, seg.theme, seg.narrow, zip !== null, f.t);
   }
   for (const c of run.coinList) {
-    inSeg(segAt(c.z, segs));
+    inObj(segAt(c.z, segs));
     const spin = f.t * 4 + c.z * 0.3;
     const pos = v3(c.x * LANE_W, 0.7 + c.y + Math.sin(f.t * 5 + c.z) * 0.05, c.z);
     prism(
@@ -491,14 +652,14 @@ export function drawFrame(ctx: CanvasRenderingContext2D, v: View, run: RunState,
     );
   }
   for (const it of run.items) {
-    inSeg(segAt(it.z, segs));
+    inObj(segAt(it.z, segs));
     const pos = v3(it.lane * LANE_W, 0.95 + Math.sin(f.t * 4 + it.z) * 0.08, it.z);
     scene.sprite(pos, (c, x, y, s) =>
       drawItemSprite(c, it.kind, x, y, s, f.t, Math.min(1, s / 18)),
     );
   }
   for (const d of run.debris) {
-    inSeg(segAt(d.z, segs));
+    inObj(segAt(d.z, segs));
     const size = 0.2 * Math.min(1, d.life * 2);
     box(
       scene,
@@ -508,7 +669,7 @@ export function drawFrame(ctx: CanvasRenderingContext2D, v: View, run: RunState,
     );
   }
 
-  scene.xform = xf.get(segs.cur) ?? null;
+  scene.xform = xfObj.get(segs.cur) ?? null;
   buildPlayer(scene, run, f, anim);
   // 달리기 효과 — 발을 디딜 때·착지할 때 터지고, 빠를수록·부스트 중엔 더 많이
   const trailKind = f.look?.trail ?? 'dust';
@@ -518,12 +679,13 @@ export function drawFrame(ctx: CanvasRenderingContext2D, v: View, run: RunState,
     x: px,
     y: lift,
     speed: run.speed,
-    grounded: running && lift === 0,
+    grounded: running && lift === 0 && hangLift < 0.2,
     phase: running && !isSliding(run) ? anim.phase : null,
     boost: run.effects.boost > 0,
     intensity: speedRatio(run),
   });
   vs.trail.draw(scene, trailKind, f.t, px, lift);
+  scene.xform = xf.get(segs.cur) ?? null;
   if (!run.fell) buildBoulder(scene, run, f, px);
   scene.xform = null;
 
@@ -534,6 +696,10 @@ export function drawFrame(ctx: CanvasRenderingContext2D, v: View, run: RunState,
   const lines = run.effects.boost > 0 ? 1 : Math.max(0, (speedRatio(run) - 0.7) / 0.3) * 0.45;
   if (f.caughtT === null) drawSpeedLines(ctx, v.h, v.w / 2, horizon, f.t, lines);
   drawVignette(ctx, v.w, v.h);
+  if (f.caughtT === null) {
+    drawGoldGlow(ctx, v.w, v.h, f.t, goldGlowOf(run));
+    drawPursuit(ctx, v.w, v.h, f.t, run.pursuit);
+  }
   if (run.stumbleT > 0 && f.caughtT === null) drawDanger(ctx, v.w, v.h, run.stumbleT, f.t);
 }
 
@@ -631,6 +797,10 @@ function buildSideGround(scene: Scene, seg: Seg, distance: number) {
   }
   if (seg.theme === 'temple') {
     buildTempleWalls(scene, seg, distance);
+    return;
+  }
+  if (seg.theme === 'cave') {
+    buildCaveWalls(scene, seg, distance);
     return;
   }
   const water = seg.theme === 'river';
@@ -733,12 +903,22 @@ function buildTempleWalls(scene: Scene, seg: Seg, distance: number) {
 }
 
 /** 길 — 구멍이 있으면 그 부분만 비운다 */
-function buildRoad(scene: Scene, seg: Seg, distance: number) {
+function buildRoad(
+  scene: Scene,
+  seg: Seg,
+  distance: number,
+  gold: readonly [number, number] | null = null,
+  crumbleFrom: number | null = null,
+  voidZ: readonly [number, number] | null = null,
+) {
   if (seg.narrow) {
     buildNarrowRoad(scene, seg, distance);
     return;
   }
+  const from = crumbleFrom === null ? seg.roadFrom : Math.max(seg.roadFrom, crumbleFrom);
   const holes = seg.gaps.map((g) => [g - GAP_HALF, g + GAP_HALF] as const);
+  // 짚라인 구간 — 길이 통째로 비어 있다
+  if (voidZ) holes.push([voidZ[0], voidZ[1]] as const);
   const inHole = (z0: number, z1: number) => holes.some(([a, b]) => z1 < b && z0 > a);
   const theme = seg.theme;
   const tile = theme === 'river' ? 1.1 : 3;
@@ -747,7 +927,9 @@ function buildRoad(scene: Scene, seg: Seg, distance: number) {
       ? [COL.plankA, COL.plankB, COL.plankC]
       : theme === 'cliff'
         ? [COL.rockA, COL.rockB, COL.rockC]
-        : [COL.stoneA, COL.stoneB, COL.stoneC];
+        : theme === 'cave'
+          ? [COL.caveA, COL.caveB, COL.caveC]
+          : [COL.stoneA, COL.stoneB, COL.stoneC];
 
   // 구멍 경계로 띠를 잘라 구멍 안쪽은 건너뛴다 (가장자리 구멍 경계도 자른다)
   const edgeEnds = seg.edgeHoles.flatMap((h) => [h.z - EDGE_HOLE_HALF, h.z + EDGE_HOLE_HALF]);
@@ -756,8 +938,8 @@ function buildRoad(scene: Scene, seg: Seg, distance: number) {
       (h) =>
         h.lane === lane && z1 < h.z + EDGE_HOLE_HALF - 0.01 && z0 > h.z - EDGE_HOLE_HALF + 0.01,
     );
-  const cuts = [seg.roadFrom, seg.roadTo, ...holes.flat(), ...edgeEnds]
-    .filter((z) => z >= seg.roadFrom && z <= seg.roadTo)
+  const cuts = [from, seg.roadTo, ...holes.flat(), ...edgeEnds]
+    .filter((z) => z >= from && z <= seg.roadTo)
     .sort((a, b) => b - a);
   for (let i = 0; i < cuts.length - 1; i++) {
     const hi = cuts[i] as number;
@@ -774,7 +956,9 @@ function buildRoad(scene: Scene, seg: Seg, distance: number) {
         if (edgeHoleAt(lane, z0, z1)) continue;
         const x0 = lane === -1 ? -R : (lane - 0.5) * LANE_W;
         const x1 = lane === 1 ? R : (lane + 0.5) * LANE_W;
-        const col = palette[Math.floor(hash(idx * 3 + lane) * 3)] as RGB;
+        let col = palette[Math.floor(hash(idx * 3 + lane) * 3)] as RGB;
+        // 황금 신전 — 길 돌이 금빛으로 빛난다
+        if (gold && z1 < gold[1] && z0 > gold[0]) col = mixRgb(col, COL.goldRoad, 0.7);
         scene.face([v3(x0, 0, z0), v3(x1, 0, z0), v3(x1, 0, z1), v3(x0, 0, z1)], col, {}, true);
       }
     });
@@ -782,7 +966,7 @@ function buildRoad(scene: Scene, seg: Seg, distance: number) {
 
   // 무늬 — 신전은 레인 홈, 물가는 판자 이음새, 절벽은 이끼
   if (theme === 'river') {
-    bands(seg.roadFrom, seg.roadTo, 1.1, distance, (z0, z1) => {
+    bands(from, seg.roadTo, 1.1, distance, (z0, z1) => {
       if (holes.some(([a, b]) => z0 > a && z0 < b)) return;
       if (z0 - z1 < 0.5) return;
       scene.face(
@@ -792,14 +976,14 @@ function buildRoad(scene: Scene, seg: Seg, distance: number) {
         true,
       );
     });
-  } else if (theme === 'temple') {
+  } else if (theme === 'temple' || theme === 'cave') {
     for (const x of [-LANE_W / 2, LANE_W / 2]) {
       scene.face(
         [
           v3(x - 0.05, 0.005, seg.roadTo),
           v3(x + 0.05, 0.005, seg.roadTo),
-          v3(x + 0.05, 0.005, seg.roadFrom),
-          v3(x - 0.05, 0.005, seg.roadFrom),
+          v3(x + 0.05, 0.005, from),
+          v3(x - 0.05, 0.005, from),
         ],
         COL.groove,
         {},
@@ -807,7 +991,7 @@ function buildRoad(scene: Scene, seg: Seg, distance: number) {
       );
     }
   } else {
-    bands(seg.roadFrom, seg.roadTo, 5, distance, (z0, z1, idx) => {
+    bands(from, seg.roadTo, 5, distance, (z0, z1, idx) => {
       if (hash(idx + 71) > 0.55) return;
       const x = (hash(idx + 13) - 0.5) * 4;
       const zm = (z0 + z1) / 2;
@@ -963,12 +1147,13 @@ function buildShadow(scene: Scene, run: RunState, px: number) {
 function buildRoadside(scene: Scene, seg: Seg, distance: number, t: number) {
   if (seg.theme === 'temple') buildTempleSide(scene, seg, distance, t);
   else if (seg.theme === 'river') buildRiverSide(scene, seg, distance);
+  else if (seg.theme === 'cave') buildCaveSide(scene, seg, distance, t);
   else buildCliffSide(scene, seg, distance);
 
   // 막다른 끝
   if (seg.deadEnd !== null) {
     const z = seg.deadEnd + 0.5;
-    if (seg.theme === 'temple') {
+    if (seg.theme === 'temple' || seg.theme === 'cave') {
       // 길이 뚝 끊긴 가장자리 — 부서진 돌 조각이 걸쳐 있다
       const edge = seg.deadEnd;
       const rubble: [number, number, number, number][] = [
@@ -1261,8 +1446,29 @@ function buildEdgeHoleRim(scene: Scene, z: number, lane: number, theme: Theme) {
 
 // ---------- 장애물 ----------
 
-function buildObstacle(scene: Scene, o: Obstacle, theme: Theme, narrow: boolean) {
+function buildObstacle(
+  scene: Scene,
+  o: Obstacle,
+  theme: Theme,
+  narrow: boolean,
+  floating = false,
+  t = 0,
+) {
   if (o.smashed || o.kind === 'gap') return;
+  // 짚라인 — 허공에 떠서 굴러오는 바위
+  if (floating && o.kind === 'pillar') {
+    sphere(
+      scene,
+      v3(o.lane * LANE_W, 1.3, o.z),
+      0.95,
+      COL.boulder,
+      t * 2 + o.z * 0.4,
+      6,
+      10,
+      COL.boulderStripe,
+    );
+    return;
+  }
   if (narrow) {
     // 좁은 길은 판정용으로 세 레인에 놓였지만 가운데 하나만 좁은 폭에 맞춰 그린다
     if (o.lane === 0) buildNarrowObstacle(scene, o, theme);
@@ -1270,7 +1476,8 @@ function buildObstacle(scene: Scene, o: Obstacle, theme: Theme, narrow: boolean)
   }
   const x = o.lane * LANE_W;
   const z = o.z;
-  const cliff = theme === 'cliff';
+  const cave = theme === 'cave';
+  const cliff = theme === 'cliff' || cave;
   if (o.kind === 'low') {
     // 쓰러진(물가에선 떠내려온) 통나무
     prism(scene, v3(x, 0.3, z), v3(1, 0, 0), 0.3, LANE_W * 0.92, 8, COL.log, COL.logRing);
@@ -1283,10 +1490,25 @@ function buildObstacle(scene: Scene, o: Obstacle, theme: Theme, narrow: boolean)
     for (const side of [-1, 1])
       box(scene, v3(x + side * (half - 0.12), 0.95, z), v3(0.24, 1.9, 0.34), post);
     box(scene, v3(x, 1.6, z), v3(LANE_W * 0.96, 0.5, 0.42), beam);
-    box(scene, v3(x, 1.88, z), v3(LANE_W * 0.96, 0.08, 0.44), cliff ? COL.rockMoss : COL.moss);
-    for (const k of [-0.5, 0.1, 0.55])
-      box(scene, v3(x + k, 1.2, z - 0.22), v3(0.06, 0.35, 0.04), COL.vine);
+    if (cave) {
+      // 낮은 천장 — 아래로 삐죽 나온 종유석
+      for (const k of [-0.6, -0.1, 0.45]) {
+        box(scene, v3(x + k, 1.18, z - 0.1), v3(0.22, 0.4, 0.22), COL.caveSpike);
+        box(scene, v3(x + k, 0.92, z - 0.1), v3(0.1, 0.22, 0.1), COL.caveSpike);
+      }
+    } else {
+      box(scene, v3(x, 1.88, z), v3(LANE_W * 0.96, 0.08, 0.44), cliff ? COL.rockMoss : COL.moss);
+      for (const k of [-0.5, 0.1, 0.55])
+        box(scene, v3(x + k, 1.2, z - 0.22), v3(0.06, 0.35, 0.04), COL.vine);
+    }
   } else if (cliff) {
+    if (cave) {
+      // 석순 — 레인을 통째로 막는다
+      box(scene, v3(x, 0.55, z), v3(1.5, 1.1, 1.1), COL.caveSpike);
+      box(scene, v3(x + 0.05, 1.5, z), v3(1.0, 1.0, 0.8), COL.caveRib);
+      box(scene, v3(x, 2.2, z), v3(0.5, 0.7, 0.45), COL.caveSpike);
+      return;
+    }
     // 굴러떨어진 바위
     box(scene, v3(x, 0.8, z), v3(1.4, 1.6, 1.1), COL.rockB);
     box(scene, v3(x + 0.1, 1.75, z + 0.05), v3(1.0, 0.5, 0.8), COL.rockA);
@@ -1336,6 +1558,11 @@ function buildPlayer(scene: Scene, run: RunState, f: FrameInfo, anim: CharacterA
   let y = lift;
   let z = 0;
   let pose: Pose3d = caught ? 'fallen' : isSliding(run) ? 'slide' : lift > 0 ? 'jump' : 'run';
+  const hanging = !caught && rideLift(run, run.distance) > 0.3;
+  if (hanging) pose = 'jump';
+  // 광차에 타면 바닥 높이만큼 올라선다
+  const inCart = !caught && run.ride?.kind === 'cart' && run.ride.entered && !run.ride.exited;
+  if (inCart) y += CART_FLOOR;
   // 물에 빠지면 수면 아래는 그리지 않는다 (바닥은 가려 그리지 않으므로 직접 숨긴다)
   let hideBelow = -12;
   if (caught && run.fell) {
@@ -1382,7 +1609,7 @@ function buildPlayer(scene: Scene, run: RunState, f: FrameInfo, anim: CharacterA
         pose,
         // 빨라질수록 걸음도 빨라진다 (일시정지 중엔 멈춘다)
         phase,
-        jumpP: run.fell ? 0.5 : run.jumpT / JUMP_SEC,
+        jumpP: run.fell || (hanging && run.jumpT === 0) ? 0.5 : run.jumpT / JUMP_SEC,
         // 출발 속도 0 → 최고 속도 1 (부스트 중엔 1 을 넘지만 캐릭터 쪽에서 1 로 자른다)
         intensity: (run.speed - START_SPEED) / (MAX_SPEED - START_SPEED),
         fallenT: f.caughtT ?? 0,
@@ -1402,6 +1629,7 @@ function buildPlayer(scene: Scene, run: RunState, f: FrameInfo, anim: CharacterA
     );
   }
   scene.below = false;
+  if (inCart) buildCart(scene, x, lift, f.t, run.speed);
   if (!caught && run.effects.shield > 0) {
     // 끝나기 2초 전부터 깜빡여서 곧 사라진다는 걸 알린다
     const ending = run.effects.shield < 2 && Math.sin(f.t * 20) < 0;
@@ -1433,4 +1661,239 @@ function buildBoulder(scene: Scene, run: RunState, f: FrameInfo, px: number) {
   const x = px * 0.7;
   const spin = run.distance / r;
   sphere(scene, v3(x, y, z), r, COL.boulder, spin, 6, 10, COL.boulderStripe);
+}
+
+// ---------- 황금 신전 · 추격 연출 ----------
+
+function mixRgb(a: RGB, b: RGB, t: number): RGB {
+  return [a[0] + (b[0] - a[0]) * t, a[1] + (b[1] - a[1]) * t, a[2] + (b[2] - a[2]) * t];
+}
+
+/** 황금빛 세기 0~1 — 구간에 가까워지면 서서히 켜지고, 벗어나면 서서히 꺼진다 */
+function goldGlowOf(run: RunState): number {
+  const g = run.golden;
+  if (!g) return 0;
+  const d = run.distance;
+  if (d < g.start) return Math.max(0, (d - (g.start - 30)) / 30) * 0.6;
+  if (d <= g.end) return 1;
+  return Math.max(0, 1 - (d - g.end) / 25);
+}
+
+/** 황금 신전 — 위에서 비치는 금빛과 반짝이는 가루 */
+function drawGoldGlow(ctx: CanvasRenderingContext2D, w: number, h: number, t: number, k: number) {
+  if (k <= 0.01) return;
+  ctx.save();
+  ctx.globalCompositeOperation = 'lighter';
+  const g = ctx.createRadialGradient(w / 2, h * 0.15, 0, w / 2, h * 0.15, h * 0.9);
+  g.addColorStop(0, `rgba(255, 210, 90, ${0.38 * k})`);
+  g.addColorStop(1, 'rgba(255, 170, 40, 0)');
+  ctx.fillStyle = g;
+  ctx.fillRect(0, 0, w, h);
+  // 반짝이는 가루 — 위에서 천천히 떨어진다
+  for (let i = 0; i < 28; i++) {
+    const sx = (hash(i * 7 + 1) * w + Math.sin(t * 0.8 + i) * 12 + w) % w;
+    const sy = ((hash(i * 13 + 5) * h + t * (30 + hash(i) * 40)) % (h + 20)) - 10;
+    const tw = 0.5 + 0.5 * Math.sin(t * 6 + i * 2.1);
+    const r = (1.2 + hash(i * 3 + 9) * 2.2) * (0.6 + tw * 0.6);
+    ctx.fillStyle = `rgba(255, 236, 160, ${0.7 * k * tw})`;
+    ctx.beginPath();
+    ctx.arc(sx, sy, r, 0, Math.PI * 2);
+    ctx.fill();
+  }
+  ctx.restore();
+}
+
+/** 추격 — 화면 가장자리가 붉게 맥박친다 (경고 때는 더 빠르고 강하게) */
+function drawPursuit(
+  ctx: CanvasRenderingContext2D,
+  w: number,
+  h: number,
+  t: number,
+  phase: RunState['pursuit'],
+) {
+  if (phase === 'none') return;
+  const pulse = 0.5 + 0.5 * Math.sin(t * (phase === 'warn' ? 18 : 8));
+  const a = (phase === 'warn' ? 0.28 : 0.16) + pulse * (phase === 'warn' ? 0.22 : 0.12);
+  const g = ctx.createRadialGradient(
+    w / 2,
+    h / 2,
+    Math.min(w, h) * 0.3,
+    w / 2,
+    h / 2,
+    Math.max(w, h) * 0.75,
+  );
+  g.addColorStop(0, 'rgba(200, 30, 10, 0)');
+  g.addColorStop(1, `rgba(200, 30, 10, ${a})`);
+  ctx.fillStyle = g;
+  ctx.fillRect(0, 0, w, h);
+}
+
+// ---------- 동굴 ----------
+
+/** 동굴 — 위에서 내려다보는 터널 단면. 양옆 바위벽이 CAVE_H 까지 솟아 있다 */
+function buildCaveWalls(scene: Scene, seg: Seg, distance: number) {
+  for (const side of [-1, 1] as const) {
+    bands(seg.roadFrom, seg.roadTo, 3, distance, (z0, z1, idx) => {
+      if (blockedByOpening(seg, side, (z0 + z1) / 2, 0)) return;
+      const col = [COL.caveWallA, COL.caveWallB, COL.caveWallC][mod(idx, 3)] as RGB;
+      // 벽은 길 가장자리에서 위로 솟고, 뒤쪽(바닥 아래)은 어둠 속으로 사라진다
+      scene.face(
+        [
+          v3(side * R, -8, z0),
+          v3(side * R, -8, z1),
+          v3(side * R, CAVE_H, z1),
+          v3(side * R, CAVE_H, z0),
+        ],
+        col,
+        {},
+        true,
+      );
+    });
+  }
+}
+
+/** 동굴 길가 — 천장을 받치는 들보, 늘어진 종유석, 벽에 건 횃불 */
+function buildCaveSide(scene: Scene, seg: Seg, distance: number, t: number) {
+  // 천장 들보 — 10m 간격. 카메라 바로 앞(z<-1.5)은 시야를 가리니 그리지 않는다
+  bands(Math.max(seg.roadFrom, -1.5), seg.roadTo, 10, distance, (z0, _z1, idx) => {
+    if (blockedByOpening(seg, -1, z0, 1) || blockedByOpening(seg, 1, z0, 1)) return;
+    box(scene, v3(0, CAVE_H + 0.15, z0), v3(R * 2 + 0.8, 0.45, 0.7), COL.caveRib);
+    // 들보에서 늘어진 종유석
+    for (let i = 0; i < 4; i++) {
+      const x = (hash(idx * 5 + i) - 0.5) * R * 1.7;
+      const len = 0.45 + hash(idx * 9 + i) * 0.55;
+      box(scene, v3(x, CAVE_H - len / 2 - 0.1, z0), v3(0.22, len, 0.22), COL.caveSpike);
+      box(scene, v3(x, CAVE_H - len - 0.2, z0), v3(0.1, 0.25, 0.1), COL.caveSpike);
+    }
+  });
+
+  // 벽 횃불 — 14m 간격. 어두운 터널을 밝히는 유일한 불빛
+  bands(seg.roadFrom, seg.roadTo, 14, distance, (z0, _z1, idx) => {
+    for (const side of [-1, 1] as const) {
+      if (blockedByOpening(seg, side, z0, 1)) continue;
+      const x = side * (R - 0.2);
+      box(scene, v3(x, 1.7, z0), v3(0.28, 0.7, 0.28), COL.torchPost);
+      scene.sprite(v3(x, 2.25, z0), (ctx, sx, sy, s) =>
+        drawFlame(ctx, sx, sy, s, t, idx * 3 + side + 40, Math.min(1, s / 12)),
+      );
+    }
+  });
+}
+
+/** 동굴의 어둠 — 하늘을 지우고, 화면 위쪽(천장)을 어둡게 덮는다 */
+function drawCaveDark(ctx: CanvasRenderingContext2D, w: number, h: number, k: number) {
+  ctx.fillStyle = `rgba(14, 10, 9, ${0.94 * k})`;
+  ctx.fillRect(0, 0, w, h);
+}
+
+// ---------- 무너지는 다리 ----------
+
+/** 금이 간 길 — 가로로 지그재그 번지는 틈. 닿기 직전에 구멍이 된다 */
+function buildCracks(scene: Scene, z: number, t: number) {
+  const shake = Math.sin(t * 40 + z) * 0.012;
+  for (let i = 0; i < 9; i++) {
+    const x = -R + 0.35 + i * ((R * 2 - 0.7) / 8);
+    box(
+      scene,
+      v3(x, 0.02, z + (i % 2 === 0 ? 0.14 : -0.14) + shake),
+      v3(0.9, 0.03, 0.1),
+      COL.crack,
+    );
+  }
+  box(scene, v3(0, 0.02, z), v3(0.1, 0.03, 0.9), COL.crack);
+}
+
+/** 무너지는 길 뒤쪽 끝에서 떨어져 나가는 돌 조각 (길 아래 층) */
+function buildCrumbleChunks(scene: Scene, t: number, edge: number, k: number) {
+  scene.below = true;
+  for (let i = 0; i < 10; i++) {
+    const p = (t * 1.4 + i / 10) % 1;
+    const x = (hash(i * 3 + 1) - 0.5) * (R * 2 - 0.6);
+    const size = (0.3 + hash(i + 17) * 0.4) * k;
+    box(
+      scene,
+      v3(x, -p * p * 16, edge - 0.3 - hash(i + 5) * 1.4 - p * 1.5),
+      v3(size, size * 0.6, size),
+      i % 2 === 0 ? COL.stoneB : COL.stoneC,
+    );
+  }
+  scene.below = false;
+}
+
+// ---------- 광차 · 짚라인 ----------
+
+/** 광차 레일 — 레인마다 두 줄 + 침목. 끊어진 레일(구멍) 자리는 비운다 */
+function buildRails(scene: Scene, z0: number, z1: number, distance: number, gaps: number[]) {
+  const from = Math.max(z0, -4);
+  const to = Math.min(z1, FAR);
+  if (to <= from) return;
+  bands(from, to, 3, distance, (a, b, idx) => {
+    const zm = (a + b) / 2;
+    if (gaps.some((g) => Math.abs(zm - g) < GAP_HALF + 0.3)) return;
+    for (let lane = -1; lane <= 1; lane++) {
+      const x = lane * LANE_W;
+      // 침목 — 레일 아래 가로로 놓인 나무
+      scene.face(
+        [
+          v3(x - 0.75, 0.012, a - 0.3),
+          v3(x + 0.75, 0.012, a - 0.3),
+          v3(x + 0.75, 0.012, a - 0.55),
+          v3(x - 0.75, 0.012, a - 0.55),
+        ],
+        COL.sleeper,
+        {},
+        true,
+      );
+      for (const side of [-0.45, 0.45]) {
+        scene.face(
+          [
+            v3(x + side - 0.04, 0.02, a),
+            v3(x + side + 0.04, 0.02, a),
+            v3(x + side + 0.04, 0.02, b),
+            v3(x + side - 0.04, 0.02, b),
+          ],
+          COL.rail,
+          {},
+          true,
+        );
+      }
+    }
+    void idx;
+  });
+}
+
+/** 광차 — 플레이어가 서 있는 쇠수레. 앞벽은 플레이어 뒤에, 뒷벽은 앞에 그려져 다리를 가린다 */
+function buildCart(scene: Scene, x: number, lift: number, t: number, speed: number) {
+  const rattle = Math.sin(t * 38) * 0.012 * Math.min(1, speed / 30);
+  const y = lift + rattle;
+  box(scene, v3(x, y + 0.3, 0), v3(1.5, 0.12, 1.9), COL.cartA);
+  box(scene, v3(x, y + 0.62, 0.9), v3(1.5, 0.55, 0.1), COL.cartB);
+  box(scene, v3(x, y + 0.62, -0.9), v3(1.5, 0.55, 0.1), COL.cartB);
+  for (const side of [-1, 1]) {
+    box(scene, v3(x + side * 0.7, y + 0.62, 0), v3(0.1, 0.55, 1.9), COL.cartA);
+    for (const dz of [-0.6, 0.6]) {
+      box(scene, v3(x + side * 0.78, lift + 0.17, dz), v3(0.14, 0.34, 0.34), COL.cartWheel);
+    }
+  }
+}
+
+/** 짚라인 — 레인마다 밧줄 한 줄과 양 끝 탑. 밧줄은 물체와 같은 높이 보정을 받아 끝에서 비스듬히 오르내린다 */
+function buildZipRopes(scene: Scene, z0: number, z1: number) {
+  const from = Math.max(z0, -3);
+  const to = Math.min(z1, FAR);
+  if (to > from) {
+    for (let a = from; a < to; a += 6) {
+      const b = Math.min(to, a + 6);
+      for (let lane = -1; lane <= 1; lane++) {
+        box(scene, v3(lane * LANE_W, 2.15, (a + b) / 2), v3(0.07, 0.07, b - a), COL.rope);
+      }
+    }
+  }
+  // 양 끝 탑 — 밧줄이 매인 기둥 두 개와 가로대
+  for (const z of [z0, z1]) {
+    if (z < -3 || z > FAR) continue;
+    for (const side of [-1, 1])
+      box(scene, v3(side * (R - 0.3), 1.8, z), v3(0.4, 3.6, 0.4), COL.tower);
+    box(scene, v3(0, 3.6, z), v3(R * 2, 0.3, 0.4), COL.tower);
+  }
 }
