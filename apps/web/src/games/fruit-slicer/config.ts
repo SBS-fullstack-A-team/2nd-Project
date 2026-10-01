@@ -153,7 +153,7 @@ export type BladeId =
   | 'void'
   | 'prism'
   | 'galaxy'
-  | 'dragon';
+  | 'dawn';
 
 export interface BladeDef {
   id: BladeId;
@@ -178,7 +178,7 @@ export const TIER_LABEL: Record<BladeTier, string> = {
  * 랭커 전용 검 — 퀘스트로는 열 수 없고, 서버 전체 랭킹 CHAMPION_RANK 위 안에
  * 내 닉네임(마지막으로 등록한 이름)이 있을 때만 쓸 수 있다. 순위 밖으로 밀려나면 다시 잠긴다.
  */
-export const CHAMPION_BLADE_ID = 'dragon' satisfies BladeId;
+export const CHAMPION_BLADE_ID = 'dawn' satisfies BladeId;
 export const CHAMPION_RANK = 3;
 
 export const BLADES: readonly BladeDef[] = [
@@ -291,10 +291,10 @@ export const BLADES: readonly BladeDef[] = [
   },
   // ----- 랭커 전용 (전체 랭킹 TOP 3) -----
   {
-    id: 'dragon',
-    name: '청룡의 검',
-    description: '궤적을 따라 꿈틀대며 나는 청룡과 여의주, 피어오르는 상서로운 구름',
-    preview: 'linear-gradient(90deg, #06302c, #1fb59a, #7fffe0, #ffcf4a, #1fb59a, #06302c)',
+    id: 'dawn',
+    name: '여명의 검',
+    description: '금빛·장밋빛·하늘빛이 비단처럼 겹겹이 흐르는 빛의 궤적과 반짝이는 빛가루',
+    preview: 'linear-gradient(90deg, #ffd68c, #ff8fc8, #ffffff, #8fd8ff, #bea0ff)',
     tier: 'champion',
   },
 ];
@@ -433,6 +433,6 @@ export const HOW_TO_PLAY: readonly string[] = [
   '💣 폭탄을 베면 그 즉시 게임 오버!',
   `🔥 콤보 ${FEVER_COMBO_GOAL}을 쌓으면 ${FEVER_DURATION_SEC}초간 피버 타임! 폭탄까지 전부 벨 수 있고 점수 ${FEVER_SCORE_MULTIPLIER}배, 과일을 놓쳐도 목숨과 콤보가 유지돼요.`,
   '퀘스트를 달성하면 새로운 검 스킨이 열려요. 일반 → 에픽 → 전설 등급 검 15종을 모아 보세요!',
-  `👑 전체 랭킹 TOP ${CHAMPION_RANK} 안에 이름을 올리면 랭커 전용 검 「청룡의 검」을 쓸 수 있어요. 순위 밖으로 밀려나면 다시 잠겨요!`,
+  `👑 전체 랭킹 TOP ${CHAMPION_RANK} 안에 이름을 올리면 랭커 전용 검 「여명의 검」을 쓸 수 있어요. 순위 밖으로 밀려나면 다시 잠겨요!`,
   '⚙️ 오른쪽 위 설정 버튼(또는 Esc 키)으로 일시정지하고 사운드·밝기를 바꿀 수 있어요.',
 ];
