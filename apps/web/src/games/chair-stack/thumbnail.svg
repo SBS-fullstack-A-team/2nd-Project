@@ -1,0 +1,50 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 320 180">
+  <defs>
+    <linearGradient id="sky" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#5a9fe6"/>
+      <stop offset="1" stop-color="#d9efff"/>
+    </linearGradient>
+  </defs>
+  <rect width="320" height="180" fill="url(#sky)"/>
+  <!-- 구름 -->
+  <g fill="#fff" opacity="0.7">
+    <ellipse cx="62" cy="40" rx="30" ry="9"/>
+    <ellipse cx="78" cy="33" rx="18" ry="8"/>
+    <ellipse cx="262" cy="64" rx="26" ry="8"/>
+    <ellipse cx="276" cy="58" rx="15" ry="7"/>
+  </g>
+  <!-- 땅·기둥·받침대 -->
+  <rect y="168" width="320" height="12" fill="#5aa04a"/>
+  <rect x="146" y="158" width="28" height="12" fill="#8a7f74"/>
+  <rect x="112" y="150" width="96" height="10" rx="2" fill="#6b5644"/>
+  <!-- 1층: 벤치 -->
+  <g stroke="#00000055" stroke-width="0.8">
+    <rect x="114" y="138" width="5" height="12" fill="#7d4b28"/>
+    <rect x="198" y="138" width="5" height="12" fill="#7d4b28"/>
+    <rect x="110" y="134" width="98" height="5" rx="1" fill="#b9784a"/>
+  </g>
+  <!-- 2층: 기본 의자 -->
+  <g stroke="#00000055" stroke-width="0.8">
+    <rect x="132" y="113" width="4" height="21" fill="#35609f"/>
+    <rect x="162" y="113" width="4" height="21" fill="#35609f"/>
+    <rect x="130" y="109" width="38" height="5" rx="1" fill="#5b8bd9"/>
+    <rect x="130" y="80" width="5" height="30" rx="1" fill="#5b8bd9"/>
+  </g>
+  <!-- 3층: 기울어진 스툴 -->
+  <g transform="rotate(-12 160 95)" stroke="#00000055" stroke-width="0.8">
+    <rect x="145" y="92" width="4" height="22" fill="#a8403a" transform="rotate(8 147 92)"/>
+    <rect x="169" y="92" width="4" height="22" fill="#a8403a" transform="rotate(-8 171 92)"/>
+    <rect x="142" y="88" width="34" height="5" rx="1" fill="#e0625a"/>
+  </g>
+  <!-- 4층: 팔걸이 의자 (떨어지는 중) -->
+  <g transform="rotate(18 182 48)" stroke="#00000055" stroke-width="0.8">
+    <rect x="163" y="54" width="4" height="17" fill="#2f7a50"/>
+    <rect x="196" y="54" width="4" height="17" fill="#2f7a50"/>
+    <rect x="160" y="50" width="42" height="6" rx="1" fill="#4fae7a"/>
+    <rect x="160" y="26" width="5" height="26" rx="1" fill="#4fae7a"/>
+    <rect x="164" y="38" width="36" height="4" rx="1" fill="#4fae7a"/>
+  </g>
+  <!-- 최고 높이 선 -->
+  <line x1="20" y1="22" x2="300" y2="22" stroke="#e05050" stroke-width="1.5" stroke-dasharray="6 5"/>
+  <text x="300" y="17" text-anchor="end" font-family="sans-serif" font-size="11" font-weight="700" fill="#c03030">최고 높이!</text>
+</svg>
