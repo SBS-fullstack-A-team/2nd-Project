@@ -152,7 +152,8 @@ export type BladeId =
   | 'thunder'
   | 'void'
   | 'prism'
-  | 'galaxy';
+  | 'galaxy'
+  | 'sovereign';
 
 export interface BladeDef {
   id: BladeId;
@@ -164,13 +165,21 @@ export interface BladeDef {
   tier: BladeTier;
 }
 
-export type BladeTier = 'normal' | 'epic' | 'legend';
+export type BladeTier = 'normal' | 'epic' | 'legend' | 'champion';
 
 export const TIER_LABEL: Record<BladeTier, string> = {
   normal: '일반',
   epic: '에픽',
   legend: '전설',
+  champion: '👑 TOP 3',
 };
+
+/**
+ * 랭커 전용 검 — 퀘스트로는 열 수 없고, 서버 전체 랭킹 CHAMPION_RANK 위 안에
+ * 내 닉네임(마지막으로 등록한 이름)이 있을 때만 쓸 수 있다. 순위 밖으로 밀려나면 다시 잠긴다.
+ */
+export const CHAMPION_BLADE_ID = 'sovereign' satisfies BladeId;
+export const CHAMPION_RANK = 3;
 
 export const BLADES: readonly BladeDef[] = [
   {
@@ -279,6 +288,15 @@ export const BLADES: readonly BladeDef[] = [
     description: '성운이 소용돌이치는 궤적과 반짝이는 별무리',
     preview: 'linear-gradient(90deg, #120a3a, #5b2bff, #ff5ec8, #7dd8ff, #120a3a)',
     tier: 'legend',
+  },
+  // ----- 랭커 전용 (전체 랭킹 TOP 3) -----
+  {
+    id: 'sovereign',
+    name: '왕좌의 성검',
+    description: '황금 쌍나선과 오로라 검기, 왕관 문장과 쏟아지는 황금 깃털',
+    preview:
+      'linear-gradient(90deg, #2a0a4a, #ffd700, #fffbe0, #5ff0d0, #b46bff, #ff5ec8, #ffd700, #2a0a4a)',
+    tier: 'champion',
   },
 ];
 
@@ -416,5 +434,6 @@ export const HOW_TO_PLAY: readonly string[] = [
   '💣 폭탄을 베면 그 즉시 게임 오버!',
   `🔥 콤보 ${FEVER_COMBO_GOAL}을 쌓으면 ${FEVER_DURATION_SEC}초간 피버 타임! 폭탄까지 전부 벨 수 있고 점수 ${FEVER_SCORE_MULTIPLIER}배, 과일을 놓쳐도 목숨과 콤보가 유지돼요.`,
   '퀘스트를 달성하면 새로운 검 스킨이 열려요. 일반 → 에픽 → 전설 등급 검 15종을 모아 보세요!',
+  `👑 전체 랭킹 TOP ${CHAMPION_RANK} 안에 이름을 올리면 랭커 전용 검 「왕좌의 성검」을 쓸 수 있어요. 순위 밖으로 밀려나면 다시 잠겨요!`,
   '⚙️ 오른쪽 위 설정 버튼(또는 Esc 키)으로 일시정지하고 사운드·밝기를 바꿀 수 있어요.',
 ];
