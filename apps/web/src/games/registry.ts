@@ -1,5 +1,6 @@
 import { lazy, type ComponentType, type LazyExoticComponent } from 'react';
 import type { GameCategory, GameProps } from '@simsim/shared';
+import chairStackThumbnail from './chair-stack/thumbnail.svg';
 import chosungQuizThumbnail from './chosung-quiz/thumbnail.svg';
 import flagQuizThumbnail from './flag-quiz/thumbnail.svg';
 import fruitSlicerThumbnail from './fruit-slicer/thumbnail.svg';
@@ -100,6 +101,16 @@ export const GAMES: readonly GameMeta[] = [
     category: 'arcade',
     card: 7,
     component: lazy(() => import('./sky-ace')),
+  },
+  // 카드 9 (혁)
+  {
+    id: 'chair-stack',
+    name: '의자 탑 쌓기',
+    description: '의자를 돌리고 떨어뜨려 높이 쌓아라! 물리로 흔들리는 탑 쌓기',
+    thumbnail: chairStackThumbnail,
+    category: 'arcade',
+    card: 9,
+    component: lazy(() => import('./chair-stack')),
   },
 ];
 
