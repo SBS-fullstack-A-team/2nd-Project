@@ -176,8 +176,8 @@
   --surface-strong: #005fb8;
   --on-strong: #ffffff;
   --text: #1b1b1b;
-  --text-muted: #5f5f5f;
-  --border: #dcdcdc;
+  --text-muted: #4a4a4a;
+  --border: #d0d0d0;
   --accent: #005fb8;
   --yellow: #ffe36e;
   --success: #0f7b0f;
@@ -186,9 +186,10 @@
   --radius: 8px;
   --radius-sm: 4px;
 
-  /* 반투명(Mica·Acrylic) 표면 */
-  --mica: rgb(243 243 243 / 0.88);
-  --acrylic: rgb(238 238 238 / 0.82);
+  /* 창은 글씨가 잘 읽히도록 불투명, 작업 표시줄·시작 메뉴만 살짝 반투명(Acrylic) */
+  --mica: #eef0f3;
+  --acrylic: rgb(240 240 240 / 0.85);
+  --acrylic-strong: rgb(246 246 246 / 0.97);
   --stroke: rgb(0 0 0 / 0.08);
   --shadow: 0 8px 32px rgb(0 0 0 / 0.18), 0 2px 8px rgb(0 0 0 / 0.1);
 
