@@ -927,7 +927,7 @@ function RankingBoard({
         </p>
       )}
       <p className={styles.championHint}>
-        👑 TOP {CHAMPION_RANK} 안에 들면 랭커 전용 검 「청룡의 검」을 쓸 수 있어요
+        👑 TOP {CHAMPION_RANK} 안에 들면 랭커 전용 검 「여명의 검」을 쓸 수 있어요
       </p>
       {ranking.status === 'loading' && <p className={styles.panelText}>랭킹을 불러오는 중…</p>}
       {ranking.status === 'error' && (
