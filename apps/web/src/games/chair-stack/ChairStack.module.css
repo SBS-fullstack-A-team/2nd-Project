@@ -193,3 +193,45 @@
   flex: 1;
   font-size: 1rem;
 }
+
+/*
+ * 휴대폰(좁은 화면·터치) — 시작 화면이 무대 안에 다 들어오도록 줄인다.
+ * 키보드 조작표는 숨기고 터치 안내만 보여 준다. (넓은 화면에서는 반대로 터치 안내를 숨긴다)
+ */
+.touchHint {
+  display: none;
+}
+@media (max-width: 480px), (pointer: coarse) {
+  .controls {
+    display: none;
+  }
+  .touchHint {
+    display: block;
+  }
+}
+@media (max-width: 480px) {
+  .overlay {
+    padding: 8px;
+  }
+  .panel {
+    padding: 14px 12px;
+  }
+  .title {
+    margin-bottom: 8px;
+    font-size: 1.2rem;
+  }
+  .rules {
+    margin-bottom: 8px;
+    font-size: 0.8rem;
+    line-height: 1.5;
+  }
+  .hint {
+    margin: 6px 0;
+  }
+  .levels {
+    margin-bottom: 10px;
+  }
+  .level {
+    padding: 6px 8px;
+  }
+}

@@ -247,7 +247,9 @@ export default function ChairStack({ onFinish }: GameProps) {
                   </div>
                 ))}
               </dl>
-              <p className={styles.hint}>휴대폰은 화면을 끌어서 옮기고 아래 버튼을 눌러요</p>
+              <p className={`${styles.hint} ${styles.touchHint}`}>
+                화면을 끌어서 옮기고 아래 버튼으로 돌리고 떨어뜨려요
+              </p>
               <div className={styles.levels} role="radiogroup" aria-label="난이도">
                 {DIFFICULTIES.map((d) => (
                   <button
