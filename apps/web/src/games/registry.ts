@@ -25,8 +25,8 @@ export interface GameMeta {
   /**
    * 메인 화면 카드 번호 — 4명이 순서대로 돌아가며 받는다 (CARD_OWNERS 참고).
    * 내 n번째 게임 = (n - 1) × 4 + 내 순번. 예: 혁 1·5·9, 경수 2·6·10, 신영 3·7·11, 동한 4·8·12
-   * 이 번호 칸에 게임이 들어가고, 게임이 없는 칸은 "준비 중" 으로 표시된다.
-   * 샘플 게임처럼 카드 칸에 속하지 않는 게임은 비워 두면 카드 칸 뒤에 표시된다.
+   * 메인 화면·시작 메뉴는 이 번호 순서로 게임을 보여 준다. 아직 등록되지 않은 번호는 보이지 않는다.
+   * 샘플 게임처럼 카드 번호가 없는 게임은 비워 두면 맨 뒤에 표시된다.
    */
   card?: number;
   /** 게임 컴포넌트 — React.lazy 로 게임별 코드를 분리 로딩한다 */
@@ -120,22 +120,12 @@ export const GAMES: readonly GameMeta[] = [
  */
 export const CARD_OWNERS = ['혁', '경수', '신영', '동한'] as const;
 
-/** 카드 번호의 담당자 (1·5·9 → 혁, 2·6·10 → 경수 …) */
-export function cardOwner(card: number): string {
-  return CARD_OWNERS[(card - 1) % CARD_OWNERS.length] ?? '';
-}
-
 /**
- * 메인 화면 카드 칸 — 등록된 가장 큰 card 번호가 속한 차례(4장 묶음)까지 만든다.
- * 예: card 5 가 등록되면 5~8 칸이 생기고, 아직 게임이 없는 6·7·8 은 "준비 중".
- * 게임 담당자는 여기를 고치지 않고, GAMES 에 등록할 때 card 번호만 적는다.
+ * 메인 화면·시작 메뉴에 보여 줄 순서 — 카드 번호 순, 카드 번호가 없는 게임(샘플 등)은 뒤에.
+ * 등록된 게임만 들어가므로 아직 만들지 않은 카드 번호는 화면에 나오지 않는다.
  */
-const maxCard = Math.max(CARD_OWNERS.length, ...GAMES.map((game) => game.card ?? 0));
-const slotCount = Math.ceil(maxCard / CARD_OWNERS.length) * CARD_OWNERS.length;
-
-export const GAME_CARD_SLOTS: readonly { card: number; owner: string }[] = Array.from(
-  { length: slotCount },
-  (_, i) => ({ card: i + 1, owner: cardOwner(i + 1) }),
+export const GAMES_BY_CARD: readonly GameMeta[] = [...GAMES].sort(
+  (a, b) => (a.card ?? Number.MAX_SAFE_INTEGER) - (b.card ?? Number.MAX_SAFE_INTEGER),
 );
 
 export const CATEGORY_LABEL: Record<GameCategory, string> = {

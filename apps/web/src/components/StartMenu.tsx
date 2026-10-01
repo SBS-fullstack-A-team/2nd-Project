@@ -1,5 +1,5 @@
 import { Link } from 'react-router';
-import { GAMES } from '../games/registry';
+import { GAMES_BY_CARD } from '../games/registry';
 import { THEMES, THEME_ICON, THEME_LABEL, useTheme, useThemeStyles } from '../lib/theme';
 import xpStyles from './StartMenu.xp.module.css';
 import win98Styles from './StartMenu.win98.module.css';
@@ -7,11 +7,6 @@ import win7Styles from './StartMenu.win7.module.css';
 import win11Styles from './StartMenu.win11.module.css';
 
 const REPO_URL = 'https://github.com/SBS-fullstack-A-team/simsim-arcade';
-
-// 카드 번호 순서대로, 카드 번호가 없는 게임(샘플 등)은 뒤에
-const MENU_GAMES = [...GAMES].sort(
-  (a, b) => (a.card ?? Number.MAX_SAFE_INTEGER) - (b.card ?? Number.MAX_SAFE_INTEGER),
-);
 
 interface StartMenuProps {
   id: string;
@@ -48,7 +43,7 @@ export function StartMenu({ id, onClose }: StartMenuProps) {
           <nav className={styles.left} aria-label="게임">
             <p className={styles.sectionTitle}>게임</p>
             <ul className={styles.list}>
-              {MENU_GAMES.map((game) => (
+              {GAMES_BY_CARD.map((game) => (
                 <li key={game.id}>
                   <Link to={`/games/${game.id}`} className={styles.gameItem} onClick={onClose}>
                     <img className={styles.gameThumb} src={game.thumbnail} alt="" />
