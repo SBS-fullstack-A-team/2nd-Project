@@ -42,29 +42,3 @@
   color: var(--text-muted);
   font-size: 0.8rem;
 }
-
-/* 준비 중 카드 칸 */
-.comingSoon {
-  cursor: default;
-}
-.comingSoon:hover .name {
-  background: none;
-  color: var(--text-muted);
-}
-.comingSoon .name {
-  color: var(--text-muted);
-}
-.placeholder {
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  justify-content: center;
-  gap: 4px;
-  background: repeating-conic-gradient(#c0c0c0 0% 25%, #dfdfdf 0% 50%) 0 0 / 4px 4px;
-  color: #808080;
-  font-weight: 700;
-  letter-spacing: 0.1em;
-}
-.placeholderIcon {
-  font-size: 1.8rem;
-}

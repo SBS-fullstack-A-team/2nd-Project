@@ -55,32 +55,3 @@
   color: var(--text-muted);
   font-size: 0.85rem;
 }
-
-/* 준비 중 카드 칸 */
-.comingSoon,
-.comingSoon:hover,
-.comingSoon:active {
-  background: rgb(255 255 255 / 0.5);
-  border-style: dashed;
-  border-color: rgb(0 0 0 / 0.18);
-  box-shadow: none;
-  transform: none;
-  cursor: default;
-}
-.placeholder {
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  justify-content: center;
-  gap: 4px;
-  background: linear-gradient(135deg, #eef3fa 0%, #e3e9f2 100%);
-  color: #8a8f98;
-  font-weight: 600;
-  letter-spacing: 0.1em;
-}
-.placeholderIcon {
-  font-size: 1.8rem;
-}
-.comingSoon .name {
-  color: var(--text-muted);
-}

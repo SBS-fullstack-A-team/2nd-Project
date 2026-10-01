@@ -27,29 +27,3 @@ export function GameCard({ game }: { game: GameMeta }) {
     </Link>
   );
 }
-
-/** 아직 게임이 등록되지 않은 카드 칸 — "준비 중" 표시 (눌러도 이동하지 않는다) */
-export function ComingSoonCard({ card, owner }: { card: number; owner: string }) {
-  const styles = useThemeStyles({
-    classic: classicStyles,
-    xp: xpStyles,
-    win98: win98Styles,
-    win7: win7Styles,
-    win11: win11Styles,
-  });
-  return (
-    <div className={`${styles.card} ${styles.comingSoon}`}>
-      <div className={`${styles.thumbnail} ${styles.placeholder}`} aria-hidden="true">
-        <span className={styles.placeholderIcon}>🚧</span>
-        <span>CARD {card}</span>
-      </div>
-      <div className={styles.body}>
-        <span className={styles.category}>
-          카드 {card} · 담당 {owner}
-        </span>
-        <h2 className={styles.name}>준비 중</h2>
-        <p className={styles.description}>새 게임을 만들고 있어요. 조금만 기다려 주세요!</p>
-      </div>
-    </div>
-  );
-}
