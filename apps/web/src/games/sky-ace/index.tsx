@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from 'react';
 import type { GameProps } from '@simsim/shared';
-import { AIRCRAFTS, HOW_TO_PLAY, type AircraftDef, type AircraftId } from './config';
+import { AIRCRAFTS, HOW_TO_PLAY, getAircraft, type AircraftDef, type AircraftId } from './config';
 import { SkyAceEngine, type GameSummary } from './engine';
 import { drawPlayerPlane } from './render';
 import { SoundManager } from './sound';
@@ -21,6 +21,9 @@ export default function SkyAce({ onFinish }: GameProps) {
   const [sound] = useState(() => new SoundManager());
   const [screen, setScreen] = useState<Screen>({ name: 'menu' });
   const [selected, setSelected] = useState<AircraftId>('p38');
+  /** 이스터에그 — 홈 화면의 SKY ACE 제목을 누르면 숨은 기체가 나타난다 */
+  const [secretOpen, setSecretOpen] = useState(false);
+  const aircrafts = AIRCRAFTS.filter((a) => !a.secret || secretOpen);
   const [paused, setPaused] = useState(false);
   /** 설정 창에서 '게임 홈으로' 를 눌러 확인을 기다리는 중 */
   const [confirmHome, setConfirmHome] = useState(false);
@@ -92,6 +95,19 @@ export default function SkyAce({ onFinish }: GameProps) {
     setScreen({ name: 'menu' });
   }
 
+  function toggleSecret() {
+    sound.unlock();
+    const next = !secretOpen;
+    setSecretOpen(next);
+    if (next) {
+      sound.play('secret');
+      setSelected('phoenix');
+    } else {
+      sound.play('select');
+      if (getAircraft(selected).secret) setSelected('p38');
+    }
+  }
+
   function toggleMute() {
     sound.unlock();
     sound.setMuted(!muted);
@@ -104,12 +120,12 @@ export default function SkyAce({ onFinish }: GameProps) {
       const target = e.target as HTMLElement | null;
       if (target && (target.tagName === 'INPUT' || target.tagName === 'TEXTAREA')) return;
       if (screen.name === 'menu') {
-        const idx = AIRCRAFTS.findIndex((a) => a.id === selected);
+        const idx = aircrafts.findIndex((a) => a.id === selected);
         if (e.key === 'ArrowLeft' || e.key === 'ArrowRight') {
           e.preventDefault();
           const next =
-            (idx + (e.key === 'ArrowLeft' ? -1 : 1) + AIRCRAFTS.length) % AIRCRAFTS.length;
-          setSelected(AIRCRAFTS[next]!.id);
+            (idx + (e.key === 'ArrowLeft' ? -1 : 1) + aircrafts.length) % aircrafts.length;
+          setSelected(aircrafts[next]!.id);
         } else if (e.key === 'Enter') {
           e.preventDefault();
           start();
@@ -197,18 +213,21 @@ export default function SkyAce({ onFinish }: GameProps) {
         {screen.name === 'menu' && !engineError && (
           <div className={styles.overlay}>
             <div className={styles.panel}>
-              <h2 className={styles.logo}>
-                SKY <span>ACE</span>
+              <h2 className={`${styles.logo} ${secretOpen ? styles.logoSecret : ''}`}>
+                {/* 이스터에그: 제목을 누르면 글씨가 회색으로 바뀌고 숨은 기체가 나타난다 */}
+                <button type="button" className={styles.logoButton} onClick={toggleSecret}>
+                  SKY <span>ACE</span>
+                </button>
               </h2>
               <p className={styles.subtitle}>기체를 고르고 출격하세요</p>
               <div className={styles.aircraftList} role="radiogroup" aria-label="기체 선택">
-                {AIRCRAFTS.map((a) => (
+                {aircrafts.map((a) => (
                   <button
                     key={a.id}
                     type="button"
                     role="radio"
                     aria-checked={selected === a.id}
-                    className={`${styles.aircraft} ${selected === a.id ? styles.aircraftOn : ''}`}
+                    className={`${styles.aircraft} ${a.secret ? styles.aircraftSecret : ''} ${selected === a.id ? styles.aircraftOn : ''}`}
                     onClick={() => {
                       sound.unlock();
                       sound.play('select');
@@ -216,12 +235,16 @@ export default function SkyAce({ onFinish }: GameProps) {
                     }}
                   >
                     <AircraftPreview def={a} active={selected === a.id} />
-                    <strong>{a.name}</strong>
-                    <span className={styles.aircraftType}>{a.type}</span>
+                    <span className={styles.aircraftLabel}>
+                      <strong>{a.name}</strong>
+                      <span className={styles.aircraftType}>
+                        {a.secret ? `✦ ${a.type} ✦` : a.type}
+                      </span>
+                    </span>
                   </button>
                 ))}
               </div>
-              <AircraftSpec def={AIRCRAFTS.find((a) => a.id === selected)!} />
+              <AircraftSpec def={getAircraft(selected)} />
               <button type="button" className={styles.startBtn} onClick={start}>
                 출격!
               </button>
@@ -325,6 +348,11 @@ function AircraftSpec({ def }: { def: AircraftDef }) {
       <dd>{def.sub}</dd>
       <dt>필살기</dt>
       <dd>{def.bomb}</dd>
+      <dt>능력치</dt>
+      <dd className={def.secret ? styles.specSecret : undefined}>
+        목숨 {def.lives} · 필살기 {def.bombs}개 · 화력 ×{def.bombPower} · 속도{' '}
+        {Math.round(def.speed * 100)}%
+      </dd>
     </dl>
   );
 }
@@ -342,7 +370,9 @@ function AircraftPreview({ def, active }: { def: AircraftDef; active: boolean })
       const t = (now - start) / 1000;
       ctx.setTransform(1, 0, 0, 1, 0, 0);
       ctx.clearRect(0, 0, canvas.width, canvas.height);
-      ctx.setTransform(1.6, 0, 0, 1.6, canvas.width / 2, canvas.height / 2 - 4);
+      // 숨은 기체는 날개 오라가 넓어서 조금 작게 그린다
+      const scale = def.secret ? 1.05 : 1.6;
+      ctx.setTransform(scale, 0, 0, scale, canvas.width / 2, canvas.height / 2 - 4);
       drawPlayerPlane(
         ctx,
         def.id,

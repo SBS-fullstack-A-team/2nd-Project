@@ -20,6 +20,8 @@ export const MAX_SCORE = 1_500_000;
 export const START_LIVES = 3;
 export const START_BOMBS = 3;
 export const MAX_BOMBS = 6;
+/** 기체별 시작 목숨·필살기가 많아도 이 개수까지는 쥘 수 있다 */
+export const MAX_BOMBS_SECRET = 8;
 export const MAX_POWER = 3;
 /** 피격 판정 반지름 — 탄막 슈팅답게 기체 그림보다 훨씬 작다 */
 export const PLAYER_HIT_RADIUS = 4;
@@ -33,7 +35,7 @@ export const INVINCIBLE_SEC = 2.5;
 /** 폭탄 지속 시간 (초) — 이 동안 무적 */
 export const BOMB_SEC = 2.6;
 
-export type AircraftId = 'p38' | 'shinden' | 'spitfire';
+export type AircraftId = 'p38' | 'shinden' | 'spitfire' | 'phoenix';
 
 export interface AircraftDef {
   id: AircraftId;
@@ -47,6 +49,14 @@ export interface AircraftDef {
   accent: string;
   /** 이동 속도 배율 */
   speed: number;
+  /** 시작 목숨 */
+  lives: number;
+  /** 시작 필살기 개수 (격추 후 재등장할 때도 이만큼은 채워 준다) */
+  bombs: number;
+  /** 필살기 데미지 배율 */
+  bombPower: number;
+  /** 홈 화면 이스터에그로만 고를 수 있는 숨은 기체 */
+  secret?: boolean;
 }
 
 export const AIRCRAFTS: readonly AircraftDef[] = [
@@ -60,6 +70,9 @@ export const AIRCRAFTS: readonly AircraftDef[] = [
     color: '#9fb6c9',
     accent: '#58c8ff',
     speed: 1,
+    lives: START_LIVES,
+    bombs: START_BOMBS,
+    bombPower: 1,
   },
   {
     id: 'shinden',
@@ -71,6 +84,9 @@ export const AIRCRAFTS: readonly AircraftDef[] = [
     color: '#c9a86a',
     accent: '#ff9d3c',
     speed: 0.92,
+    lives: START_LIVES,
+    bombs: START_BOMBS,
+    bombPower: 1,
   },
   {
     id: 'spitfire',
@@ -82,6 +98,28 @@ export const AIRCRAFTS: readonly AircraftDef[] = [
     color: '#8fb08a',
     accent: '#7dffb0',
     speed: 1.12,
+    lives: START_LIVES,
+    bombs: START_BOMBS,
+    bombPower: 1,
+  },
+  /**
+   * 숨은 기체 — 홈 화면의 SKY ACE 제목을 누르면 나타난다.
+   * 목숨·필살기 개수·필살기 화력·속도 모두 일반 기체보다 높다.
+   */
+  {
+    id: 'phoenix',
+    name: 'XF-0 피닉스',
+    type: '시크릿 기체',
+    main: '7방향 프리즘 플레어',
+    sub: '불새 유도 미사일 연사',
+    bomb: '불사조 강림 — 화면을 휩쓰는 화염 날개',
+    color: '#f2f2f8',
+    accent: '#ffb02e',
+    speed: 1.3,
+    lives: 5,
+    bombs: 5,
+    bombPower: 2,
+    secret: true,
   },
 ];
 

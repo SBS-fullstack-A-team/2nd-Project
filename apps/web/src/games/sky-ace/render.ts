@@ -192,6 +192,8 @@ export function drawPlayerPlane(
     ctx.fillStyle = dark;
     ctx.fillRect(-21, 11, 3, 8);
     ctx.fillRect(18, 11, 3, 8);
+  } else if (id === 'phoenix') {
+    drawPhoenixJet(ctx, t, color, accent);
   } else {
     drawThrust(ctx, 0, 18, 6, 15, t, '#eaffd0', '#48ff8a');
     ctx.fillStyle = dark;
@@ -210,6 +212,183 @@ export function drawPlayerPlane(
     ctx.fillStyle = '#e8e8e8';
     ellipse(ctx, 0, -20, 2.5, 2.5);
     propeller(ctx, 0, -22, 10, t);
+  }
+  ctx.restore();
+}
+
+/**
+ * XF-0 피닉스 — 숨은 기체. 백금 동체에 금빛 테두리를 두른 전진익 제트기.
+ * 뒤로 흐르는 불새 날개 오라, 쌍발 청백색 애프터버너, 회전하는 날개 끝 광점.
+ */
+function drawPhoenixJet(ctx: CanvasRenderingContext2D, t: number, color: string, accent: string) {
+  const gold = accent;
+  const deep = '#2a1840';
+
+  // 1) 뒤로 흐르는 불새 날개 오라 (가산 혼합)
+  ctx.save();
+  ctx.globalCompositeOperation = 'lighter';
+  const flap = Math.sin(t * 6) * 3;
+  for (const side of [-1, 1]) {
+    const g = ctx.createLinearGradient(0, 0, side * 40, 26);
+    g.addColorStop(0, 'rgba(255,215,90,0.7)');
+    g.addColorStop(0.45, 'rgba(255,120,50,0.45)');
+    g.addColorStop(1, 'rgba(255,60,110,0)');
+    ctx.fillStyle = g;
+    ctx.beginPath();
+    ctx.moveTo(side * 6, -2);
+    ctx.quadraticCurveTo(side * 34, -8 + flap, side * 44, 18 + flap);
+    ctx.quadraticCurveTo(side * 28, 12, side * 22, 26 + flap * 0.5);
+    ctx.quadraticCurveTo(side * 14, 16, side * 4, 20);
+    ctx.closePath();
+    ctx.fill();
+  }
+  ctx.restore();
+
+  // 2) 쌍발 애프터버너 (청백색 + 금빛 꼬리)
+  drawThrust(ctx, -5, 21, 6, 22, t, '#e6f4ff', '#ffb02e');
+  drawThrust(ctx, 5, 21, 6, 22, t + 0.37, '#e6f4ff', '#ffb02e');
+
+  // 3) 꼬리날개 (바깥으로 기운 V 꼬리)
+  ctx.fillStyle = deep;
+  poly(ctx, [-6, 10, -15, 22, -12, 24, -4, 17]);
+  poly(ctx, [-6, 10, -15, 22, -12, 24, -4, 17], true);
+  ctx.fillStyle = gold;
+  poly(ctx, [-7, 12, -14, 21, -12.5, 22, -5.5, 16]);
+  poly(ctx, [-7, 12, -14, 21, -12.5, 22, -5.5, 16], true);
+
+  // 4) 주익 — 앞으로 꺾인 전진익: 어두운 테두리 → 백금 → 금빛 앞전
+  ctx.fillStyle = deep;
+  poly(ctx, [-4, -6, -27, 4, -29, 12, -20, 10, -5, 12]);
+  poly(ctx, [-4, -6, -27, 4, -29, 12, -20, 10, -5, 12], true);
+  const wing = ctx.createLinearGradient(0, -6, 0, 12);
+  wing.addColorStop(0, '#ffffff');
+  wing.addColorStop(1, shade(color, -40));
+  ctx.fillStyle = wing;
+  poly(ctx, [-4, -4, -26, 5, -27, 10, -19, 8.5, -5, 10]);
+  poly(ctx, [-4, -4, -26, 5, -27, 10, -19, 8.5, -5, 10], true);
+  ctx.fillStyle = gold;
+  poly(ctx, [-4, -4, -26, 5, -25, 6.6, -4, -1.6]);
+  poly(ctx, [-4, -4, -26, 5, -25, 6.6, -4, -1.6], true);
+
+  // 5) 카나드 (앞쪽 작은 날개)
+  ctx.fillStyle = gold;
+  poly(ctx, [-3, -13, -11, -9, -10, -6.5, -3, -9]);
+  poly(ctx, [-3, -13, -11, -9, -10, -6.5, -3, -9], true);
+
+  // 6) 동체 — 백금 그라디언트 + 가운데 금빛 줄무늬
+  ctx.fillStyle = deep;
+  ellipse(ctx, 0, 1, 6.2, 23);
+  const body = ctx.createLinearGradient(-6, 0, 6, 0);
+  body.addColorStop(0, shade(color, -60));
+  body.addColorStop(0.45, '#ffffff');
+  body.addColorStop(1, shade(color, -50));
+  ctx.fillStyle = body;
+  ellipse(ctx, 0, 0, 5.2, 22);
+  ctx.fillStyle = gold;
+  ctx.fillRect(-0.9, 4, 1.8, 15);
+
+  // 7) 조종석 — 보랏빛 유리에 흐르는 하이라이트
+  const glass = ctx.createLinearGradient(0, -14, 0, -2);
+  glass.addColorStop(0, '#ff7ad9');
+  glass.addColorStop(1, '#5a2bd6');
+  ctx.fillStyle = glass;
+  ellipse(ctx, 0, -8, 2.8, 6.5);
+  ctx.fillStyle = `rgba(255,255,255,${0.55 + 0.35 * Math.sin(t * 4)})`;
+  ellipse(ctx, -0.9, -10, 0.9, 2.6);
+
+  // 8) 기수 끝과 날개 끝의 광점 (가산 혼합으로 반짝임)
+  ctx.save();
+  ctx.globalCompositeOperation = 'lighter';
+  const pulse = 0.7 + 0.3 * Math.sin(t * 10);
+  drawSprite(ctx, glowSprite('#ffb02e', 3), 0, -22);
+  for (const side of [-1, 1]) {
+    ctx.globalAlpha = pulse;
+    drawSprite(ctx, glowSprite(side < 0 ? '#ff5aa8' : '#5ad8ff', 2.5), side * 28, 10);
+  }
+  ctx.restore();
+}
+
+/**
+ * 불사조 (피닉스 필살기) — 날개를 펄럭이며 화면을 가로지르는 거대한 화염 새.
+ * s = 크기 배율, flap = 날갯짓 위상
+ */
+export function drawFirebird(
+  ctx: CanvasRenderingContext2D,
+  x: number,
+  y: number,
+  s: number,
+  t: number,
+  alpha: number,
+) {
+  ctx.save();
+  ctx.translate(x, y);
+  ctx.scale(s, s);
+  ctx.globalCompositeOperation = 'lighter';
+  ctx.globalAlpha = alpha;
+  const flap = Math.sin(t * 9);
+
+  // 몸 주위 후광
+  const halo = ctx.createRadialGradient(0, 0, 0, 0, 0, 120);
+  halo.addColorStop(0, 'rgba(255,230,150,0.7)');
+  halo.addColorStop(0.4, 'rgba(255,120,40,0.3)');
+  halo.addColorStop(1, 'rgba(255,40,80,0)');
+  ctx.fillStyle = halo;
+  ctx.beginPath();
+  ctx.arc(0, 0, 120, 0, TAU);
+  ctx.fill();
+
+  // 날개 — 깃털 5겹을 바깥에서 안쪽으로 겹쳐 그린다
+  for (const side of [-1, 1]) {
+    for (let f = 0; f < 5; f++) {
+      const k = 1 - f * 0.17;
+      const tipX = side * (190 * k);
+      const tipY = -60 * k + flap * 40 * k + f * 6;
+      const g = ctx.createLinearGradient(0, 0, tipX, tipY);
+      g.addColorStop(0, 'rgba(255,250,220,0.9)');
+      g.addColorStop(0.35, f % 2 ? 'rgba(255,170,40,0.75)' : 'rgba(255,110,30,0.75)');
+      g.addColorStop(1, 'rgba(255,40,120,0)');
+      ctx.fillStyle = g;
+      ctx.beginPath();
+      ctx.moveTo(side * 8, -6);
+      ctx.quadraticCurveTo(side * 80 * k, tipY - 30, tipX, tipY);
+      ctx.quadraticCurveTo(side * 110 * k, tipY + 40 + f * 4, side * 10, 18);
+      ctx.closePath();
+      ctx.fill();
+    }
+  }
+
+  // 꼬리 깃 — 아래로 길게 늘어지며 일렁인다
+  for (let i = -2; i <= 2; i++) {
+    const sway = Math.sin(t * 7 + i) * 14;
+    const g = ctx.createLinearGradient(0, 10, i * 18 + sway, 170);
+    g.addColorStop(0, 'rgba(255,220,120,0.85)');
+    g.addColorStop(0.5, 'rgba(255,90,60,0.5)');
+    g.addColorStop(1, 'rgba(160,60,255,0)');
+    ctx.fillStyle = g;
+    ctx.beginPath();
+    ctx.moveTo(-6, 14);
+    ctx.quadraticCurveTo(i * 10 - 12, 90, i * 22 + sway, 170 - Math.abs(i) * 18);
+    ctx.quadraticCurveTo(i * 10 + 12, 90, 6, 14);
+    ctx.closePath();
+    ctx.fill();
+  }
+
+  // 몸통과 머리
+  ctx.fillStyle = 'rgba(255,245,210,0.95)';
+  ellipse(ctx, 0, 4, 12, 30);
+  ctx.fillStyle = '#ffffff';
+  ellipse(ctx, 0, -32, 9, 11);
+  // 부리
+  ctx.fillStyle = 'rgba(255,200,80,0.95)';
+  poly(ctx, [-4, -40, 0, -54, 4, -40]);
+  // 머리 볏
+  ctx.fillStyle = 'rgba(255,120,40,0.8)';
+  for (const c of [-1, 0, 1]) {
+    ctx.beginPath();
+    ctx.moveTo(c * 4, -38);
+    ctx.quadraticCurveTo(c * 10, -58 + Math.sin(t * 12 + c) * 4, c * 14, -62);
+    ctx.quadraticCurveTo(c * 6, -50, c * 2, -36);
+    ctx.fill();
   }
   ctx.restore();
 }
