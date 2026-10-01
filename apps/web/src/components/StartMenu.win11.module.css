@@ -1,4 +1,4 @@
-/* 11 시작 메뉴 — 작업 표시줄 위 가운데에 뜨는 둥근 반투명 패널 */
+/* 11 시작 메뉴 — 작업 표시줄 위 가운데에 뜨는 둥근 패널 (글씨가 많아 거의 불투명) */
 .menu {
   position: fixed;
   left: 50%;
@@ -8,7 +8,7 @@
   max-height: calc(100vh - var(--taskbar-height) - 24px);
   display: flex;
   flex-direction: column;
-  background: var(--acrylic);
+  background: var(--acrylic-strong);
   border: 1px solid rgb(0 0 0 / 0.12);
   border-radius: var(--radius);
   box-shadow: var(--shadow);
