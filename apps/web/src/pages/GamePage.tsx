@@ -10,6 +10,8 @@ import { NotFoundPage } from './NotFoundPage';
 import classicStyles from './GamePage.classic.module.css';
 import xpStyles from './GamePage.xp.module.css';
 import win98Styles from './GamePage.win98.module.css';
+import win7Styles from './GamePage.win7.module.css';
+import win11Styles from './GamePage.win11.module.css';
 
 /** 게임 실행 페이지 (/games/:gameId) — registry 에서 게임을 찾아 실행한다 */
 export function GamePage() {
@@ -76,7 +78,7 @@ function GameRunner({ game }: { game: GameMeta }) {
     );
   }
 
-  const styles = theme === 'win98' ? win98Styles : xpStyles;
+  const styles = { xp: xpStyles, win98: win98Styles, win7: win7Styles, win11: win11Styles }[theme];
   return (
     <div className={styles.page}>
       <div className={styles.content}>

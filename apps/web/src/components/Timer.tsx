@@ -3,6 +3,8 @@ import { useThemeStyles } from '../lib/theme';
 import classicStyles from './Timer.classic.module.css';
 import xpStyles from './Timer.xp.module.css';
 import win98Styles from './Timer.win98.module.css';
+import win7Styles from './Timer.win7.module.css';
+import win11Styles from './Timer.win11.module.css';
 
 interface TimerProps {
   /** 제한시간(초) */
@@ -18,7 +20,13 @@ interface TimerProps {
  * 처음부터 다시 시작하려면 부모에서 key 를 바꿔 새로 마운트한다.
  */
 export function Timer({ seconds, running = true, onExpire }: TimerProps) {
-  const styles = useThemeStyles({ classic: classicStyles, xp: xpStyles, win98: win98Styles });
+  const styles = useThemeStyles({
+    classic: classicStyles,
+    xp: xpStyles,
+    win98: win98Styles,
+    win7: win7Styles,
+    win11: win11Styles,
+  });
   const totalMs = seconds * 1000;
   const [remainingMs, setRemainingMs] = useState(totalMs);
   const remainingRef = useRef(totalMs);

@@ -1,0 +1,98 @@
+/* 11 설정 앱의 펼침 카드(Expander) 느낌 */
+.body {
+  padding: 0;
+}
+.title {
+  margin: 0;
+  padding: 28px 28px 0;
+  font-family: 'Segoe UI Variable Display', 'Segoe UI', 'Malgun Gothic', sans-serif;
+  font-size: clamp(1.4rem, 4.5vw, 1.9rem);
+  font-weight: 600;
+}
+.intro {
+  margin: 8px 28px 16px;
+  color: var(--text-muted);
+  font-size: 0.9rem;
+}
+.list {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  margin: 0 28px;
+}
+.item {
+  background: var(--surface);
+  border: 1px solid var(--stroke);
+  border-radius: var(--radius-sm);
+}
+.question {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 12px 14px;
+  border-radius: var(--radius-sm);
+  cursor: pointer;
+  list-style: none;
+}
+.question::-webkit-details-marker {
+  display: none;
+}
+/* 오른쪽 펼침 화살표 */
+.question::after {
+  content: '';
+  width: 7px;
+  height: 7px;
+  margin-left: auto;
+  border-right: 1.5px solid var(--text);
+  border-bottom: 1.5px solid var(--text);
+  transform: rotate(45deg) translate(-2px, -2px);
+  flex-shrink: 0;
+}
+.item[open] .question::after {
+  transform: rotate(-135deg) translate(-2px, -2px);
+}
+.question:hover {
+  background: #f9f9f9;
+}
+.mark {
+  display: grid;
+  place-items: center;
+  width: 22px;
+  height: 22px;
+  border-radius: var(--radius-sm);
+  background: rgb(0 95 184 / 0.1);
+  color: var(--accent);
+  font-size: 0.75rem;
+  font-weight: 600;
+  flex-shrink: 0;
+}
+.answer {
+  padding: 12px 14px 14px 48px;
+  border-top: 1px solid var(--stroke);
+  font-size: 0.9rem;
+  line-height: 1.7;
+}
+.answer a,
+.contact a {
+  color: var(--accent);
+}
+.contact {
+  margin: 0;
+  padding: 16px 28px 28px;
+  font-size: 0.9rem;
+  color: var(--text-muted);
+}
+@media (max-width: 480px) {
+  .title {
+    padding: 20px 16px 0;
+  }
+  .intro {
+    margin: 8px 16px 12px;
+  }
+  .list {
+    margin: 0 16px;
+  }
+  .contact {
+    padding: 16px;
+  }
+}

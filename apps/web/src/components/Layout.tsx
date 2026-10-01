@@ -7,6 +7,8 @@ import { ThemeSelect } from './ThemeSelect';
 import classicStyles from './Layout.classic.module.css';
 import xpStyles from './Layout.xp.module.css';
 import win98Styles from './Layout.win98.module.css';
+import win7Styles from './Layout.win7.module.css';
+import win11Styles from './Layout.win11.module.css';
 
 export function Layout() {
   const { theme } = useTheme();
@@ -37,9 +39,15 @@ function ClassicLayout() {
   );
 }
 
-/** XP·98 — 바탕화면 + 하단 작업 표시줄 (시작 메뉴 · 열린 창 · 시계). 구조는 같고 스타일만 다르다 */
+/** XP·98·7·11 — 바탕화면 + 하단 작업 표시줄 (시작 메뉴 · 열린 창 · 시계). 구조는 같고 스타일만 다르다 */
 function DesktopLayout() {
-  const styles = useThemeStyles({ classic: xpStyles, xp: xpStyles, win98: win98Styles });
+  const styles = useThemeStyles({
+    classic: xpStyles,
+    xp: xpStyles,
+    win98: win98Styles,
+    win7: win7Styles,
+    win11: win11Styles,
+  });
   const { pathname } = useLocation();
   const gameMatch = useMatch('/games/:gameId');
   const game = findGame(gameMatch?.params.gameId);

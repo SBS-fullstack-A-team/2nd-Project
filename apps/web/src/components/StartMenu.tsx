@@ -3,6 +3,8 @@ import { GAMES } from '../games/registry';
 import { THEMES, THEME_ICON, THEME_LABEL, useTheme, useThemeStyles } from '../lib/theme';
 import xpStyles from './StartMenu.xp.module.css';
 import win98Styles from './StartMenu.win98.module.css';
+import win7Styles from './StartMenu.win7.module.css';
+import win11Styles from './StartMenu.win11.module.css';
 
 const REPO_URL = 'https://github.com/SBS-fullstack-A-team/simsim-arcade';
 
@@ -17,14 +19,20 @@ interface StartMenuProps {
   onClose: () => void;
 }
 
-/** 시작 메뉴 (XP·98) — 게임 목록, 바로가기, 테마 선택 */
+/** 시작 메뉴 (XP·98·7·11) — 게임 목록, 바로가기, 테마 선택 */
 export function StartMenu({ id, onClose }: StartMenuProps) {
   const { theme, setTheme } = useTheme();
-  const styles = useThemeStyles({ classic: xpStyles, xp: xpStyles, win98: win98Styles });
+  const styles = useThemeStyles({
+    classic: xpStyles,
+    xp: xpStyles,
+    win98: win98Styles,
+    win7: win7Styles,
+    win11: win11Styles,
+  });
 
   return (
     <div id={id} className={styles.menu}>
-      {/* 98 스타일의 세로 배너 (XP 스타일에서는 숨김) */}
+      {/* 98 스타일의 세로 배너 (다른 테마에서는 숨김) */}
       <div className={styles.banner} aria-hidden="true">
         심심오락실 <strong>98</strong>
       </div>

@@ -1,0 +1,84 @@
+.backdrop {
+  position: fixed;
+  inset: 0;
+  background: rgb(0 20 50 / 0.4);
+  display: grid;
+  place-items: center;
+  padding: 16px;
+  z-index: 10;
+}
+.modal {
+  width: 100%;
+  max-width: 420px;
+  max-height: calc(100vh - 32px);
+  overflow-y: auto;
+}
+.body {
+  padding: 20px;
+  text-align: center;
+}
+.title {
+  margin: 0;
+  font-size: 1.4rem;
+  font-weight: 400;
+  color: #1e3287;
+}
+.score {
+  margin: 8px 0 16px;
+  font-size: 1.1rem;
+}
+.score strong {
+  font-size: 2.8rem;
+  color: var(--accent);
+}
+.form {
+  display: flex;
+  gap: 8px;
+}
+.input {
+  flex: 1;
+  min-width: 0;
+  font: inherit;
+  padding: 5px 8px;
+  border: 1px solid var(--border);
+  border-top-color: #8e8f8f;
+  border-radius: 2px;
+  background: var(--surface);
+  color: var(--text);
+}
+.input:hover {
+  border-color: #7eb4ea;
+}
+.input:focus {
+  outline: none;
+  border-color: #569de5;
+}
+.registered {
+  font-weight: 700;
+  margin: 0;
+}
+.error {
+  color: var(--danger);
+  margin: 8px 0 0;
+  font-size: 0.9rem;
+}
+.rankingTitle {
+  margin: 20px 0 6px;
+  font-size: 0.95rem;
+  font-weight: 400;
+  color: #1e3287;
+  text-align: left;
+}
+.ranking {
+  text-align: left;
+  background: var(--surface);
+  border: 1px solid #d5dfe5;
+  border-radius: 3px;
+  padding: 4px;
+}
+.actions {
+  display: flex;
+  gap: 8px;
+  justify-content: center;
+  margin-top: 20px;
+}

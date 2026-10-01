@@ -1,0 +1,32 @@
+.timer {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+/* 11 진행 막대 — 가는 회색 선 위 둥근 강조색 막대 */
+.track {
+  flex: 1;
+  height: 4px;
+  border-radius: 2px;
+  background: rgb(0 0 0 / 0.14);
+  overflow: hidden;
+}
+.bar {
+  height: 100%;
+  border-radius: 2px;
+  background: var(--accent);
+  transform-origin: left;
+  transition: transform 0.1s linear;
+}
+.label {
+  min-width: 3.5em;
+  text-align: right;
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+}
+.urgent .bar {
+  background: var(--danger);
+}
+.urgent .label {
+  color: var(--danger);
+}

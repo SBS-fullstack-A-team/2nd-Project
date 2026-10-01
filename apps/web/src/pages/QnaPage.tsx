@@ -6,6 +6,8 @@ import { useTheme } from '../lib/theme';
 import classicStyles from './QnaPage.classic.module.css';
 import xpStyles from './QnaPage.xp.module.css';
 import win98Styles from './QnaPage.win98.module.css';
+import win7Styles from './QnaPage.win7.module.css';
+import win11Styles from './QnaPage.win11.module.css';
 
 const ISSUES_URL = 'https://github.com/SBS-fullstack-A-team/simsim-arcade/issues';
 
@@ -51,7 +53,7 @@ const QNA_ITEMS: QnaItem[] = [
   },
   {
     q: '화면 디자인을 바꿀 수 있나요?',
-    a: 'XP · 98 · 클래식 세 가지 테마가 있어요. XP와 98 테마에서는 왼쪽 아래 [시작] 메뉴 맨 아래 🎨 테마에서, 클래식 테마에서는 오른쪽 위 테마 선택 목록에서 바꿀 수 있어요. 고른 테마는 다음 방문에도 유지돼요.',
+    a: 'XP · 98 · 7 · 11 · 클래식 다섯 가지 테마가 있어요. XP · 98 · 7 · 11 테마에서는 작업 표시줄의 [시작] 버튼(🕹️)을 눌러 메뉴 맨 아래 🎨 테마에서, 클래식 테마에서는 오른쪽 위 테마 선택 목록에서 바꿀 수 있어요. 고른 테마는 다음 방문에도 유지돼요.',
   },
   {
     q: '버그를 발견했거나 제안하고 싶은 게 있어요.',
@@ -69,7 +71,13 @@ const QNA_ITEMS: QnaItem[] = [
 /** Q&A · 도움말 페이지 (/qna) */
 export function QnaPage() {
   const { theme } = useTheme();
-  const styles = { classic: classicStyles, xp: xpStyles, win98: win98Styles }[theme];
+  const styles = {
+    classic: classicStyles,
+    xp: xpStyles,
+    win98: win98Styles,
+    win7: win7Styles,
+    win11: win11Styles,
+  }[theme];
 
   const content = (
     <>

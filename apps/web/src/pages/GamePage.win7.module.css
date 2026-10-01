@@ -1,0 +1,52 @@
+.content {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 280px;
+  gap: 16px;
+  align-items: start;
+}
+/* 창 제목 표시줄에 이름이 보이므로 제목 태그는 화면 읽기 프로그램용으로만 둔다 */
+.srOnly {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  margin: -1px;
+  overflow: hidden;
+  clip: rect(0 0 0 0);
+  white-space: nowrap;
+}
+.toolbar {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin-bottom: 10px;
+}
+.description {
+  margin: 0;
+  min-width: 0;
+  color: var(--text-muted);
+  font-size: 0.9rem;
+}
+/* 게임이 그려지는 흰 화면 */
+.screen {
+  background: var(--surface);
+  border: 1px solid #d5dfe5;
+  border-radius: 3px;
+  padding: 20px;
+}
+.list {
+  background: var(--surface);
+  border: 1px solid #d5dfe5;
+  border-radius: 3px;
+  padding: 4px;
+}
+@media (max-width: 720px) {
+  .content {
+    grid-template-columns: minmax(0, 1fr);
+  }
+  .toolbar {
+    flex-wrap: wrap;
+  }
+  .screen {
+    padding: 14px;
+  }
+}

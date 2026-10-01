@@ -5,11 +5,19 @@ import { useTheme } from '../lib/theme';
 import classicStyles from './HomePage.classic.module.css';
 import xpStyles from './HomePage.xp.module.css';
 import win98Styles from './HomePage.win98.module.css';
+import win7Styles from './HomePage.win7.module.css';
+import win11Styles from './HomePage.win11.module.css';
 
 /** 메인 화면 — registry 에 등록된 게임을 카드로 보여준다 */
 export function HomePage() {
   const { theme } = useTheme();
-  const styles = { classic: classicStyles, xp: xpStyles, win98: win98Styles }[theme];
+  const styles = {
+    classic: classicStyles,
+    xp: xpStyles,
+    win98: win98Styles,
+    win7: win7Styles,
+    win11: win11Styles,
+  }[theme];
 
   const hero = (
     <section className={styles.hero}>
@@ -56,7 +64,7 @@ export function HomePage() {
     );
   }
 
-  // XP — 탐색기 창 안에 안내 영역 + 파일 목록처럼 보여준다
+  // 바탕화면 테마 — 탐색기 창 안에 안내 영역 + 파일 목록처럼 보여준다
   return (
     <Window title="심심오락실" icon="🕹️" bodyClassName={styles.body}>
       {hero}

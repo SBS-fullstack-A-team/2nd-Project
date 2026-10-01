@@ -4,10 +4,18 @@ import { useThemeStyles } from '../lib/theme';
 import classicStyles from './GameCard.classic.module.css';
 import xpStyles from './GameCard.xp.module.css';
 import win98Styles from './GameCard.win98.module.css';
+import win7Styles from './GameCard.win7.module.css';
+import win11Styles from './GameCard.win11.module.css';
 
 /** 메인 화면의 게임 카드 */
 export function GameCard({ game }: { game: GameMeta }) {
-  const styles = useThemeStyles({ classic: classicStyles, xp: xpStyles, win98: win98Styles });
+  const styles = useThemeStyles({
+    classic: classicStyles,
+    xp: xpStyles,
+    win98: win98Styles,
+    win7: win7Styles,
+    win11: win11Styles,
+  });
   return (
     <Link to={`/games/${game.id}`} className={styles.card}>
       <img className={styles.thumbnail} src={game.thumbnail} alt="" />
@@ -22,7 +30,13 @@ export function GameCard({ game }: { game: GameMeta }) {
 
 /** 아직 게임이 등록되지 않은 카드 칸 — "준비 중" 표시 (눌러도 이동하지 않는다) */
 export function ComingSoonCard({ card, owner }: { card: number; owner: string }) {
-  const styles = useThemeStyles({ classic: classicStyles, xp: xpStyles, win98: win98Styles });
+  const styles = useThemeStyles({
+    classic: classicStyles,
+    xp: xpStyles,
+    win98: win98Styles,
+    win7: win7Styles,
+    win11: win11Styles,
+  });
   return (
     <div className={`${styles.card} ${styles.comingSoon}`}>
       <div className={`${styles.thumbnail} ${styles.placeholder}`} aria-hidden="true">

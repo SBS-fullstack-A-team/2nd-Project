@@ -1,0 +1,47 @@
+.message {
+  color: var(--text-muted);
+  font-size: 0.9rem;
+  margin: 8px;
+}
+.list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+.item {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 5px 8px;
+  border: 1px solid transparent;
+  border-radius: 3px;
+}
+.item:nth-child(even) {
+  background: #f5f8fc;
+}
+.rank {
+  width: 1.8em;
+  text-align: center;
+  font-weight: 700;
+  color: var(--text-muted);
+}
+.item:nth-child(-n + 3) .rank {
+  color: var(--accent);
+}
+.nickname {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.score {
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+}
+/* 방금 등록한 내 기록 — 7 탐색기 선택 표시 */
+.mine,
+.mine:nth-child(even) {
+  border-color: #84acdd;
+  background: linear-gradient(180deg, #dcebfc 0%, #c1dbfc 100%);
+}

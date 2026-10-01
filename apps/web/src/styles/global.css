@@ -1,6 +1,6 @@
 /*
- * 테마별 디자인 토큰 — <html data-theme="classic|xp"> 로 전환된다. (src/lib/theme.ts 참고)
- * 게임 폴더의 스타일은 아래 토큰(--bg, --surface, --accent …)만 쓰면 두 테마를 자동으로 따라간다.
+ * 테마별 디자인 토큰 — <html data-theme="classic|xp|win98|win7|win11"> 로 전환된다. (src/lib/theme.ts 참고)
+ * 게임 폴더의 스타일은 아래 토큰(--bg, --surface, --accent …)만 쓰면 모든 테마를 자동으로 따라간다.
  * 테마를 추가하면 여기와 공통 컴포넌트의 *.<테마>.module.css 를 함께 추가한다.
  */
 
@@ -120,6 +120,86 @@
   -webkit-font-smoothing: none;
 }
 
+/* 7 — 윈도우 7 느낌 (Aero 유리 창 테두리 + 짙은 파란 바탕화면) */
+:root[data-theme='win7'] {
+  /* 바탕화면 (짙은 파랑 + 빛줄기) */
+  --desktop: #0f4d8a;
+  --desktop-light: #3a9ad9;
+  --desktop-dark: #06284f;
+
+  /* 창·컨트롤 */
+  --bg: #f0f0f0;
+  --surface: #ffffff;
+  --surface-strong: #1c5180;
+  --on-strong: #ffffff;
+  --text: #1e1e1e;
+  --text-muted: #5a5a5a;
+  --border: #abadb3;
+  --accent: #0066cc;
+  --yellow: #ffe36e;
+  --success: #06b025;
+  --danger: #d03a2e;
+  --selection: #3399ff;
+  --radius: 4px;
+  --radius-sm: 3px;
+
+  /* 유리(Aero) 창 테두리 — 뒤 배경이 흐리게 비친다 */
+  --glass: rgb(160 195 235 / 0.55);
+  --glass-border: rgb(20 50 90 / 0.65);
+  --glass-shine: linear-gradient(
+    180deg,
+    rgb(255 255 255 / 0.55) 0%,
+    rgb(255 255 255 / 0.2) 45%,
+    rgb(255 255 255 / 0) 46%,
+    rgb(255 255 255 / 0.12) 100%
+  );
+
+  /* 작업 표시줄 (어두운 유리) */
+  --taskbar-height: 40px;
+  --taskbar: linear-gradient(180deg, rgb(40 60 90 / 0.72) 0%, rgb(15 25 45 / 0.82) 100%);
+
+  font-family:
+    'Segoe UI', '맑은 고딕', 'Malgun Gothic', 'Apple SD Gothic Neo', system-ui, sans-serif;
+  font-size: 15px;
+}
+
+/* 11 — 윈도우 11 느낌 (둥근 모서리 + 반투명 Mica 창 + 가운데 정렬 작업 표시줄) */
+:root[data-theme='win11'] {
+  /* 바탕화면 (파란 꽃잎 Bloom 느낌) */
+  --desktop: #7fa4d8;
+  --desktop-bloom: #1f5fd6;
+  --desktop-bloom-light: #6fb4ff;
+
+  /* 창·컨트롤 */
+  --bg: #f3f3f3;
+  --surface: #ffffff;
+  --surface-strong: #005fb8;
+  --on-strong: #ffffff;
+  --text: #1b1b1b;
+  --text-muted: #5f5f5f;
+  --border: #dcdcdc;
+  --accent: #005fb8;
+  --yellow: #ffe36e;
+  --success: #0f7b0f;
+  --danger: #c42b1c;
+  --selection: #005fb8;
+  --radius: 8px;
+  --radius-sm: 4px;
+
+  /* 반투명(Mica·Acrylic) 표면 */
+  --mica: rgb(243 243 243 / 0.88);
+  --acrylic: rgb(238 238 238 / 0.82);
+  --stroke: rgb(0 0 0 / 0.08);
+  --shadow: 0 8px 32px rgb(0 0 0 / 0.18), 0 2px 8px rgb(0 0 0 / 0.1);
+
+  --taskbar-height: 48px;
+
+  font-family:
+    'Segoe UI Variable Text', 'Segoe UI', '맑은 고딕', 'Malgun Gothic', 'Apple SD Gothic Neo',
+    system-ui, sans-serif;
+  font-size: 15px;
+}
+
 *,
 *::before,
 *::after {
@@ -133,7 +213,9 @@ body {
 [data-theme='xp'] body {
   background: var(--desktop-sky);
 }
-[data-theme='win98'] body {
+[data-theme='win98'] body,
+[data-theme='win7'] body,
+[data-theme='win11'] body {
   background: var(--desktop);
 }
 
@@ -252,4 +334,93 @@ body {
 }
 [data-theme='win98'] a:focus-visible {
   outline-offset: 2px;
+}
+
+/* 공통 버튼 — 7 (위아래 두 톤 광택 + 마우스를 올리면 하늘색) */
+[data-theme='win7'] .btn {
+  min-width: 75px;
+  font-weight: 400;
+  padding: 6px 16px;
+  border: 1px solid #707070;
+  border-radius: 3px;
+  background: linear-gradient(180deg, #f2f2f2 0%, #ebebeb 49%, #dddddd 50%, #cfcfcf 100%);
+  box-shadow: inset 0 0 0 1px rgb(255 255 255 / 0.8);
+  color: #000;
+}
+[data-theme='win7'] .btn:hover {
+  border-color: #3c7fb1;
+  background: linear-gradient(180deg, #eaf6fd 0%, #d9f0fc 49%, #bee6fd 50%, #a7d9f5 100%);
+}
+[data-theme='win7'] .btn:active {
+  border-color: #2c628b;
+  background: linear-gradient(180deg, #e5f4fc 0%, #c4e5f6 49%, #98d1ef 50%, #68b3db 100%);
+  box-shadow: inset 1px 1px 2px rgb(0 0 0 / 0.25);
+}
+[data-theme='win7'] .btn:disabled {
+  opacity: 1;
+  color: #838383;
+  border-color: #adb2b5;
+  background: #f4f4f4;
+  box-shadow: none;
+}
+/* 기본(주요) 버튼 — 파란 테두리로 강조 */
+[data-theme='win7'] .btn-primary {
+  border-color: #3399ff;
+  box-shadow:
+    inset 0 0 0 1px #9ed2ff,
+    0 0 3px rgb(51 153 255 / 0.6);
+}
+[data-theme='win7'] :focus-visible {
+  outline: 1px dotted #000;
+  outline-offset: -4px;
+}
+[data-theme='win7'] a:focus-visible {
+  outline-offset: 2px;
+}
+
+/* 공통 버튼 — 11 (Fluent 기본 버튼 / 강조 버튼) */
+[data-theme='win11'] .btn {
+  min-width: 90px;
+  font-weight: 400;
+  padding: 6px 16px;
+  border: 1px solid var(--stroke);
+  border-bottom-color: rgb(0 0 0 / 0.16);
+  border-radius: var(--radius-sm);
+  background: #fbfbfb;
+  color: var(--text);
+}
+[data-theme='win11'] .btn:hover {
+  background: #f6f6f6;
+}
+[data-theme='win11'] .btn:active {
+  background: #f5f5f5;
+  border-bottom-color: var(--stroke);
+  color: rgb(0 0 0 / 0.62);
+}
+[data-theme='win11'] .btn:disabled {
+  opacity: 1;
+  background: #f5f5f5;
+  color: rgb(0 0 0 / 0.36);
+}
+[data-theme='win11'] .btn-primary {
+  border-color: rgb(255 255 255 / 0.08);
+  border-bottom-color: rgb(0 0 0 / 0.4);
+  background: var(--accent);
+  color: #fff;
+}
+[data-theme='win11'] .btn-primary:hover {
+  background: #196ebf;
+}
+[data-theme='win11'] .btn-primary:active {
+  background: #3380c6;
+  color: rgb(255 255 255 / 0.8);
+}
+[data-theme='win11'] .btn-primary:disabled {
+  background: rgb(0 0 0 / 0.22);
+  color: #fff;
+}
+[data-theme='win11'] :focus-visible {
+  outline: 2px solid #000;
+  outline-offset: 1px;
+  border-radius: var(--radius-sm);
 }
