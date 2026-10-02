@@ -708,7 +708,17 @@ export class Projectile {
     this.hitGroup = new Set();
     this.life = 2.5;
     this.pierce = 1;
-    this.grounded = false;
+    this.color = '#ffe27a';
+    if (this.grounded) {
+      // 땅 충격파는 땅을 타고 그대로 되돌아간다
+      const sp = Math.max(560, Math.abs(this.vx) * 1.4);
+      this.vx = (this.vx > 0 ? -1 : 1) * sp;
+      this.vy = 0;
+      this.speed = sp;
+      this.homing = 0;
+      world.fx.ring(this.x, this.y, 4, 40, '#fff27a', 0.3, 4);
+      return;
+    }
     const src = this.source;
     let ang = Math.atan2(-this.vy, -this.vx);
     if (src && !src.dead) {
@@ -720,7 +730,6 @@ export class Projectile {
     this.vx = Math.cos(ang) * sp;
     this.vy = Math.sin(ang) * sp;
     this.homing = this.kind === 'missile' ? 5 : 0;
-    this.color = '#ffe27a';
     world.fx.ring(this.x, this.y, 4, 30, '#fff27a', 0.25, 3);
   }
 

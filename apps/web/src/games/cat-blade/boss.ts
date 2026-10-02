@@ -15,7 +15,8 @@ import {
   type ProjKind,
   type World,
 } from './entities';
-import { drawCatKing, drawHound, drawMechaRat, type BossView } from './renderEnemies';
+import { drawCatKing, drawHound, drawMechaRat } from './renderBosses';
+import type { BossView } from './renderEnemies';
 import { TAU, approach, clamp, easeOut, pick, rand, type Rect, type Shape } from './util';
 
 type Gen = Generator<number, void, unknown>;

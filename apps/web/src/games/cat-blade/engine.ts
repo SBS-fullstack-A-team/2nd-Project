@@ -759,7 +759,7 @@ export class CatBladeEngine implements World {
         if (!shapeHitsRect(h.shape, phb)) continue;
         const src = h.source;
         const cx = src ? (player.x + clamp(src.x, player.x - 40, player.x + 40)) / 2 : player.x;
-        const res = this.hitPlayer(h.damage, h.dir, h.parryable, src, cx, player.y - 26);
+        const res = this.hitPlayer(h.damage, h.dir, src, cx, player.y - 26);
         if (res !== 'miss') h.group.add(player);
       }
     }
@@ -800,12 +800,12 @@ export class CatBladeEngine implements World {
         }
       } else if (!player.dead && !p.hitGroup.has(player)) {
         if (!circleRect(p.x, p.y, p.r, phb)) continue;
-        if (p.parryable && player.isParrying()) {
+        if (player.isParrying()) {
           this.doParry(null, p.x, p.y);
           p.reflect(this);
           continue;
         }
-        const res = this.hitPlayer(p.damage, Math.sign(p.vx) || 1, false, p.source, p.x, p.y);
+        const res = this.hitPlayer(p.damage, Math.sign(p.vx) || 1, p.source, p.x, p.y);
         if (res === 'hit') {
           if (p.grounded) {
             p.hitGroup.add(player);
@@ -825,12 +825,11 @@ export class CatBladeEngine implements World {
         const res = this.hitPlayer(
           b.damage,
           player.x < b.x ? -1 : 1,
-          false,
           null,
           player.x,
           player.y - 24,
         );
-        if (res === 'hit') b.lastHit.set(player, this.t);
+        if (res !== 'miss') b.lastHit.set(player, this.t);
       } else {
         for (const target of targets) {
           if (!target.canBeHit() || !b.canHit(target, this.t)) continue;
@@ -958,14 +957,14 @@ export class CatBladeEngine implements World {
   private hitPlayer(
     damage: number,
     dir: number,
-    parryable: boolean,
     source: Damageable | null,
     cx: number,
     cy: number,
   ): 'parry' | 'hit' | 'miss' {
     const p = this.player;
     if (p.dead || this.mode !== 'playing') return 'miss';
-    if (parryable && p.isParrying()) {
+    // 타이밍만 맞으면 모든 공격(레이저·충격파·바닥 폭발 포함)을 받아친다
+    if (p.isParrying()) {
       this.doParry(source, cx, cy);
       return 'parry';
     }
