@@ -62,6 +62,17 @@
 
 > 자동 생성 방법은 아래 [퀴즈 문제 자동 생성](#퀴즈-문제-자동-생성-힌트-퀴즈), 데이터 출처는 [데이터 출처 · 라이선스](#데이터-출처--라이선스) 참고.
 
+## 방송 도구
+
+스트리머가 방송에서 쓰는 추첨 도구입니다. 점수·랭킹 없이 브라우저 안에서만 동작하고, 메인 화면의 "방송 도구" 섹션에 따로 나옵니다.
+도구 페이지(`/tools/<도구ID>`)의 **전체 화면** 버튼으로 도구만 화면에 꽉 채울 수 있습니다 (OBS 창 캡처용).
+
+| 도구      | 한 줄 소개 |
+| --------- | ---------- |
+| (준비 중) |            |
+
+새 도구 추가: `apps/web/src/tools/<도구ID>/` 폴더(`index.tsx` default export, props 없음 + 썸네일)를 만들고 `apps/web/src/tools/registry.ts` 의 `TOOLS` 맨 뒤에 등록합니다. DB·시드·점수 상한은 필요 없습니다.
+
 ## 구성
 
 | 폴더              | 내용              | 기술                                                                                      |
@@ -73,8 +84,9 @@
 ```
 apps/web/src/
   games/            게임별 독립 폴더 + registry.ts (게임 등록부)
+  tools/            방송 도구별 독립 폴더 + registry.ts (점수·랭킹 없는 추첨 도구)
   components/       공통 UI (Timer, ResultModal, RankingList, GameCard, Window, StartMenu …)
-  pages/            HomePage, GamePage(/games/:gameId), QnaPage(/qna), NotFoundPage
+  pages/            HomePage, GamePage(/games/:gameId), ToolPage(/tools/:toolId), QnaPage(/qna), NotFoundPage
   lib/              API 클라이언트, useFetch 훅
 apps/api/
   src/routes/       gameId 기반 범용 API

@@ -1,5 +1,6 @@
 import { Link } from 'react-router';
 import { GAMES_BY_CARD } from '../games/registry';
+import { TOOL_LABEL, TOOLS } from '../tools/registry';
 import { THEMES, THEME_ICON, THEME_LABEL, useTheme, useThemeStyles } from '../lib/theme';
 import xpStyles from './StartMenu.xp.module.css';
 import win98Styles from './StartMenu.win98.module.css';
@@ -40,7 +41,7 @@ export function StartMenu({ id, onClose }: StartMenuProps) {
         </div>
 
         <div className={styles.columns}>
-          <nav className={styles.left} aria-label="게임">
+          <nav className={styles.left} aria-label="게임·방송 도구">
             <p className={styles.sectionTitle}>게임</p>
             <ul className={styles.list}>
               {GAMES_BY_CARD.map((game) => (
@@ -55,6 +56,24 @@ export function StartMenu({ id, onClose }: StartMenuProps) {
                 </li>
               ))}
             </ul>
+            {TOOLS.length > 0 && (
+              <>
+                <p className={styles.sectionTitle}>{TOOL_LABEL}</p>
+                <ul className={styles.list}>
+                  {TOOLS.map((tool) => (
+                    <li key={tool.id}>
+                      <Link to={`/tools/${tool.id}`} className={styles.gameItem} onClick={onClose}>
+                        <img className={styles.gameThumb} src={tool.thumbnail} alt="" />
+                        <span className={styles.gameText}>
+                          <strong>{tool.name}</strong>
+                          <span className={styles.gameDesc}>{tool.description}</span>
+                        </span>
+                      </Link>
+                    </li>
+                  ))}
+                </ul>
+              </>
+            )}
           </nav>
 
           <nav className={styles.right} aria-label="바로가기">
