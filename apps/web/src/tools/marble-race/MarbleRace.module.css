@@ -267,14 +267,101 @@
   .names {
     min-height: 180px;
   }
+  /* 휴대폰 — 코스를 위에 크게, 조작·순위표는 아래로 (순위표는 따로 스크롤) */
   .race {
     grid-template-columns: minmax(0, 1fr);
-    grid-template-rows: minmax(0, 1fr) 200px;
-    height: 85vh;
+    height: auto;
+  }
+  .stage {
+    height: 62vh;
+  }
+  .standings {
+    flex: none;
+    max-height: 240px;
   }
 }
 @media (prefers-reduced-motion: reduce) {
   .result {
+    animation: none;
+  }
+}
+
+/* 시상대 */
+.podium {
+  display: flex;
+  align-items: flex-end;
+  justify-content: center;
+  gap: 10px;
+}
+.podiumSpot {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 4px;
+  width: clamp(90px, 16vw, 150px);
+  animation: rise 0.5s ease-out both;
+}
+.place1 {
+  animation-delay: 0.35s;
+}
+.place2 {
+  animation-delay: 0.15s;
+}
+@keyframes rise {
+  from {
+    opacity: 0;
+    transform: translateY(30px);
+  }
+}
+.notWinner {
+  opacity: 0.55;
+}
+.podiumMedal {
+  font-size: clamp(1.4rem, 3vw, 2rem);
+}
+.podiumMarble {
+  width: 34px;
+  height: 34px;
+  border-radius: 50%;
+  border: 3px solid #fff;
+  box-shadow:
+    inset -6px -6px 10px rgba(0, 0, 0, 0.35),
+    inset 5px 5px 8px rgba(255, 255, 255, 0.5);
+}
+.podiumName {
+  max-width: 100%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: clamp(0.95rem, 2.2vw, 1.3rem);
+}
+.podiumBlock {
+  width: 100%;
+  display: flex;
+  align-items: flex-start;
+  justify-content: center;
+  padding-top: 6px;
+  border-radius: 8px 8px 0 0;
+  background: linear-gradient(#ffe066, #e0a800);
+  color: #3a2a00;
+  font-size: 1.6rem;
+  font-weight: 900;
+}
+.place1 .podiumBlock {
+  height: 90px;
+}
+.place2 .podiumBlock {
+  height: 62px;
+  background: linear-gradient(#eef1f6, #aab3c2);
+  color: #2b3240;
+}
+.place3 .podiumBlock {
+  height: 44px;
+  background: linear-gradient(#f0b27a, #b86b2b);
+  color: #3a1f08;
+}
+@media (prefers-reduced-motion: reduce) {
+  .podiumSpot {
     animation: none;
   }
 }
