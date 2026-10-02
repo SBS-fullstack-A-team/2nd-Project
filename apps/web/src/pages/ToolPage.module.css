@@ -1,0 +1,24 @@
+/* 방송 도구 페이지 — 테마 틀(GamePage.*.module.css) 위에 덧붙이는 공통 스타일 */
+.actions {
+  display: flex;
+  justify-content: flex-end;
+  margin-bottom: 10px;
+}
+.fullscreenButton {
+  margin-left: auto;
+  white-space: nowrap;
+}
+.stage {
+  min-width: 0;
+}
+/* 전체 화면 — 방송 화면(OBS 창 캡처)에 도구만 꽉 차게 */
+.stage:fullscreen {
+  box-sizing: border-box;
+  width: 100vw;
+  height: 100vh;
+  overflow: auto;
+  background: var(--bg);
+  border: 0;
+  border-radius: 0;
+  padding: 16px;
+}

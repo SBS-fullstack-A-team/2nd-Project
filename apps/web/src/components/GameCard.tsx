@@ -1,5 +1,4 @@
 import { Link } from 'react-router';
-import { CATEGORY_LABEL, type GameMeta } from '../games/registry';
 import { useThemeStyles } from '../lib/theme';
 import classicStyles from './GameCard.classic.module.css';
 import xpStyles from './GameCard.xp.module.css';
@@ -7,8 +6,23 @@ import win98Styles from './GameCard.win98.module.css';
 import win7Styles from './GameCard.win7.module.css';
 import win11Styles from './GameCard.win11.module.css';
 
-/** 메인 화면의 게임 카드 */
-export function GameCard({ game }: { game: GameMeta }) {
+/** 카드에 보여 줄 항목 — 게임(GameMeta)과 방송 도구(ToolMeta) 모두 이 모양을 가진다 */
+interface CardItem {
+  name: string;
+  description: string;
+  thumbnail: string;
+}
+
+interface GameCardProps {
+  item: CardItem;
+  /** 눌렀을 때 이동할 주소 (예: /games/hint-quiz, /tools/marble-race) */
+  to: string;
+  /** 썸네일 아래 분류 표시 (예: 퀴즈, 방송 도구) */
+  label: string;
+}
+
+/** 메인 화면의 카드 — 게임과 방송 도구가 함께 쓴다 */
+export function GameCard({ item, to, label }: GameCardProps) {
   const styles = useThemeStyles({
     classic: classicStyles,
     xp: xpStyles,
@@ -17,12 +31,12 @@ export function GameCard({ game }: { game: GameMeta }) {
     win11: win11Styles,
   });
   return (
-    <Link to={`/games/${game.id}`} className={styles.card}>
-      <img className={styles.thumbnail} src={game.thumbnail} alt="" />
+    <Link to={to} className={styles.card}>
+      <img className={styles.thumbnail} src={item.thumbnail} alt="" />
       <div className={styles.body}>
-        <span className={styles.category}>{CATEGORY_LABEL[game.category]}</span>
-        <h2 className={styles.name}>{game.name}</h2>
-        <p className={styles.description}>{game.description}</p>
+        <span className={styles.category}>{label}</span>
+        <h2 className={styles.name}>{item.name}</h2>
+        <p className={styles.description}>{item.description}</p>
       </div>
     </Link>
   );

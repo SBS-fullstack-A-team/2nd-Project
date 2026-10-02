@@ -139,13 +139,28 @@ gh auth status
 - 공통 부분 변경이 필요하면 (예: 공통 컴포넌트에 기능 추가, 새 API) 게임 PR 에 섞지 말고 해당 역할 담당자에게 요청해서 `feature/fe-*` / `feature/be-*` PR 로 따로 진행한다.
 - 게임 PR 리뷰는 팀원 누구든 1명 이상 승인이면 된다.
 
+### 방송 도구 (점수 없는 공통 도구)
+
+인터넷 방송 스트리머가 쓰는 추첨 도구 등 **점수·랭킹이 없는 공통 도구**는 게임과 따로 관리한다. 메인 화면·시작 메뉴의 "방송 도구" 섹션에 나온다.
+
+| 파일                             | 내용                                                                        |
+| -------------------------------- | --------------------------------------------------------------------------- |
+| `apps/web/src/tools/<도구id>/`   | 도구 폴더 하나로 완결 — `index.tsx`(default export, **props 없음**), 썸네일 |
+| `apps/web/src/tools/registry.ts` | `TOOLS` 맨 뒤에 항목 1개 추가 (`lazy(() => import('./<도구id>'))`)          |
+
+- 라우트는 `/tools/:toolId` 하나로 자동 생성된다. `ToolPage` 가 화면 틀과 **전체 화면 버튼**을 공통으로 제공한다.
+- 점수 등록·랭킹·DB 시드·`MAX_SCORE_BY_GAME` 은 **없다**. API 도 쓰지 않는다 (브라우저 안에서만 동작).
+- 담당자 카드(owner)가 없는 공통 작업이다 → 웹 공통 구성(프론트) 브랜치 `feature/fe-tool-<도구id>` 로 진행한다.
+- 도구 ID 도 게임 ID 규칙(소문자·숫자·하이픈)을 따르고, 폴더명과 `registry.ts` 의 `id` 가 같아야 한다.
+
 ## 저장소 구조 & 담당
 
 ```
 apps/web/src/          # 프론트 (Heo, 경수)
   games/               #   게임별 독립 폴더 + registry.ts
+  tools/               #   방송 도구별 독립 폴더 + registry.ts (점수·랭킹 없음)
   components/          #   공통 UI: Timer, ResultModal, RankingList, GameCard ...
-  pages/               #   HomePage(메인), GamePage(/games/:gameId), NotFoundPage
+  pages/               #   HomePage(메인), GamePage(/games/:gameId), ToolPage(/tools/:toolId), NotFoundPage
   lib/                 #   api 클라이언트, useFetch
 apps/api/              # 백엔드 (신영, 동한)
   src/routes/games.ts  #   gameId 기반 범용 API
