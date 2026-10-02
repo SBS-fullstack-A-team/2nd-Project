@@ -368,6 +368,44 @@
   cursor: pointer;
 }
 
+/* ---------- 크게 보기 (게임 중 브라우저 화면 전체) ---------- */
+
+.bigWrap {
+  position: fixed;
+  inset: 0;
+  z-index: 9000;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  padding: 8px;
+  background: radial-gradient(ellipse at center, #1a1030, #05030a 75%);
+  --pad-space: 0px;
+}
+.bigTouch {
+  --pad-space: 124px;
+}
+.bigWrap .stage {
+  width: min(calc(100vw - 16px), calc((100dvh - 22px - var(--pad-space)) * 16 / 9));
+  box-shadow:
+    0 0 0 2px #2a1f4a,
+    0 0 40px rgba(140, 90, 255, 0.25);
+}
+.bigWrap .pad {
+  width: min(calc(100vw - 16px), 960px);
+}
+
+.bigPlaceholder {
+  width: 100%;
+  padding: 40px 12px;
+  text-align: center;
+  color: #9a8cc8;
+  background: #140e24;
+  border-radius: 8px;
+  font-size: 0.9rem;
+}
+
 /* ---------- 터치 조작 (무대 아래) ---------- */
 
 .pad {

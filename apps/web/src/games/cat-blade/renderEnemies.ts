@@ -3,7 +3,7 @@
  * 원점: 땅 위의 적은 발 밑 가운데, 날아다니는 적은 몸 가운데. 오른쪽을 보는 모습으로 그린다.
  */
 import type { EnemyKind } from './config';
-import { drawGlow, roundRect } from './render';
+import { drawGlow, pawPath, roundRect } from './render';
 import { TAU, clamp, mixHex } from './util';
 
 /** 피격 시 색을 하얗게 섞는 함수를 만든다 */
@@ -11,6 +11,49 @@ function tinter(flash: number) {
   if (flash <= 0.01) return (hex: string) => hex;
   const k = clamp(flash, 0, 1) * 0.8;
   return (hex: string) => mixHex(hex, '#ffffff', k);
+}
+
+/**
+ * 그리는 동안 fill() 마다 외곽선을 함께 그린다 — 만화 스티커 같은 통일된 테두리.
+ * 발광(drawGlow 는 drawImage)·'lighter' 합성·반투명 rgba() 덧칠(하이라이트·그림자)은 건너뛴다.
+ */
+function withOutline(
+  ctx: CanvasRenderingContext2D,
+  color: string,
+  width: number,
+  draw: () => void,
+) {
+  const proto = Object.getPrototypeOf(ctx) as CanvasRenderingContext2D;
+  const fill = proto.fill;
+  if (typeof fill !== 'function') {
+    draw();
+    return;
+  }
+  const patched = function (this: CanvasRenderingContext2D, ...args: unknown[]) {
+    (fill as (...a: unknown[]) => void).apply(this, args);
+    if (this.globalCompositeOperation !== 'source-over') return;
+    const fs = this.fillStyle;
+    if (typeof fs === 'string' && fs.startsWith('rgba')) return;
+    const ss = this.strokeStyle;
+    const lw = this.lineWidth;
+    const lj = this.lineJoin;
+    this.strokeStyle = color;
+    this.lineWidth = width;
+    this.lineJoin = 'round';
+    const first = args[0];
+    if (first instanceof Path2D) this.stroke(first);
+    else this.stroke();
+    this.strokeStyle = ss;
+    this.lineWidth = lw;
+    this.lineJoin = lj;
+  };
+  const own = ctx as unknown as { fill: unknown };
+  own.fill = patched;
+  try {
+    draw();
+  } finally {
+    delete own.fill;
+  }
 }
 
 /** 패링 가능한 공격 예고 — 노란 십자 반짝임 */
@@ -98,6 +141,12 @@ export function drawMinion(ctx: CanvasRenderingContext2D, v: MinionView) {
   }
   ctx.scale(v.facing, 1);
   const c = tinter(v.flash);
+  const rim = v.kind === 'shade' || v.kind === 'wisp';
+  withOutline(ctx, rim ? '#e0b8ff' : '#140c12', rim ? 1.2 : 1.6, () => drawMinionBody(ctx, v, c));
+  ctx.restore();
+}
+
+function drawMinionBody(ctx: CanvasRenderingContext2D, v: MinionView, c: Tint) {
   switch (v.kind) {
     case 'pup':
       drawPup(ctx, v, c);
@@ -118,7 +167,6 @@ export function drawMinion(ctx: CanvasRenderingContext2D, v: MinionView) {
       drawWisp(ctx, v, c);
       break;
   }
-  ctx.restore();
 }
 
 type Tint = (hex: string) => string;
@@ -153,6 +201,20 @@ function drawPup(ctx: CanvasRenderingContext2D, v: MinionView, c: Tint) {
   ctx.fillStyle = c('#b07a50');
   ctx.beginPath();
   ctx.ellipse(4, -15 + crouch, 12, 5, 0, 0, TAU);
+  ctx.fill();
+  ctx.fillStyle = 'rgba(255,230,200,0.22)';
+  ctx.beginPath();
+  ctx.ellipse(-4, -26 + crouch, 12, 3.5, -0.1, 0, TAU);
+  ctx.fill();
+  // 등 털 삐죽
+  ctx.fillStyle = c('#6a4028');
+  ctx.beginPath();
+  for (let i = 0; i < 4; i++) {
+    const bx = -14 + i * 7;
+    ctx.moveTo(bx, -29 + crouch);
+    ctx.lineTo(bx + 2, -35 + crouch);
+    ctx.lineTo(bx + 5, -29 + crouch);
+  }
   ctx.fill();
   // 머리
   const hx = 20;
@@ -278,6 +340,12 @@ function drawRatbot(ctx: CanvasRenderingContext2D, v: MinionView, c: Tint) {
   ctx.beginPath();
   ctx.ellipse(0, -24, 18, 15, 0, 0, TAU);
   ctx.fill();
+  ctx.fillStyle = 'rgba(255,255,255,0.45)';
+  ctx.beginPath();
+  ctx.ellipse(-6, -33, 8, 3, -0.3, 0, TAU);
+  ctx.fill();
+  ctx.fillStyle = 'rgba(20,24,34,0.5)';
+  ctx.fillRect(-14, -22, 28, 1.5);
   // 둥근 귀 판
   ctx.fillStyle = c('#8a96aa');
   ctx.beginPath();
@@ -338,6 +406,10 @@ function drawDrone(ctx: CanvasRenderingContext2D, v: MinionView, c: Tint) {
   ctx.fillStyle = g;
   roundRect(ctx, -17, -11, 34, 22, 9);
   ctx.fill();
+  ctx.fillStyle = 'rgba(255,255,255,0.4)';
+  ctx.beginPath();
+  ctx.ellipse(-6, -7, 8, 2.4, 0, 0, TAU);
+  ctx.fill();
   // 쥐 귀
   ctx.fillStyle = c('#8a96aa');
   ctx.beginPath();
@@ -368,7 +440,7 @@ function drawShade(ctx: CanvasRenderingContext2D, v: MinionView, c: Tint) {
   drawGlow(ctx, 0, -26, 20, '#c88aff', 0.25);
   ctx.restore();
   const run = v.moving ? Math.sin(v.t * 14) : 0;
-  ctx.fillStyle = c('#3a2460');
+  ctx.fillStyle = c('#4e3080');
   // 다리
   ctx.fillRect(-7 + run * 4, -10, 5, 10);
   ctx.fillRect(3 - run * 4, -10, 5, 10);
@@ -377,7 +449,7 @@ function drawShade(ctx: CanvasRenderingContext2D, v: MinionView, c: Tint) {
   ctx.ellipse(0, -20, 12, 12, 0, 0, TAU);
   ctx.fill();
   // 꼬리
-  ctx.strokeStyle = c('#3a2460');
+  ctx.strokeStyle = c('#4e3080');
   ctx.lineWidth = 4;
   ctx.lineCap = 'round';
   ctx.beginPath();
@@ -394,7 +466,7 @@ function drawShade(ctx: CanvasRenderingContext2D, v: MinionView, c: Tint) {
   ctx.beginPath();
   ctx.ellipse(0, -20, 12, 12, 0, 0, TAU);
   ctx.stroke();
-  ctx.fillStyle = c('#3a2460');
+  ctx.fillStyle = c('#4e3080');
   ctx.beginPath();
   ctx.moveTo(-4, -42);
   ctx.lineTo(-2, -56);
@@ -494,6 +566,10 @@ export interface BossView {
 /* ---------------- 1스테이지: 거대 들개 ---------------- */
 
 export function drawHound(ctx: CanvasRenderingContext2D, v: BossView) {
+  withOutline(ctx, '#140806', 2.4, () => drawHoundBody(ctx, v));
+}
+
+function drawHoundBody(ctx: CanvasRenderingContext2D, v: BossView) {
   const c = tinter(v.flash);
   const rage = v.phase === 2;
   ctx.save();
@@ -596,6 +672,28 @@ export function drawHound(ctx: CanvasRenderingContext2D, v: BossView) {
     ctx.lineTo(14, -54 + crouch);
   }
   ctx.stroke();
+  // 털 결
+  ctx.strokeStyle = rage ? 'rgba(255,120,100,0.28)' : 'rgba(210,190,170,0.25)';
+  ctx.lineWidth = 1.6;
+  ctx.lineCap = 'round';
+  ctx.beginPath();
+  for (let i = 0; i < 18; i++) {
+    const fx = -62 + ((i * 37) % 118);
+    const fy = -86 + ((i * 23) % 44) + crouch;
+    ctx.moveTo(fx, fy);
+    ctx.quadraticCurveTo(fx - 4, fy + 4, fx - 10, fy + 5);
+  }
+  ctx.stroke();
+  // 어깨 근육 하이라이트 · 배 그림자
+  ctx.fillStyle = 'rgba(255,240,220,0.1)';
+  ctx.beginPath();
+  ctx.ellipse(30, -80 + crouch, 24, 12, -0.3, 0, TAU);
+  ctx.ellipse(-36, -80 + crouch, 20, 10, 0.2, 0, TAU);
+  ctx.fill();
+  ctx.fillStyle = 'rgba(0,0,0,0.25)';
+  ctx.beginPath();
+  ctx.ellipse(-4, -40 + crouch, 56, 9, 0, 0, TAU);
+  ctx.fill();
 
   // 머리
   const open =
@@ -666,6 +764,13 @@ export function drawHound(ctx: CanvasRenderingContext2D, v: BossView) {
   if (open > 0) {
     ctx.fillStyle = '#8a1a2a';
     ctx.fillRect(12, 4, 30, 4);
+    // 흐르는 침
+    ctx.strokeStyle = 'rgba(220,240,255,0.7)';
+    ctx.lineWidth = 1.4;
+    ctx.beginPath();
+    ctx.moveTo(30, 12);
+    ctx.quadraticCurveTo(31, 18 + Math.sin(v.t * 5) * 2, 29, 24 + Math.sin(v.t * 5) * 3);
+    ctx.stroke();
   }
   ctx.fillStyle = '#f4ecd8';
   for (let i = 0; i < 4; i++) {
@@ -712,6 +817,10 @@ export function drawHound(ctx: CanvasRenderingContext2D, v: BossView) {
 /* ---------------- 2스테이지: 강철 레이저 로봇 쥐 ---------------- */
 
 export function drawMechaRat(ctx: CanvasRenderingContext2D, v: BossView) {
+  withOutline(ctx, '#0c1018', 2.2, () => drawMechaRatBody(ctx, v));
+}
+
+function drawMechaRatBody(ctx: CanvasRenderingContext2D, v: BossView) {
   const c = tinter(v.flash);
   const od = v.phase === 2;
   ctx.save();
@@ -779,6 +888,32 @@ export function drawMechaRat(ctx: CanvasRenderingContext2D, v: BossView) {
   ctx.fillStyle = g;
   roundRect(ctx, -60, -86, 108, 64, 30);
   ctx.fill();
+  // 금속 광택
+  ctx.fillStyle = 'rgba(255,255,255,0.55)';
+  ctx.beginPath();
+  ctx.ellipse(-18, -80, 30, 3.5, 0, 0, TAU);
+  ctx.fill();
+  ctx.fillStyle = 'rgba(255,255,255,0.25)';
+  ctx.beginPath();
+  ctx.ellipse(-24, -72, 18, 2.2, 0, 0, TAU);
+  ctx.fill();
+  // 냉각 통풍구 (빛나는 틈)
+  ctx.save();
+  ctx.globalCompositeOperation = 'lighter';
+  for (let i = 0; i < 3; i++) {
+    const vy = -62 + i * 9;
+    ctx.fillStyle = od ? 'rgba(255,140,60,0.8)' : 'rgba(60,220,255,0.7)';
+    ctx.fillRect(-54, vy, 14, 3);
+    drawGlow(
+      ctx,
+      -47,
+      vy + 1.5,
+      9,
+      od ? '#ff7a2a' : '#28c8ff',
+      0.35 + Math.sin(v.t * 6 + i) * 0.15,
+    );
+  }
+  ctx.restore();
   ctx.strokeStyle = 'rgba(20,24,34,0.6)';
   ctx.lineWidth = 2;
   ctx.beginPath();
@@ -909,6 +1044,11 @@ export function drawMechaRat(ctx: CanvasRenderingContext2D, v: BossView) {
 /* ---------------- 3스테이지: 타락한 고양이 왕 ---------------- */
 
 export function drawCatKing(ctx: CanvasRenderingContext2D, v: BossView) {
+  // 어두운 몸이 배경에 묻히지 않도록 밝은 테두리 (림 라이트)
+  withOutline(ctx, v.phase === 2 ? '#ff9ac8' : '#c8a0ff', 1.6, () => drawCatKingBody(ctx, v));
+}
+
+function drawCatKingBody(ctx: CanvasRenderingContext2D, v: BossView) {
   const c = tinter(v.flash);
   const fin = v.phase === 2;
   ctx.save();
@@ -969,6 +1109,27 @@ export function drawCatKing(ctx: CanvasRenderingContext2D, v: BossView) {
   ctx.quadraticCurveTo(0, -50, 8, -92);
   ctx.closePath();
   ctx.fill();
+  // 망토 안감 (붉은 그라디언트)
+  const lining = ctx.createLinearGradient(-30, -90, -20, 0);
+  lining.addColorStop(0, c(fin ? '#c8205a' : '#b81a3a'));
+  lining.addColorStop(1, c('#3a0614'));
+  ctx.fillStyle = lining;
+  ctx.beginPath();
+  ctx.moveTo(-4, -92);
+  ctx.quadraticCurveTo(-22 - wave * 0.6, -60, -28 - wave, -8);
+  ctx.lineTo(-20, -4);
+  ctx.quadraticCurveTo(-10, -50, 2, -90);
+  ctx.closePath();
+  ctx.fill();
+  // 금색 망토 끝단
+  ctx.strokeStyle = c('#e8b83a');
+  ctx.lineWidth = 2;
+  ctx.beginPath();
+  ctx.moveTo(-44 - wave * 1.5, -4);
+  ctx.lineTo(-30, -10);
+  ctx.lineTo(-22, 0);
+  ctx.lineTo(-10, -8);
+  ctx.stroke();
 
   ctx.save();
   ctx.rotate(lean);
@@ -1013,6 +1174,28 @@ export function drawCatKing(ctx: CanvasRenderingContext2D, v: BossView) {
   ctx.moveTo(-12, -44);
   ctx.quadraticCurveTo(-36, -40, -34 + Math.sin(v.t * 3) * 5, -70);
   ctx.stroke();
+
+  // 가슴 문장 (금빛 발자국)
+  ctx.fillStyle = c('#e8b83a');
+  pawPath(ctx, 1, -72, 5);
+  ctx.fill();
+  // 하얀 털 목도리
+  ctx.fillStyle = c('#e8dff5');
+  ctx.beginPath();
+  // 털 뭉치가 겹쳐 하나의 목도리가 되도록 촘촘히
+  ctx.moveTo(-14, -96);
+  for (let i = 0; i <= 8; i++) {
+    const fx = -14 + i * 4;
+    ctx.quadraticCurveTo(fx + 2, -88 - (i % 2) * 3, fx + 4, -96);
+  }
+  ctx.quadraticCurveTo(14, -104, 4, -106);
+  ctx.quadraticCurveTo(-8, -104, -14, -96);
+  ctx.closePath();
+  ctx.fill();
+  ctx.fillStyle = 'rgba(120,90,160,0.35)';
+  ctx.beginPath();
+  ctx.ellipse(4, -94, 16, 3, 0, 0, TAU);
+  ctx.fill();
 
   // 머리
   ctx.save();
