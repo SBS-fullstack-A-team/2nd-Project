@@ -21,6 +21,52 @@
   line-height: 1.9;
 }
 
+/* 분야 선택 */
+.pickTitle {
+  margin: 0 0 12px;
+  font-weight: 800;
+}
+.categories {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(110px, 1fr));
+  gap: 10px;
+  text-align: center;
+}
+.categoryButton {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 4px;
+  padding: 14px 8px;
+  border: 2px solid var(--border);
+  border-radius: var(--radius);
+  background: var(--surface);
+  color: var(--text);
+  font: inherit;
+  cursor: pointer;
+}
+.categoryButton:hover {
+  border-color: var(--accent);
+  background: var(--bg);
+}
+.categoryAll {
+  border-color: var(--accent);
+}
+.categoryIcon {
+  font-size: 1.8rem;
+}
+
+/* 게임 종료 */
+.done {
+  text-align: center;
+  padding: 32px 0;
+}
+.doneTitle {
+  font-size: 1.3rem;
+  font-weight: 800;
+  margin: 0 0 8px;
+}
+
 .play {
   display: flex;
   flex-direction: column;
@@ -34,8 +80,54 @@
 .score {
   color: var(--accent);
 }
+.combo {
+  opacity: 0;
+  transition: opacity 0.2s;
+}
+.comboOn {
+  opacity: 1;
+  color: var(--danger);
+  animation: pop 0.3s;
+}
+@keyframes pop {
+  50% {
+    transform: scale(1.25);
+  }
+}
+
+/* 정답 시 떠오르는 획득 점수 */
+.gain {
+  position: absolute;
+  top: 10px;
+  right: 16px;
+  font-size: 1.4rem;
+  font-weight: 900;
+  color: var(--yellow);
+  pointer-events: none;
+  animation: rise 0.9s ease-out forwards;
+}
+@keyframes rise {
+  from {
+    opacity: 1;
+    transform: translateY(8px);
+  }
+  to {
+    opacity: 0;
+    transform: translateY(-24px);
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .comboOn,
+  .gain {
+    animation: none;
+  }
+  .gain {
+    opacity: 0;
+  }
+}
 
 .card {
+  position: relative;
   background: var(--surface-strong);
   color: var(--on-strong);
   border-radius: var(--radius);
@@ -51,11 +143,39 @@
   padding: 2px 12px;
   border-radius: 999px;
 }
-.chosung {
-  font-size: clamp(3rem, 14vw, 5rem);
+/* 초성 타일 — 띄어쓰기마다 묶음(.word)으로 나누고, 길면 줄바꿈 */
+.tiles {
+  --tile: clamp(2.6rem, 14vw, 4.2rem);
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: 8px 16px;
+  margin: 16px 0;
+}
+.tilesSm {
+  --tile: clamp(2.1rem, 10vw, 3.2rem);
+}
+.tilesXs {
+  --tile: clamp(1.7rem, 7.5vw, 2.4rem);
+  gap: 6px 12px;
+}
+.word {
+  display: inline-flex;
+  gap: 4px;
+}
+.tile {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: var(--tile);
+  height: calc(var(--tile) * 1.15);
+  font-size: calc(var(--tile) * 0.62);
   font-weight: 900;
-  letter-spacing: 0.15em;
-  margin: 12px 0;
+  line-height: 1;
+  background: var(--surface);
+  color: var(--text);
+  border-radius: var(--radius-sm);
+  box-shadow: 0 3px 0 rgba(0, 0, 0, 0.25);
 }
 .hint {
   margin: 0;

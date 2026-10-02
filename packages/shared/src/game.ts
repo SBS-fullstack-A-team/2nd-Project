@@ -57,7 +57,8 @@ export interface HintQuizMeta {
  * 새 게임을 추가하면 반드시 여기에 등록할 것 (미등록 시 DEFAULT_MAX_SCORE 적용).
  */
 export const MAX_SCORE_BY_GAME: Record<string, number> = {
-  'chosung-quiz': 100,
+  // 정답 20 × 100 + 연속 정답 보너스 850 + 올클리어 남은 시간 보너스 최대 590 — 게임 scoring.ts maxScore() 와 같게
+  'chosung-quiz': 3440,
   'flag-quiz': 1500,
   'fruit-slicer': 100_000,
   'hint-quiz': 1000,
