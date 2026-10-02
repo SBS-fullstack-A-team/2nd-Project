@@ -22,7 +22,8 @@ export const TOOLS: readonly ToolMeta[] = [
   {
     id: 'marble-race',
     name: '구슬 레이스',
-    description: '시청자 이름 구슬이 장애물 코스를 굴러 내려간다! 1등 뽑기·꼴등 뽑기 추첨',
+    description:
+      '시청자 이름 구슬들의 서킷 레이스! 부스터·구멍·역전 중계로 1등 뽑기·꼴등 뽑기 추첨',
     thumbnail: marbleRaceThumbnail,
     component: lazy(() => import('./marble-race')),
   },
