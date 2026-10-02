@@ -26,7 +26,7 @@ export interface GameMeta {
    * 메인 화면 카드 번호 — 4명이 순서대로 돌아가며 받는다 (CARD_OWNERS 참고).
    * 내 n번째 게임 = (n - 1) × 4 + 내 순번. 예: 혁 1·5·9, 경수 2·6·10, 신영 3·7·11, 동한 4·8·12
    * 메인 화면·시작 메뉴는 이 번호 순서로 게임을 보여 준다. 아직 등록되지 않은 번호는 보이지 않는다.
-   * 샘플 게임처럼 카드 번호가 없는 게임은 비워 두면 맨 뒤에 표시된다.
+   * 담당자 카드가 아닌 공통 게임(초성 퀴즈)은 비워 두면 맨 뒤에 표시된다.
    */
   card?: number;
   /** 게임 컴포넌트 — React.lazy 로 게임별 코드를 분리 로딩한다 */
@@ -44,10 +44,12 @@ export const GAMES: readonly GameMeta[] = [
     card: 1,
     component: lazy(() => import('./hint-quiz')),
   },
+  // 공통 게임 (카드 번호 없음 — 맨 뒤에 표시)
   {
     id: 'chosung-quiz',
     name: '초성 퀴즈',
-    description: '초성만 보고 단어를 맞혀라! 60초 동안 10문제',
+    description:
+      '초성만 보고 단어를 맞혀라! 10개 분야 250여 문제, 연속 정답 콤보와 올클리어 보너스',
     thumbnail: chosungQuizThumbnail,
     category: 'quiz',
     component: lazy(() => import('./chosung-quiz')),
@@ -121,7 +123,7 @@ export const GAMES: readonly GameMeta[] = [
 export const CARD_OWNERS = ['혁', '경수', '신영', '동한'] as const;
 
 /**
- * 메인 화면·시작 메뉴에 보여 줄 순서 — 카드 번호 순, 카드 번호가 없는 게임(샘플 등)은 뒤에.
+ * 메인 화면·시작 메뉴에 보여 줄 순서 — 카드 번호 순, 카드 번호가 없는 공통 게임은 뒤에.
  * 등록된 게임만 들어가므로 아직 만들지 않은 카드 번호는 화면에 나오지 않는다.
  */
 export const GAMES_BY_CARD: readonly GameMeta[] = [...GAMES].sort(
