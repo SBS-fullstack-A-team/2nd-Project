@@ -1,0 +1,466 @@
+/* 캣 블레이드 — 테마와 상관없이 어두운 액션 게임 화면을 쓴다 */
+
+.root {
+  width: 100%;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 10px;
+}
+
+/* 가로형 16:9 무대 — 화면 높이에 맞춰 줄어든다 */
+.stage {
+  position: relative;
+  width: min(100%, 960px, calc(74vh * 16 / 9));
+  aspect-ratio: 16 / 9;
+  overflow: hidden;
+  border-radius: 8px;
+  background: #0d0816;
+  box-shadow: 0 0 0 3px #22183a;
+  user-select: none;
+  -webkit-user-select: none;
+}
+
+.canvas {
+  position: absolute;
+  inset: 0;
+  display: block;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  touch-action: none;
+}
+
+/* 메뉴·결과 화면 — 내용이 16:9 보다 길면 무대가 아래로 늘어난다 (휴대폰에서 안쪽 스크롤 없이 보이게) */
+.stageGrow {
+  overflow: visible;
+}
+.stageGrow .overlay {
+  position: relative;
+  inset: auto;
+  min-height: 100%;
+  border-radius: 8px;
+}
+
+.overlay {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  padding: 10px;
+  background: rgba(8, 4, 18, 0.62);
+  backdrop-filter: blur(2px);
+  overflow-y: auto;
+  animation: fadeIn 0.2s ease-out;
+}
+
+.panel {
+  width: min(440px, 100%);
+  margin: auto;
+  padding: 16px;
+  color: #f2eeff;
+  background: linear-gradient(180deg, #24183e, #140e24);
+  border: 2px solid #4a3a80;
+  border-radius: 12px;
+  box-shadow: 0 0 26px rgba(180, 100, 255, 0.25);
+  text-align: center;
+}
+
+.menuPanel {
+  width: min(720px, 100%);
+}
+
+.logo {
+  margin: 0;
+  font-size: clamp(1.8rem, 6vw, 2.8rem);
+  font-style: italic;
+  font-weight: 900;
+  letter-spacing: 0.08em;
+  color: #ffffff;
+  text-shadow:
+    0 0 14px rgba(160, 120, 255, 0.85),
+    3px 3px 0 #3a1a6a;
+}
+.logo span {
+  color: #ffd84a;
+}
+
+.subtitle {
+  margin: 4px 0 12px;
+  color: #b8acdc;
+  font-size: 0.85rem;
+}
+
+.panelTitle {
+  margin: 0 0 10px;
+  font-size: 1.4rem;
+}
+
+.formList {
+  display: grid;
+  grid-template-columns: repeat(5, 1fr);
+  gap: 6px;
+}
+
+.formCard {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 1px;
+  padding: 4px 2px 6px;
+  color: #e8e0ff;
+  background: #1c1434;
+  border: 2px solid #33285a;
+  border-radius: 10px;
+  cursor: pointer;
+  font: inherit;
+  font-size: 0.75rem;
+  transition:
+    transform 0.12s,
+    border-color 0.12s;
+}
+.formCard:hover {
+  transform: translateY(-2px);
+}
+.formCardOn {
+  border-color: var(--form-color, #ffd84a);
+  background: #2a1f4a;
+  box-shadow: 0 0 12px color-mix(in srgb, var(--form-color, #ffd84a) 45%, transparent);
+}
+.formName {
+  font-weight: 800;
+  white-space: nowrap;
+}
+.formName kbd {
+  display: inline-block;
+  min-width: 1.2em;
+  padding: 0 3px;
+  font: inherit;
+  font-size: 0.7rem;
+  color: #1a1030;
+  background: var(--form-color, #ffd84a);
+  border-radius: 4px;
+}
+.formType {
+  color: #9a8cc8;
+  font-size: 0.68rem;
+}
+
+.preview {
+  width: 64px;
+  height: 64px;
+}
+
+.spec {
+  display: grid;
+  grid-template-columns: auto 1fr;
+  gap: 4px 10px;
+  margin: 10px 0;
+  padding: 10px 12px;
+  text-align: left;
+  font-size: 0.82rem;
+  background: rgba(0, 0, 0, 0.28);
+  border-radius: 8px;
+}
+.spec dt,
+.summary dt {
+  color: #ffd84a;
+  font-weight: 700;
+}
+.spec dd,
+.summary dd {
+  margin: 0;
+}
+
+.startBtn,
+.subBtn {
+  padding: 10px 22px;
+  font: inherit;
+  font-weight: 800;
+  border-radius: 999px;
+  cursor: pointer;
+}
+.startBtn {
+  color: #1a1000;
+  background: linear-gradient(180deg, #ffe37a, #ffb81a);
+  border: 2px solid #fff3c0;
+  font-size: 1.1rem;
+  box-shadow: 0 4px 0 #a86b00;
+}
+.startBtn:active {
+  transform: translateY(2px);
+  box-shadow: 0 2px 0 #a86b00;
+}
+.subBtn {
+  color: #f2eeff;
+  background: #2a1f4a;
+  border: 2px solid #4a3a80;
+}
+
+.dangerBtn {
+  padding: 10px 22px;
+  font: inherit;
+  font-weight: 800;
+  color: #fff;
+  background: linear-gradient(180deg, #ff6a6a, #d8323a);
+  border: 2px solid #ffc0c0;
+  border-radius: 999px;
+  cursor: pointer;
+}
+
+.row {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: 8px;
+}
+
+.menuList {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  width: min(240px, 100%);
+  margin: 0 auto;
+}
+
+/* 게임 중 일시정지 창 — 16:9 무대 안에 스크롤 없이 들어가도록 촘촘하게 */
+.compact {
+  padding: 10px 14px;
+}
+.compact .panelTitle {
+  margin-bottom: 2px;
+  font-size: 1.15rem;
+}
+.compact .panelText {
+  margin-bottom: 8px;
+  font-size: 0.8rem;
+}
+.compact .menuList {
+  gap: 5px;
+}
+.compact .startBtn,
+.compact .subBtn,
+.compact .dangerBtn {
+  padding: 6px 16px;
+  font-size: 0.88rem;
+}
+.compact .hint {
+  margin-top: 6px;
+  font-size: 0.72rem;
+}
+
+.panelText {
+  margin: 0 0 14px;
+  color: #b8acdc;
+  font-size: 0.9rem;
+}
+
+.howtoGrid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 10px;
+  margin-top: 12px;
+  text-align: left;
+}
+
+.controls,
+.tips {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  font-size: 0.74rem;
+  line-height: 1.5;
+  color: #c8bce8;
+}
+.controls li {
+  display: flex;
+  gap: 6px;
+  align-items: baseline;
+}
+.controls kbd {
+  flex: none;
+  min-width: 96px;
+  padding: 0 4px;
+  font: inherit;
+  font-weight: 700;
+  color: #ffd84a;
+  background: rgba(255, 255, 255, 0.06);
+  border-radius: 4px;
+}
+.tips li {
+  margin-bottom: 4px;
+}
+.tips li::before {
+  content: '🐾 ';
+}
+
+.touchToggle {
+  display: inline-flex;
+  gap: 6px;
+  align-items: center;
+  margin-top: 10px;
+  color: #9a8cc8;
+  font-size: 0.78rem;
+  cursor: pointer;
+}
+
+.hint {
+  margin: 12px 0 0;
+  color: #9a8cc8;
+  font-size: 0.8rem;
+}
+
+.bigScore {
+  margin: 0 0 10px;
+  font-size: 2rem;
+  font-weight: 900;
+  color: #ffd84a;
+  font-variant-numeric: tabular-nums;
+}
+
+.summary {
+  display: grid;
+  grid-template-columns: auto 1fr;
+  gap: 6px 14px;
+  margin: 0;
+  text-align: left;
+}
+
+.breakdown {
+  margin: 12px 0 0;
+  padding: 8px 12px;
+  background: rgba(0, 0, 0, 0.28);
+  border-radius: 8px;
+  font-size: 0.8rem;
+}
+.breakdownRow {
+  display: flex;
+  justify-content: space-between;
+  gap: 10px;
+}
+.breakdownRow dt {
+  color: #b8acdc;
+}
+.breakdownRow dd {
+  margin: 0;
+  color: #ffffff;
+  font-variant-numeric: tabular-nums;
+}
+
+/* ---------- 게임 중 버튼 ---------- */
+
+.topButtons {
+  position: absolute;
+  top: 18%;
+  right: 8px;
+  display: flex;
+  gap: 6px;
+}
+
+.iconBtn {
+  width: 32px;
+  height: 32px;
+  padding: 0;
+  font-size: 15px;
+  color: #fff;
+  background: rgba(14, 8, 30, 0.55);
+  border: 1px solid rgba(255, 255, 255, 0.3);
+  border-radius: 8px;
+  cursor: pointer;
+}
+
+/* ---------- 터치 조작 (무대 아래) ---------- */
+
+.pad {
+  width: min(100%, 960px);
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 12px;
+  padding: 4px;
+  touch-action: none;
+  user-select: none;
+  -webkit-user-select: none;
+  -webkit-touch-callout: none;
+}
+
+.padMove {
+  display: flex;
+  gap: 6px;
+}
+
+.padActions {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 6px;
+}
+
+.padBtn {
+  min-width: 56px;
+  height: 52px;
+  padding: 0 6px;
+  font: inherit;
+  font-weight: 900;
+  font-size: 0.9rem;
+  color: #fff;
+  background: radial-gradient(circle at 35% 30%, #4a3a7a, #241840);
+  border: 2px solid rgba(255, 255, 255, 0.35);
+  border-radius: 14px;
+  touch-action: none;
+  -webkit-tap-highlight-color: transparent;
+}
+.padBtn:active {
+  transform: scale(0.94);
+  filter: brightness(1.3);
+}
+.padAttack {
+  background: radial-gradient(circle at 35% 30%, #ff7a8a, #c8203a);
+}
+.padJump {
+  background: radial-gradient(circle at 35% 30%, #7ab4ff, #1a58d8);
+}
+.padRoll {
+  background: radial-gradient(circle at 35% 30%, #7affc0, #18a070);
+}
+.padParry {
+  color: #2a1a00;
+  background: radial-gradient(circle at 35% 30%, #fff3a0, #e8b020);
+}
+.padSkill {
+  background: radial-gradient(circle at 35% 30%, #d08aff, #7a2ad8);
+}
+.padForm {
+  background: radial-gradient(circle at 35% 30%, #ffb07a, #d8641a);
+}
+
+.rotateHint {
+  display: none;
+  margin: 8px 0 0;
+  color: #9a8cc8;
+  font-size: 0.78rem;
+}
+
+@media (max-width: 560px) {
+  .rotateHint {
+    display: block;
+  }
+  .formList {
+    grid-template-columns: repeat(3, 1fr);
+  }
+  .howtoGrid {
+    grid-template-columns: 1fr;
+  }
+  .padBtn {
+    min-width: 48px;
+    height: 46px;
+    font-size: 0.8rem;
+  }
+}
+
+@keyframes fadeIn {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}

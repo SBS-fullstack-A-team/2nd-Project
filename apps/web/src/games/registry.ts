@@ -1,5 +1,6 @@
 import { lazy, type ComponentType, type LazyExoticComponent } from 'react';
 import type { GameCategory, GameProps } from '@simsim/shared';
+import catBladeThumbnail from './cat-blade/thumbnail.svg';
 import chairStackThumbnail from './chair-stack/thumbnail.svg';
 import chosungQuizThumbnail from './chosung-quiz/thumbnail.svg';
 import flagQuizThumbnail from './flag-quiz/thumbnail.svg';
@@ -125,6 +126,15 @@ const GAME_ENTRIES: readonly GameEntry[] = [
     category: 'arcade',
     owner: '혁',
     component: lazy(() => import('./chair-stack')),
+  },
+  {
+    id: 'cat-blade',
+    name: '캣 블레이드',
+    description: '무적 구르기·패링·5가지 폼 체인지로 2페이즈 보스 3체를 쓰러뜨리는 고양이 액션',
+    thumbnail: catBladeThumbnail,
+    category: 'arcade',
+    owner: '신영',
+    component: lazy(() => import('./cat-blade')),
   },
 ];
 
