@@ -154,6 +154,8 @@ interface Banner {
 }
 
 const MAX_ENEMY_PROJECTILES = 500;
+/** 동적 카메라 최대 확대 배율 */
+const CAM_MAX_ZOOM = 1.32;
 
 /** 점수 항목 (결과창 내역) */
 type ScoreKind = 'hit' | 'kill' | 'parry' | 'stage' | 'bonus';
@@ -202,6 +204,9 @@ export class CatBladeEngine implements World {
   private zoom = 0;
   private zoomX = VIEW_W / 2;
   private zoomY = VIEW_H / 2;
+  /** 동적 카메라 — 플레이어와 적이 들어오는 만큼 확대 (1 = 전체 화면) */
+  private camX = VIEW_W / 2;
+  private camZoom = 1;
   private banner: Banner | null = null;
   private seenPhase2 = false;
 
@@ -661,6 +666,7 @@ export class CatBladeEngine implements World {
     this.shakeAmt *= Math.pow(0.86, dt * 60);
     if (this.shakeAmt < 0.3) this.shakeAmt = 0;
     this.comboPop = Math.max(0, this.comboPop - dt * 5);
+    this.updateCamera(dt);
 
     this.fx.update(sdt);
     this.runTimers();
@@ -1065,6 +1071,106 @@ export class CatBladeEngine implements World {
 
   /* ---------------- 그리기 ---------------- */
 
+  /** 다른 캔버스로 옮겨 그린다 (크게 보기 모드 전환 시 캔버스가 새로 만들어진다) */
+  attach(canvas: HTMLCanvasElement) {
+    if (canvas === this.canvas) return;
+    const ctx = canvas.getContext('2d');
+    if (!ctx) return;
+    this.canvas = canvas;
+    this.ctx = ctx;
+    this.canvas.width = 0;
+    this.resize();
+  }
+
+  /* ---------------- 카메라 ---------------- */
+
+  private updateCamera(dt: number) {
+    let targetZ = 1;
+    let targetX = VIEW_W / 2;
+    if (this.mode === 'playing' || this.mode === 'ending') {
+      const p = this.player;
+      let lo = p.x;
+      let hi = p.x;
+      const include = (x: number) => {
+        // 너무 멀리 있는 적까지 담으려고 확대를 포기하지 않도록 플레이어 ±480 까지만
+        const cx = clamp(x, p.x - 480, p.x + 480);
+        lo = Math.min(lo, cx);
+        hi = Math.max(hi, cx);
+      };
+      for (const e of this.enemies) include(e.x);
+      const b = this.boss;
+      if (b && b.alpha > 0.05 && b.x > ARENA_L - 40 && b.x < ARENA_R + 40) include(b.x);
+      targetZ = clamp(VIEW_W / (hi - lo + 320), 1, CAM_MAX_ZOOM);
+      targetX = (lo + hi) / 2;
+      // 화면 전체를 쓰는 패턴(회전 레이저·탄막·바닥 표식)은 넓게 보여 준다
+      const wide =
+        this.beams.some((bm) => bm.team === 'enemy') ||
+        this.hazards.length > 0 ||
+        (b !== null && b.flying && b.y < GROUND_Y - 120);
+      if (wide) targetZ = Math.min(targetZ, 1.04);
+    }
+    const k = Math.min(1, dt * 3);
+    this.camZoom += (targetZ - this.camZoom) * k;
+    this.camX += (targetX - this.camX) * Math.min(1, dt * 4);
+    const half = VIEW_W / 2 / this.camZoom;
+    this.camX = clamp(this.camX, half, VIEW_W - half);
+  }
+
+  /** 월드 좌표 → 화면: 가로는 camX 를 가운데로, 세로는 바닥이 화면 아래에 붙도록 */
+  private applyCamera(ctx: CanvasRenderingContext2D) {
+    const z = this.camZoom;
+    if (z <= 1.001) return;
+    const camY = VIEW_H - VIEW_H / 2 / z;
+    ctx.translate(VIEW_W / 2, VIEW_H / 2);
+    ctx.scale(z, z);
+    ctx.translate(-this.camX, -camY);
+  }
+
+  private toScreen(x: number, y: number) {
+    const z = this.camZoom;
+    if (z <= 1.001) return { x, y };
+    const camY = VIEW_H - VIEW_H / 2 / z;
+    return { x: (x - this.camX) * z + VIEW_W / 2, y: (y - camY) * z + VIEW_H / 2 };
+  }
+
+  /** 카메라 밖에 있는 적 — 화면 가장자리에 화살표 */
+  private drawOffscreen(ctx: CanvasRenderingContext2D) {
+    if (this.camZoom <= 1.01) return;
+    const list: { x: number; y: number; boss: boolean }[] = this.enemies.map((e) => ({
+      x: e.x,
+      y: e.centerY(),
+      boss: false,
+    }));
+    const b = this.boss;
+    if (b && !b.dead && b.alpha > 0.05) {
+      const hb = b.hurtbox();
+      list.push({ x: b.x, y: hb.y + hb.h / 2, boss: true });
+    }
+    for (const it of list) {
+      const s = this.toScreen(it.x, it.y);
+      if (s.x >= 0 && s.x <= VIEW_W) continue;
+      const left = s.x < 0;
+      const ax = left ? 14 : VIEW_W - 14;
+      const ay = clamp(s.y, 150, VIEW_H - 70);
+      const size = it.boss ? 13 : 9;
+      const pulse = 0.65 + Math.sin(this.realT * 8) * 0.25;
+      ctx.save();
+      ctx.globalAlpha = pulse;
+      ctx.fillStyle = it.boss ? '#ff3a5a' : '#ffb04a';
+      ctx.strokeStyle = 'rgba(10,6,20,0.9)';
+      ctx.lineWidth = 2;
+      ctx.beginPath();
+      const dir = left ? -1 : 1;
+      ctx.moveTo(ax + dir * size, ay);
+      ctx.lineTo(ax - dir * size * 0.6, ay - size);
+      ctx.lineTo(ax - dir * size * 0.6, ay + size);
+      ctx.closePath();
+      ctx.fill();
+      ctx.stroke();
+      ctx.restore();
+    }
+  }
+
   private resize = () => {
     const dpr = Math.min(2, window.devicePixelRatio || 1);
     const w = Math.round(VIEW_W * dpr);
@@ -1083,15 +1189,16 @@ export class CatBladeEngine implements World {
     ctx.globalCompositeOperation = 'source-over';
 
     ctx.save();
-    // 카메라: 흔들림 + 패링 순간 살짝 확대
+    // 화면 흔들림 → 카메라(확대·추적) → 패링 순간 살짝 확대
+    if (this.shakeAmt > 0 && !this.paused) {
+      ctx.translate(rand(-1, 1) * this.shakeAmt, rand(-1, 1) * this.shakeAmt);
+    }
+    this.applyCamera(ctx);
     if (this.zoom > 0) {
       const z = 1 + this.zoom * 0.05;
       ctx.translate(this.zoomX, this.zoomY);
       ctx.scale(z, z);
       ctx.translate(-this.zoomX, -this.zoomY);
-    }
-    if (this.shakeAmt > 0 && !this.paused) {
-      ctx.translate(rand(-1, 1) * this.shakeAmt, rand(-1, 1) * this.shakeAmt);
     }
     if (this.bg) ctx.drawImage(this.bg, -20, -20, VIEW_W + 40, VIEW_H + 40);
     else {
@@ -1185,6 +1292,7 @@ export class CatBladeEngine implements World {
   /* ---------------- HUD ---------------- */
 
   private drawHud(ctx: CanvasRenderingContext2D) {
+    this.drawOffscreen(ctx);
     const p = this.player;
     const form = p.form;
     ctx.save();

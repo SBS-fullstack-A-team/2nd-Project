@@ -32,6 +32,12 @@ export interface CatPose {
 }
 
 interface Palette {
+  /** 빛 받는 쪽 털 */
+  furLight: string;
+  /** 외곽선 */
+  line: string;
+  /** 볼터치 */
+  blush: string;
   fur: string;
   furDark: string;
   belly: string;
@@ -45,6 +51,9 @@ interface Palette {
 
 const PALETTES: Record<FormId, Palette> = {
   ninja: {
+    furLight: '#7a82b0',
+    line: '#141726',
+    blush: '#ff8fb0',
     fur: '#4a5070',
     furDark: '#2e3248',
     belly: '#d9dcef',
@@ -56,6 +65,9 @@ const PALETTES: Record<FormId, Palette> = {
     bladeEdge: '#bff0ff',
   },
   knight: {
+    furLight: '#ffffff',
+    line: '#5a5046',
+    blush: '#ffa6bd',
     fur: '#f4efe6',
     furDark: '#cfc6b6',
     belly: '#ffffff',
@@ -67,6 +79,9 @@ const PALETTES: Record<FormId, Palette> = {
     bladeEdge: '#ffffff',
   },
   fire: {
+    furLight: '#ffb878',
+    line: '#5a1c08',
+    blush: '#ff6a6a',
     fur: '#ff8a3a',
     furDark: '#d85a1a',
     belly: '#ffe0c0',
@@ -78,6 +93,9 @@ const PALETTES: Record<FormId, Palette> = {
     bladeEdge: '#fff0a0',
   },
   cheese: {
+    furLight: '#ffe696',
+    line: '#6a3c08',
+    blush: '#ff8a7a',
     fur: '#ffc04a',
     furDark: '#e08a1a',
     belly: '#fff2cc',
@@ -89,6 +107,9 @@ const PALETTES: Record<FormId, Palette> = {
     bladeEdge: '#fff7c0',
   },
   cyber: {
+    furLight: '#3e4558',
+    line: '#020306',
+    blush: '#ff4adf',
     fur: '#20232e',
     furDark: '#12141c',
     belly: '#3a3f52',
@@ -112,6 +133,33 @@ function paletteFor(form: FormId, flash: number): Palette {
   return out;
 }
 
+/** 그림 전체 배율 — 판정(hurtbox)은 그대로 두고 보이는 크기만 키운다 */
+const SPRITE_SCALE = 1.12;
+/** 외곽선 두께 */
+const LW = 1.5;
+
+/** 위쪽 왼편에서 빛이 드는 입체 음영 */
+function volume(
+  ctx: CanvasRenderingContext2D,
+  cx: number,
+  cy: number,
+  r: number,
+  pal: Palette,
+): CanvasGradient {
+  const g = ctx.createRadialGradient(cx - r * 0.35, cy - r * 0.45, r * 0.1, cx, cy, r * 1.15);
+  g.addColorStop(0, pal.furLight);
+  g.addColorStop(0.5, pal.fur);
+  g.addColorStop(1, pal.furDark);
+  return g;
+}
+
+function outline(ctx: CanvasRenderingContext2D, pal: Palette, w = LW) {
+  ctx.strokeStyle = pal.line;
+  ctx.lineWidth = w;
+  ctx.lineJoin = 'round';
+  ctx.stroke();
+}
+
 /** 폼별 몸집 배율 */
 const BULK: Record<FormId, number> = {
   ninja: 0.95,
@@ -127,6 +175,7 @@ export function drawCat(ctx: CanvasRenderingContext2D, p: CatPose) {
   ctx.translate(p.x, p.y);
   if (p.alpha < 1) ctx.globalAlpha *= Math.max(0, p.alpha);
 
+  ctx.scale(SPRITE_SCALE, SPRITE_SCALE);
   if (p.pose === 'roll') {
     drawRollBall(ctx, p, pal);
     ctx.restore();
@@ -191,38 +240,67 @@ export function drawCat(ctx: CanvasRenderingContext2D, p: CatPose) {
 
 function drawTail(ctx: CanvasRenderingContext2D, p: CatPose, pal: Palette, bulk: number) {
   const sway = Math.sin(p.t * 4 + (p.pose === 'run' ? p.runPhase : 0)) * 6;
+  const tipX = -22 * bulk + sway;
+  const tipY = -48;
+  const path = () => {
+    ctx.beginPath();
+    ctx.moveTo(-11 * bulk, -18);
+    ctx.bezierCurveTo(-27 * bulk, -17, -31 * bulk - sway * 0.3, -36, tipX, tipY);
+  };
   ctx.save();
   ctx.lineCap = 'round';
-  ctx.strokeStyle = pal.furDark;
-  ctx.lineWidth = 7 * bulk;
-  ctx.beginPath();
-  ctx.moveTo(-11 * bulk, -18);
-  ctx.bezierCurveTo(-26 * bulk, -18, -30 * bulk - sway * 0.3, -34, -22 * bulk + sway, -46);
+  path();
+  ctx.strokeStyle = pal.line;
+  ctx.lineWidth = 5.4 * bulk + LW * 2;
   ctx.stroke();
   ctx.strokeStyle = pal.fur;
-  ctx.lineWidth = 5 * bulk;
+  ctx.lineWidth = 5.4 * bulk;
   ctx.stroke();
-  const tipX = -22 * bulk + sway;
-  const tipY = -46;
-  if (p.form === 'fire') {
-    // 꼬리 끝 불꽃
-    ctx.globalCompositeOperation = 'lighter';
-    for (let i = 0; i < 3; i++) {
-      const f = Math.sin(p.t * 18 + i * 2) * 2;
-      drawGlow(ctx, tipX + f, tipY - 4 - i * 4, 9 - i * 2, i === 0 ? '#ff5a1a' : '#ffc04a', 0.9);
-    }
-    ctx.globalCompositeOperation = 'source-over';
-  } else if (p.form === 'cyber') {
-    ctx.globalCompositeOperation = 'lighter';
-    drawGlow(ctx, tipX, tipY, 7, '#ff4adf', 0.9);
-    ctx.globalCompositeOperation = 'source-over';
-  } else if (p.form === 'cheese') {
+  // 꼬리 윗면 하이라이트
+  ctx.save();
+  ctx.translate(0.6, -1.4);
+  path();
+  ctx.globalAlpha *= 0.6;
+  ctx.strokeStyle = pal.furLight;
+  ctx.lineWidth = 1.6 * bulk;
+  ctx.stroke();
+  ctx.restore();
+  if (p.form === 'cheese' || p.form === 'ninja') {
     // 꼬리 줄무늬
     ctx.strokeStyle = pal.furDark;
     ctx.lineWidth = 2;
+    for (const k of [0.45, 0.7]) {
+      const x = -11 * bulk + (tipX + 11 * bulk) * k - sway * 0.2;
+      const y = -18 + (tipY + 18) * k;
+      ctx.beginPath();
+      ctx.moveTo(x - 3.5, y - 1.5);
+      ctx.lineTo(x + 3.5, y + 1.5);
+      ctx.stroke();
+    }
+  }
+  if (p.form === 'fire') {
+    // 꼬리 끝 불꽃
+    ctx.globalCompositeOperation = 'lighter';
+    for (let i = 0; i < 4; i++) {
+      const f = Math.sin(p.t * 18 + i * 2) * 2;
+      drawGlow(ctx, tipX + f, tipY - 3 - i * 4, 10 - i * 2, i < 2 ? '#ff5a1a' : '#ffd04a', 0.9);
+    }
+    ctx.globalCompositeOperation = 'source-over';
+  } else if (p.form === 'cyber') {
+    ctx.fillStyle = '#ff4adf';
     ctx.beginPath();
-    ctx.arc(tipX, tipY + 4, 3, 0, TAU);
-    ctx.stroke();
+    ctx.arc(tipX, tipY, 2.6, 0, TAU);
+    ctx.fill();
+    ctx.globalCompositeOperation = 'lighter';
+    drawGlow(ctx, tipX, tipY, 9, '#ff4adf', 0.9);
+    ctx.globalCompositeOperation = 'source-over';
+  } else {
+    // 복슬복슬한 꼬리 끝
+    ctx.fillStyle = p.form === 'knight' ? pal.furLight : pal.furDark;
+    ctx.beginPath();
+    ctx.ellipse(tipX, tipY, 3.4 * bulk, 4.2 * bulk, -0.4, 0, TAU);
+    ctx.fill();
+    outline(ctx, pal, 1.1);
   }
   ctx.restore();
 }
@@ -246,31 +324,66 @@ function drawLegs(
     swing = back ? -3 : 6;
     lift = 1;
   }
-  ctx.fillStyle = back ? pal.furDark : pal.fur;
   const baseX = back ? -7 * bulk : 6 * bulk;
   for (const off of [0, back ? -5 : 5]) {
     const x = baseX + off + swing * (off === 0 ? 1 : -0.6);
+    const y = -5 - lift;
+    const g = ctx.createLinearGradient(x, y - 6, x, y + 6);
+    g.addColorStop(0, back ? pal.fur : pal.furLight);
+    g.addColorStop(1, back ? pal.furDark : pal.fur);
+    ctx.fillStyle = g;
     ctx.beginPath();
-    ctx.ellipse(x, -4 - lift, 4.2 * bulk, 5.5, 0, 0, TAU);
+    ctx.ellipse(x, y, 4.3 * bulk, 5.8, 0, 0, TAU);
     ctx.fill();
-  }
-  // 발바닥 끝 (밝은 색)
-  if (!back) {
-    ctx.fillStyle = pal.belly;
-    ctx.beginPath();
-    ctx.ellipse(baseX + swing + 1, -1.5 - lift, 3.4, 2, 0, 0, TAU);
-    ctx.fill();
+    outline(ctx, pal, 1.2);
+    if (!back) {
+      // 발가락 구분선
+      ctx.save();
+      ctx.strokeStyle = pal.line;
+      ctx.globalAlpha *= 0.6;
+      ctx.lineWidth = 0.8;
+      ctx.beginPath();
+      ctx.moveTo(x + 1, y + 3);
+      ctx.lineTo(x + 1, y + 5.4);
+      ctx.moveTo(x + 3, y + 2.6);
+      ctx.lineTo(x + 3, y + 5);
+      ctx.stroke();
+      ctx.restore();
+    }
   }
 }
 
 function drawBody(ctx: CanvasRenderingContext2D, p: CatPose, pal: Palette, bulk: number) {
-  ctx.fillStyle = pal.fur;
+  const rx = 14 * bulk;
+  const ry = 12.5 * (0.96 + bulk * 0.04);
+  ctx.fillStyle = volume(ctx, 0, -19, rx, pal);
   ctx.beginPath();
-  ctx.ellipse(0, -19, 14 * bulk, 12.5 * (0.96 + bulk * 0.04), 0, 0, TAU);
+  ctx.ellipse(0, -19, rx, ry, 0, 0, TAU);
   ctx.fill();
+  outline(ctx, pal);
+  // 등쪽 그림자
+  ctx.save();
+  ctx.beginPath();
+  ctx.ellipse(0, -19, rx, ry, 0, 0, TAU);
+  ctx.clip();
+  ctx.fillStyle = pal.furDark;
+  ctx.globalAlpha *= 0.35;
+  ctx.beginPath();
+  ctx.ellipse(-rx * 0.9, -14, rx * 0.55, ry * 1.1, 0, 0, TAU);
+  ctx.fill();
+  ctx.restore();
+  // 가슴 털 뭉치 (위쪽이 삐죽삐죽)
   ctx.fillStyle = pal.belly;
   ctx.beginPath();
-  ctx.ellipse(5 * bulk, -16, 7 * bulk, 8, 0.2, 0, TAU);
+  ctx.ellipse(5 * bulk, -15.5, 7 * bulk, 8, 0.2, 0, TAU);
+  ctx.fill();
+  ctx.beginPath();
+  for (let i = 0; i < 3; i++) {
+    const bx = 1 * bulk + i * 3.6 * bulk;
+    ctx.moveTo(bx - 2, -21);
+    ctx.lineTo(bx, -27 + (i === 1 ? -1.5 : 0));
+    ctx.lineTo(bx + 2.4, -21);
+  }
   ctx.fill();
 
   switch (p.form) {
@@ -388,20 +501,33 @@ function drawHead(ctx: CanvasRenderingContext2D, p: CatPose, pal: Palette) {
     ctx.save();
     ctx.translate(hx + ex - 3 + dir * 2, hy - r * 0.62);
     ctx.rotate(dir * 0.22 + (dir > 0 ? earTwitch : 0));
-    ctx.fillStyle = pal.fur;
+    ctx.fillStyle = dir < 0 ? pal.furDark : pal.fur;
     ctx.beginPath();
-    ctx.moveTo(-6, 4);
-    ctx.lineTo(0, -12);
-    ctx.lineTo(6, 4);
+    ctx.moveTo(-6.5, 4);
+    ctx.quadraticCurveTo(-2, -6, 0, -13);
+    ctx.quadraticCurveTo(2, -6, 6.5, 4);
     ctx.closePath();
     ctx.fill();
-    ctx.fillStyle = pal.ear;
+    outline(ctx, pal, 1.3);
+    const eg = ctx.createLinearGradient(0, -8, 0, 3);
+    eg.addColorStop(0, pal.ear);
+    eg.addColorStop(1, pal.furDark);
+    ctx.fillStyle = eg;
     ctx.beginPath();
-    ctx.moveTo(-3, 3);
-    ctx.lineTo(0, -7);
-    ctx.lineTo(3, 3);
+    ctx.moveTo(-3.4, 3);
+    ctx.quadraticCurveTo(-1, -3, 0, -8);
+    ctx.quadraticCurveTo(1, -3, 3.4, 3);
     ctx.closePath();
     ctx.fill();
+    // 귓속 털
+    ctx.strokeStyle = pal.belly;
+    ctx.lineWidth = 0.7;
+    ctx.beginPath();
+    ctx.moveTo(-1.5, 3);
+    ctx.lineTo(-0.4, -2);
+    ctx.moveTo(1.2, 3);
+    ctx.lineTo(0.6, -1);
+    ctx.stroke();
     if (p.form === 'cyber') {
       ctx.globalCompositeOperation = 'lighter';
       drawGlow(ctx, 0, -11, 4, '#ff4adf', 0.8);
@@ -410,16 +536,47 @@ function drawHead(ctx: CanvasRenderingContext2D, p: CatPose, pal: Palette) {
     ctx.restore();
   }
 
-  // 머리
+  // 볼 털 (머리 아래 뒤쪽으로 삐죽)
   ctx.fillStyle = pal.fur;
+  ctx.beginPath();
+  ctx.moveTo(hx - r * 0.6, hy + r * 0.5);
+  ctx.lineTo(hx - r - 3, hy + r * 0.55);
+  ctx.lineTo(hx - r * 0.7, hy + r * 0.2);
+  ctx.lineTo(hx - r - 2, hy + r * 0.1);
+  ctx.lineTo(hx - r * 0.8, hy - r * 0.1);
+  ctx.closePath();
+  ctx.fill();
+  outline(ctx, pal, 1.1);
+  // 머리
+  ctx.fillStyle = volume(ctx, hx, hy, r, pal);
   ctx.beginPath();
   ctx.arc(hx, hy, r, 0, TAU);
   ctx.fill();
-  // 볼살 + 주둥이
+  outline(ctx, pal);
+  // 이마 하이라이트
+  ctx.fillStyle = 'rgba(255,255,255,0.18)';
+  ctx.beginPath();
+  ctx.ellipse(hx - 3, hy - r * 0.55, r * 0.45, r * 0.22, -0.3, 0, TAU);
+  ctx.fill();
+  // 주둥이
   ctx.fillStyle = pal.belly;
   ctx.beginPath();
-  ctx.ellipse(hx + 7, hy + 5, 7.5, 5.5, 0, 0, TAU);
+  ctx.ellipse(hx + 7.5, hy + 5, 7.5, 5.5, 0, 0, TAU);
   ctx.fill();
+  ctx.save();
+  ctx.globalAlpha *= 0.35;
+  outline(ctx, pal, 0.9);
+  ctx.restore();
+  // 볼터치
+  if (p.pose !== 'dead') {
+    ctx.save();
+    ctx.fillStyle = pal.blush;
+    ctx.globalAlpha *= 0.45;
+    ctx.beginPath();
+    ctx.ellipse(hx + 1.5, hy + 4.5, 3.2, 1.9, 0, 0, TAU);
+    ctx.fill();
+    ctx.restore();
+  }
 
   if (p.form === 'cheese') {
     ctx.strokeStyle = pal.furDark;
@@ -470,23 +627,41 @@ function drawHead(ctx: CanvasRenderingContext2D, p: CatPose, pal: Palette) {
     }
   } else {
     const focused = p.pose === 'attack' || p.pose === 'skill' || p.pose === 'parry';
-    for (const ex of [hx + 4, hx + 11]) {
+    // 먼 쪽 눈은 조금 작게 (원근감)
+    for (const [ex, k] of [
+      [hx + 3.6, 0.86],
+      [hx + 11.2, 1],
+    ] as const) {
+      const rx = 3.7 * k;
+      const ry = (focused ? 3.3 : 4.6) * k;
       ctx.fillStyle = '#ffffff';
       ctx.beginPath();
-      ctx.ellipse(ex, eyeY, 3.4, focused ? 3 : 4, 0, 0, TAU);
+      ctx.ellipse(ex, eyeY, rx, ry, 0, 0, TAU);
       ctx.fill();
-      ctx.fillStyle = pal.eye;
+      outline(ctx, pal, 1);
+      const ig = ctx.createRadialGradient(ex + 0.6, eyeY + 0.8, 0.3, ex + 0.6, eyeY, ry);
+      ig.addColorStop(0, '#ffffff');
+      ig.addColorStop(0.3, pal.eye);
+      ig.addColorStop(1, pal.line);
+      ctx.fillStyle = ig;
       ctx.beginPath();
-      ctx.ellipse(ex + 0.6, eyeY, 2.5, focused ? 2.6 : 3.4, 0, 0, TAU);
+      ctx.ellipse(ex + 0.7, eyeY + 0.2, rx * 0.78, ry * 0.86, 0, 0, TAU);
       ctx.fill();
-      ctx.fillStyle = '#111';
+      ctx.fillStyle = '#0a0a12';
       ctx.beginPath();
-      ctx.ellipse(ex + 0.9, eyeY, 1, focused ? 2.2 : 2.8, 0, 0, TAU);
+      ctx.ellipse(ex + 1, eyeY + 0.2, rx * 0.3, ry * 0.66, 0, 0, TAU);
       ctx.fill();
       ctx.fillStyle = '#ffffff';
       ctx.beginPath();
-      ctx.arc(ex - 0.4, eyeY - 1.4, 0.9, 0, TAU);
+      ctx.arc(ex - 0.5 * k, eyeY - 1.6 * k, 1.25 * k, 0, TAU);
+      ctx.arc(ex + 1.8 * k, eyeY + 1.6 * k, 0.55 * k, 0, TAU);
       ctx.fill();
+      // 윗 눈꺼풀 (속눈썹 라인)
+      ctx.strokeStyle = pal.line;
+      ctx.lineWidth = 1.6;
+      ctx.beginPath();
+      ctx.ellipse(ex, eyeY, rx, ry, 0, Math.PI * 1.12, Math.PI * 1.92);
+      ctx.stroke();
     }
     if (focused) {
       // 매서운 눈썹
@@ -520,9 +695,9 @@ function drawHead(ctx: CanvasRenderingContext2D, p: CatPose, pal: Palette) {
   ctx.strokeStyle = 'rgba(255,255,255,0.75)';
   ctx.lineWidth = 0.8;
   ctx.beginPath();
-  for (const dy of [-1, 2]) {
-    ctx.moveTo(hx + 15, hy + 4 + dy * 0.6);
-    ctx.lineTo(hx + 25, hy + 2 + dy * 2);
+  for (const dy of [-1.5, 1, 3.5]) {
+    ctx.moveTo(hx + 15, hy + 4 + dy * 0.5);
+    ctx.quadraticCurveTo(hx + 21, hy + 2.5 + dy * 1.2, hx + 27, hy + 2 + dy * 2.2);
   }
   ctx.stroke();
 
@@ -714,12 +889,15 @@ function drawArmAndWeapon(ctx: CanvasRenderingContext2D, p: CatPose, pal: Palett
   // 팔
   const hx = sx + Math.cos(ang * 0.4) * (9 + reach);
   const hy = sy + Math.sin(ang * 0.4) * 6 + 2;
-  ctx.strokeStyle = pal.fur;
   ctx.lineCap = 'round';
-  ctx.lineWidth = 5.5 * bulk;
   ctx.beginPath();
   ctx.moveTo(sx, sy);
   ctx.lineTo(hx, hy);
+  ctx.strokeStyle = pal.line;
+  ctx.lineWidth = 5.5 * bulk + LW * 2;
+  ctx.stroke();
+  ctx.strokeStyle = pal.fur;
+  ctx.lineWidth = 5.5 * bulk;
   ctx.stroke();
 
   ctx.save();
@@ -733,6 +911,7 @@ function drawArmAndWeapon(ctx: CanvasRenderingContext2D, p: CatPose, pal: Palett
   ctx.beginPath();
   ctx.arc(hx, hy, 3.6 * bulk, 0, TAU);
   ctx.fill();
+  outline(ctx, pal, 1.1);
   if (p.pose === 'parry') {
     // 패링 자세 — 젤리 발바닥을 내민다
     ctx.fillStyle = '#ff9fb8';
