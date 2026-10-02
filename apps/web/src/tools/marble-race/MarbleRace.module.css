@@ -1,0 +1,280 @@
+/* 설정 화면 */
+.setup {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(240px, 320px);
+  gap: 20px;
+}
+.setupMain {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+}
+.setupSide {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+.label {
+  margin: 4px 0 2px;
+  font-weight: 800;
+}
+.names {
+  flex: 1;
+  min-height: 260px;
+  font: inherit;
+  font-size: 1rem;
+  line-height: 1.5;
+  padding: 10px 12px;
+  border: 2px solid var(--border);
+  border-radius: var(--radius-sm);
+  background: var(--surface);
+  color: var(--text);
+  resize: vertical;
+}
+.names:focus {
+  outline: none;
+  border-color: var(--accent);
+}
+.summary {
+  margin: 8px 0 0;
+  color: var(--text-muted);
+}
+.warn {
+  color: var(--danger);
+}
+.rules {
+  margin: 0 0 8px;
+  padding-left: 18px;
+  color: var(--text-muted);
+  font-size: 0.9rem;
+  line-height: 1.7;
+}
+.toggle {
+  display: flex;
+  gap: 6px;
+}
+.toggleButton {
+  flex: 1;
+  padding: 7px 10px;
+  border: 2px solid var(--border);
+  border-radius: 999px;
+  background: var(--surface);
+  color: var(--text);
+  font: inherit;
+  font-weight: 700;
+  white-space: nowrap;
+  cursor: pointer;
+}
+.toggleButton:hover {
+  border-color: var(--accent);
+}
+.selected,
+.selected:hover {
+  border-color: var(--accent);
+  background: var(--accent);
+  color: #fff;
+}
+.winners {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  color: var(--text-muted);
+  font-size: 0.9rem;
+}
+.winners input {
+  width: 72px;
+  font: inherit;
+  font-size: 1rem;
+  padding: 6px 8px;
+  border: 2px solid var(--border);
+  border-radius: var(--radius-sm);
+  background: var(--surface);
+  color: var(--text);
+}
+.startButton {
+  margin-top: 12px;
+  padding: 12px;
+  font-size: 1.1rem;
+}
+
+/* 레이스 화면 — 왼쪽 코스, 오른쪽 순위표 */
+.race {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 240px;
+  gap: 12px;
+  height: min(78vh, 820px);
+}
+/* 도구 페이지의 전체 화면 버튼 → 화면을 꽉 채운다 */
+:global(:fullscreen) .race {
+  height: calc(100vh - 32px);
+}
+.stage {
+  position: relative;
+  min-width: 0;
+  min-height: 0;
+  border-radius: var(--radius-sm);
+  overflow: hidden;
+  background: #161a33;
+}
+.canvas {
+  display: block;
+  width: 100%;
+  height: 100%;
+}
+.side {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  min-height: 0;
+}
+.controls {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+.controls .toggleButton {
+  padding: 4px 6px;
+  font-size: 0.85rem;
+}
+.controlRow {
+  display: flex;
+  gap: 6px;
+}
+.controlRow > * {
+  flex: 1;
+  font-size: 0.85rem;
+  white-space: nowrap;
+}
+.status {
+  margin: 4px 0 0;
+  font-weight: 800;
+}
+.standings {
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
+  list-style: none;
+  margin: 0;
+  padding: 4px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  background: var(--surface);
+}
+.standing {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 3px 4px;
+  font-size: 0.9rem;
+}
+.winnerRow {
+  background: var(--yellow);
+  color: var(--text);
+  border-radius: 4px;
+  font-weight: 800;
+}
+.rank {
+  min-width: 2.2em;
+  text-align: right;
+  color: var(--text-muted);
+  font-variant-numeric: tabular-nums;
+}
+.dot {
+  flex: none;
+  width: 12px;
+  height: 12px;
+  border-radius: 50%;
+  border: 1px solid rgba(0, 0, 0, 0.3);
+}
+.standingName {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.arrived {
+  font-size: 0.75rem;
+  color: var(--success);
+  font-weight: 700;
+}
+
+/* 결과 발표 — 코스 위에 겹쳐 띄운다 */
+.result {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 12px;
+  padding: 20px;
+  background: rgba(10, 12, 30, 0.82);
+  color: #fff;
+  text-align: center;
+  animation: fadeIn 0.4s ease-out;
+}
+@keyframes fadeIn {
+  from {
+    opacity: 0;
+    transform: scale(0.96);
+  }
+}
+.resultTitle {
+  margin: 0;
+  font-size: clamp(1.8rem, 5vw, 3rem);
+  font-weight: 900;
+  color: #ffd23f;
+}
+.resultList {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  max-height: 50%;
+  overflow-y: auto;
+  font-size: clamp(1.1rem, 3vw, 1.6rem);
+}
+.resultList li {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+  padding: 4px 0;
+}
+.resultTop {
+  font-size: 1.5em;
+}
+.resultRank {
+  color: #c9d1ff;
+  font-size: 0.8em;
+}
+.resultActions {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: 8px;
+}
+.seed {
+  margin: 0;
+  font-size: 0.8rem;
+  opacity: 0.7;
+}
+
+@media (max-width: 720px) {
+  .setup {
+    grid-template-columns: minmax(0, 1fr);
+  }
+  .names {
+    min-height: 180px;
+  }
+  .race {
+    grid-template-columns: minmax(0, 1fr);
+    grid-template-rows: minmax(0, 1fr) 200px;
+    height: 85vh;
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .result {
+    animation: none;
+  }
+}

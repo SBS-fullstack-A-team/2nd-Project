@@ -1,4 +1,5 @@
-import { type ComponentType, type LazyExoticComponent } from 'react';
+import { lazy, type ComponentType, type LazyExoticComponent } from 'react';
+import marbleRaceThumbnail from './marble-race/thumbnail.svg';
 
 /**
  * 방송 도구 등록부 — 메인 화면 "방송 도구" 섹션과 /tools/:toolId 라우트가 이 목록으로 자동 생성된다.
@@ -17,7 +18,15 @@ export interface ToolMeta {
 }
 
 /** 메인 화면·시작 메뉴에 이 순서대로 나온다. 비어 있으면 "방송 도구" 섹션이 숨겨진다 */
-export const TOOLS: readonly ToolMeta[] = [];
+export const TOOLS: readonly ToolMeta[] = [
+  {
+    id: 'marble-race',
+    name: '구슬 레이스',
+    description: '시청자 이름 구슬이 장애물 코스를 굴러 내려간다! 1등 뽑기·꼴등 뽑기 추첨',
+    thumbnail: marbleRaceThumbnail,
+    component: lazy(() => import('./marble-race')),
+  },
+];
 
 export const TOOL_LABEL = '방송 도구';
 
