@@ -218,7 +218,7 @@ pnpm db:seed:local                                    # 로컬 D1 에 적용해�
   - 점수 등록·결과창·랭킹은 공통 페이지가 처리하므로 게임에서 만들지 않습니다.
   - 공통 UI 가 필요하면 `components/` 의 `Timer` 등을 가져다 씁니다.
   - 색·모서리는 직접 쓰지 말고 **테마 토큰**(`var(--accent)` 등)을 씁니다. 그래야 XP·98·7·11·클래식 모든 테마에서 자연스럽습니다 (아래 "디자인 테마" 참고).
-- [ ] **2. registry 등록** — `apps/web/src/games/registry.ts` 의 `GAMES` 에 **내 카드 번호 위치**에 추가
+- [ ] **2. registry 등록** — `apps/web/src/games/registry.ts` 의 `GAME_ENTRIES` **맨 뒤에** 추가
   ```ts
   {
     id: 'word-chain',
@@ -226,11 +226,12 @@ pnpm db:seed:local                                    # 로컬 D1 에 적용해�
     description: '한 줄 설명',
     thumbnail: wordChainThumbnail, // import wordChainThumbnail from './word-chain/thumbnail.svg';
     category: 'quiz',
-    card: 6, // 내 카드 번호 = (n번째 게임 − 1) × 4 + 내 순번 (예: 경수의 2번째 게임 → 6)
+    owner: '경수', // 내 이름만 적으면 카드 번호가 자동으로 붙는다 (예: 경수의 2번째 게임 → 6)
     component: lazy(() => import('./word-chain')),
   },
   ```
-  → 메인 화면에 내 카드 번호 순서대로 게임이 나타나고, `/games/word-chain` 페이지가 자동으로 생깁니다.
+  → 카드 번호 = (내 n번째 게임 − 1) × 4 + 내 순번 이 자동 계산되어 메인 화면에 그 순서로 나타나고, `/games/word-chain` 페이지가 자동으로 생깁니다.
+  - `card` 는 직접 적지 않습니다. 이미 있는 항목의 순서를 바꾸거나 중간에 끼워 넣지 마세요 (내 뒤쪽 게임 카드 번호가 바뀝니다).
 - [ ] **3. 공용 타입** — `packages/shared/src/game.ts`
   - `MAX_SCORE_BY_GAME` 에 최고 점수 추가 (서버가 이보다 큰 점수를 거부)
   - 퀴즈류라면 `quiz_item.meta` 에 들어갈 타입 추가 (예: `ChosungQuizMeta`)

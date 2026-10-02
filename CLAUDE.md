@@ -117,8 +117,9 @@ gh auth status
 - 게임이 정해지면 이 표의 해당 칸을 채운다. 4번째 게임부터는 열을 추가한다 (13~16).
 - 브랜치는 게임마다 `feature/game-<게임id>` 로 따로 만든다.
 - 메인 화면에는 **등록된 게임만** 카드 번호 순서대로 나온다. 아직 등록하지 않은 카드 번호는 보이지 않는다.
-  - 게임을 등록할 때 `registry.ts` 의 항목에 `card: <내 카드 번호>` 를 적으면 그 순서 자리에 들어간다.
-  - 담당 순서(`CARD_OWNERS`)와 정렬(`GAMES_BY_CARD`)은 공통 코드이므로 게임 PR 에서 고치지 않는다.
+  - **카드 번호는 자동으로 붙는다.** 게임을 등록할 때 `registry.ts` 의 `GAME_ENTRIES` **맨 뒤에** 항목을 추가하고 `owner: '<내 이름>'` (`'혁'`·`'경수'`·`'신영'`·`'동한'`) 만 적으면, 내 몇 번째 게임인지 세어서 카드 번호가 계산된다. `card` 는 직접 적지 않는다.
+  - 이미 있는 항목의 순서를 바꾸거나 중간에 끼워 넣지 않는다 (같은 담당자의 뒤쪽 게임 카드 번호가 바뀐다).
+  - 담당 순서(`CARD_OWNERS`), 번호 계산(`assignCards`), 정렬(`GAMES_BY_CARD`)은 공통 코드이므로 게임 PR 에서 고치지 않는다.
 - 두 번째 게임은 첫 번째 게임을 등록한 뒤에 시작하는 것을 권장한다 (번호는 미리 정해져 있으니 먼저 올려도 된다).
 - `chosung-quiz`(초성 퀴즈)는 담당자 카드가 아닌 **공통 정식 게임**이다. 카드 번호 없이 메인 화면 맨 뒤에 나온다.
   - 문제는 `apps/api/seeds/scripts/chosung-quiz.mjs` 에서 고친 뒤 스크립트로 `chosung-quiz.sql` 을 다시 만든다.
@@ -127,12 +128,12 @@ gh auth status
 
 게임 카드 작업은 **새 파일 추가 + 등록 한 줄**만 한다. 다른 사람 게임이나 공통 코드는 건드리지 않는다.
 
-| 파일                             | 허용되는 변경                                                               |
-| -------------------------------- | --------------------------------------------------------------------------- |
-| `apps/web/src/games/<게임id>/`   | 새 폴더 — 자유롭게 작성 (내 게임 전용)                                      |
-| `apps/web/src/games/registry.ts` | `GAMES` 에 **항목 1개 추가** (`card: 내 카드 번호` 포함), 썸네일 import 1줄 |
-| `packages/shared/src/game.ts`    | `MAX_SCORE_BY_GAME` 에 **1줄 추가**, 퀴즈류면 meta 타입 **추가**            |
-| `apps/api/seeds/<게임id>.sql`    | 새 파일 — 내 게임의 `game` 행 + `quiz_item` 문제                            |
+| 파일                             | 허용되는 변경                                                                         |
+| -------------------------------- | ------------------------------------------------------------------------------------- |
+| `apps/web/src/games/<게임id>/`   | 새 폴더 — 자유롭게 작성 (내 게임 전용)                                                |
+| `apps/web/src/games/registry.ts` | `GAME_ENTRIES` **맨 뒤에 항목 1개 추가** (`owner: '내 이름'` 포함), 썸네일 import 1줄 |
+| `packages/shared/src/game.ts`    | `MAX_SCORE_BY_GAME` 에 **1줄 추가**, 퀴즈류면 meta 타입 **추가**                      |
+| `apps/api/seeds/<게임id>.sql`    | 새 파일 — 내 게임의 `game` 행 + `quiz_item` 문제                                      |
 
 - 금지: 공통 `components/`, `pages/`, `lib/`, API 라우트, DB 스키마, 다른 사람의 게임 폴더·시드 수정
 - 공통 부분 변경이 필요하면 (예: 공통 컴포넌트에 기능 추가, 새 API) 게임 PR 에 섞지 말고 해당 역할 담당자에게 요청해서 `feature/fe-*` / `feature/be-*` PR 로 따로 진행한다.
@@ -194,7 +195,7 @@ packages/shared/src/   # 공용 타입 — 변경 시 프론트·백엔드 양�
 
 0. 최신 main 에서 `feature/game-<id>` 브랜치 생성
 1. `apps/web/src/games/<id>/` 폴더 생성 — `index.tsx`(default export, `GameProps`), `config.ts`, 스타일, `thumbnail.svg`
-2. `apps/web/src/games/registry.ts` 에 메타 등록 (`lazy(() => import('./<id>'))`, `card: (n − 1) × 4 + 내 순번`)
+2. `apps/web/src/games/registry.ts` 에 메타 등록 (`GAME_ENTRIES` 맨 뒤에, `lazy(() => import('./<id>'))`, `owner: '내 이름'` — 카드 번호는 자동)
 3. `packages/shared/src/game.ts` — `MAX_SCORE_BY_GAME` 에 최고 점수 추가, 퀴즈류면 meta 타입 추가
 4. `apps/api/seeds/<id>.sql` 새 파일에 `game` 행 INSERT (+ 퀴즈류면 `quiz_item` 문제) → `pnpm db:seed:local`
    - 여러 번 실행해도 되게 작성 (`INSERT OR IGNORE`, 내 게임 문제만 `DELETE` 후 재삽입 — `chosung-quiz.sql` 참고)
