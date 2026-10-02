@@ -70,6 +70,8 @@ export const MAX_SCORE_BY_GAME: Record<string, number> = {
   'ruins-dash': 3_000_000,
   // 점수 = 최고 높이(cm). 의자 수백 개를 쌓아도 닿지 않을 상한 — 게임 내부 상한(config.ts MAX_SCORE)과 같게
   'chair-stack': 50_000,
+  // 무피해 최단 클리어도 20만 점 안팎 — 게임 내부 상한(config.ts MAX_SCORE)과 같게
+  'cat-blade': 500_000,
 };
 
 export const DEFAULT_MAX_SCORE = 1_000_000;
