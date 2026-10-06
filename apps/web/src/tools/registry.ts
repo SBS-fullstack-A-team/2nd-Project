@@ -1,6 +1,7 @@
 import { lazy, type ComponentType, type LazyExoticComponent } from 'react';
 import marbleRaceThumbnail from './marble-race/thumbnail.svg';
 import pinballLadderThumbnail from './pinball-ladder/thumbnail.svg';
+import rouletteWheelThumbnail from './roulette-wheel/thumbnail.svg';
 
 /**
  * 방송 도구 등록부 — 메인 화면 "방송 도구" 섹션과 /tools/:toolId 라우트가 이 목록으로 자동 생성된다.
@@ -35,6 +36,14 @@ export const TOOLS: readonly ToolMeta[] = [
       '사다리타기 대신! 이름 공이 핀에 튕기며 결과 칸에 쏙 — 한 칸에 한 명씩 1:1 짝짓기 추첨',
     thumbnail: pinballLadderThumbnail,
     component: lazy(() => import('./pinball-ladder')),
+  },
+  {
+    id: 'roulette-wheel',
+    name: '돌림판 룰렛',
+    description:
+      '벌칙·미션·후원 룰렛! 항목별 확률 조절, 뽑힌 항목 빼기, 아슬아슬하게 멈추는 돌림판',
+    thumbnail: rouletteWheelThumbnail,
+    component: lazy(() => import('./roulette-wheel')),
   },
 ];
 
