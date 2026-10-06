@@ -1,5 +1,6 @@
 import { lazy, type ComponentType, type LazyExoticComponent } from 'react';
 import marbleRaceThumbnail from './marble-race/thumbnail.svg';
+import pinballLadderThumbnail from './pinball-ladder/thumbnail.svg';
 
 /**
  * 방송 도구 등록부 — 메인 화면 "방송 도구" 섹션과 /tools/:toolId 라우트가 이 목록으로 자동 생성된다.
@@ -26,6 +27,14 @@ export const TOOLS: readonly ToolMeta[] = [
       '시청자 이름 구슬들의 서킷 레이스! 부스터·구멍·역전 중계로 1등 뽑기·꼴등 뽑기 추첨',
     thumbnail: marbleRaceThumbnail,
     component: lazy(() => import('./marble-race')),
+  },
+  {
+    id: 'pinball-ladder',
+    name: '핀볼 사다리',
+    description:
+      '사다리타기 대신! 이름 공이 핀에 튕기며 결과 칸에 쏙 — 한 칸에 한 명씩 1:1 짝짓기 추첨',
+    thumbnail: pinballLadderThumbnail,
+    component: lazy(() => import('./pinball-ladder')),
   },
 ];
 
