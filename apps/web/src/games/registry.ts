@@ -85,7 +85,7 @@ const GAME_ENTRIES: readonly GameEntry[] = [
   {
     id: 'fruit-slicer',
     name: '과일 슬라이서',
-    description: '날아오는 과일을 베고 폭탄은 피하라! 검 스킨 10종 해금과 피버 타임',
+    description: '날아오는 과일을 베고 폭탄은 피하라! 검 스킨 16종·배경 테마 10종과 피버 타임',
     thumbnail: fruitSlicerThumbnail,
     category: 'arcade',
     owner: '신영',

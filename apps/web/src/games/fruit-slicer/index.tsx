@@ -18,13 +18,17 @@ import {
   HOW_TO_PLAY,
   QUESTS,
   RANKING_SIZE,
+  THEMES,
+  THEME_QUESTS,
   TIER_LABEL,
-  type BladeDef,
   type BladeId,
   type BladeTier,
+  type QuestDef,
+  type ThemeDef,
+  type ThemeId,
 } from './config';
 import { FruitSlicerEngine } from './engine';
-import { QuestManager, type QuestSnapshot } from './QuestManager';
+import { QuestManager, type QuestSnapshot, type Unlock } from './QuestManager';
 import { SoundManager } from './SoundManager';
 import {
   BRIGHTNESS_MAX,
@@ -33,9 +37,10 @@ import {
   saveSettings,
   type GameSettings,
 } from './settings';
+import { drawThemeSnapshot } from './themes';
 import styles from './FruitSlicer.module.css';
 
-type MenuView = 'main' | 'blades' | 'quests' | 'howto';
+type MenuView = 'main' | 'blades' | 'themes' | 'quests' | 'howto';
 
 type Screen =
   | { name: 'menu'; view: MenuView }
@@ -45,7 +50,7 @@ type Screen =
 
 interface Toast {
   id: number;
-  blade: BladeDef;
+  unlock: Unlock;
 }
 
 /**
@@ -87,11 +92,11 @@ export default function FruitSlicer(_props: GameProps) {
     };
   }, []);
 
-  /** 검 해금 알림 — 효과음 + 3초 동안 토스트 */
+  /** 검·테마 해금 알림 — 효과음 + 3초 동안 토스트 */
   const showUnlocks = useCallback(
-    (blades: BladeDef[]) => {
+    (unlocks: Unlock[]) => {
       sound.play('unlock');
-      const added = blades.map((blade) => ({ id: ++toastSeq.current, blade }));
+      const added = unlocks.map((unlock) => ({ id: ++toastSeq.current, unlock }));
       setToasts((prev) => [...prev, ...added]);
       const timer = window.setTimeout(() => {
         toastTimers.current.delete(timer);
@@ -108,9 +113,9 @@ export default function FruitSlicer(_props: GameProps) {
     let engine: FruitSlicerEngine;
     try {
       engine = new FruitSlicerEngine(canvas, quests, sound, {
-        onUnlock: (blades) => {
+        onUnlock: (unlocks) => {
           setSnapshot(quests.snapshot());
-          showUnlocks(blades);
+          showUnlocks(unlocks);
         },
         onGameOver: (score) => {
           setSnapshot(quests.snapshot());
@@ -147,7 +152,7 @@ export default function FruitSlicer(_props: GameProps) {
         engineRef.current?.setBlade(quests.selected);
         setSnapshot(quests.snapshot());
         const blade = BLADES.find((b) => b.id === CHAMPION_BLADE_ID);
-        if (gained && blade) showUnlocks([blade]);
+        if (gained && blade) showUnlocks([{ kind: 'blade', def: blade }]);
       })
       .catch(() => {
         // 랭킹을 못 불러오면 이전 상태를 그대로 둔다
@@ -232,6 +237,13 @@ export default function FruitSlicer(_props: GameProps) {
     setSnapshot(quests.snapshot());
   }
 
+  function selectTheme(id: ThemeId) {
+    if (!quests.selectTheme(id)) return;
+    sound.play('click');
+    engineRef.current?.setTheme(id);
+    setSnapshot(quests.snapshot());
+  }
+
   return (
     <div className={styles.root}>
       <div className={styles.stage}>
@@ -263,6 +275,9 @@ export default function FruitSlicer(_props: GameProps) {
               )}
               {screen.view === 'blades' && (
                 <BladeInventory snapshot={snapshot} onSelect={selectBlade} />
+              )}
+              {screen.view === 'themes' && (
+                <ThemeGallery snapshot={snapshot} onSelect={selectTheme} />
               )}
               {screen.view === 'quests' && <QuestList snapshot={snapshot} />}
               {screen.view === 'howto' && <HowToPlay />}
@@ -365,9 +380,10 @@ export default function FruitSlicer(_props: GameProps) {
         <div className={styles.toasts} aria-live="polite">
           {toasts.map((t) => (
             <div key={t.id} className={styles.toast}>
-              <span className={styles.toastSwatch} style={{ background: t.blade.preview }} />
+              <span className={styles.toastSwatch} style={{ background: t.unlock.def.preview }} />
               <span>
-                🔓 새 검 해금! <strong>{t.blade.name}</strong>
+                {t.unlock.kind === 'theme' ? '🎨 새 테마 해금!' : '🔓 새 검 해금!'}{' '}
+                <strong>{t.unlock.def.name}</strong>
               </span>
             </div>
           ))}
@@ -391,6 +407,7 @@ function MainMenu({
   onRanking: () => void;
 }) {
   const blade = BLADES.find((b) => b.id === snapshot.selected) ?? BLADES[0]!;
+  const theme = THEMES.find((t) => t.id === snapshot.selectedTheme) ?? THEMES[0]!;
   return (
     <>
       <p className={styles.logo}>
@@ -410,9 +427,10 @@ function MainMenu({
           </dd>
         </div>
         <div>
-          <dt>해금한 검</dt>
+          <dt>배경 테마</dt>
           <dd>
-            {snapshot.unlocked.size} / {BLADES.length}
+            <span className={styles.inlineSwatch} style={{ background: theme.preview }} />
+            {theme.name}
           </dd>
         </div>
       </dl>
@@ -426,7 +444,16 @@ function MainMenu({
       </button>
       <div className={styles.menuGrid}>
         <button type="button" className="btn" onClick={() => onNavigate('blades')}>
-          🗡️ 검 선택
+          🗡️ 검 선택{' '}
+          <small className={styles.menuCount}>
+            {snapshot.unlocked.size}/{BLADES.length}
+          </small>
+        </button>
+        <button type="button" className="btn" onClick={() => onNavigate('themes')}>
+          🎨 배경 테마{' '}
+          <small className={styles.menuCount}>
+            {snapshot.unlockedThemes.size}/{THEMES.length}
+          </small>
         </button>
         <button type="button" className="btn" onClick={() => onNavigate('quests')}>
           📜 퀘스트
@@ -434,7 +461,7 @@ function MainMenu({
         <button type="button" className="btn" onClick={() => onNavigate('howto')}>
           ❓ 게임 방법
         </button>
-        <button type="button" className="btn" onClick={onRanking}>
+        <button type="button" className={`btn ${styles.menuWide}`} onClick={onRanking}>
           🏆 랭킹 TOP {RANKING_SIZE}
         </button>
       </div>
@@ -509,40 +536,222 @@ function BladeInventory({
   );
 }
 
+type QuestTab = 'blade' | 'theme';
+
 function QuestList({ snapshot }: { snapshot: QuestSnapshot }) {
+  const [tab, setTab] = useState<QuestTab>('blade');
+  const bladeDone = QUESTS.filter((q) => snapshot.unlocked.has(q.reward)).length;
+  const themeDone = THEME_QUESTS.filter((q) => snapshot.unlockedThemes.has(q.reward)).length;
   return (
     <>
       <h2 className={styles.panelTitle}>퀘스트</h2>
-      <ul className={styles.questList}>
-        {QUESTS.map((quest) => {
-          const value = Math.min(quest.progress(snapshot.stats), quest.goal);
-          const done = snapshot.unlocked.has(quest.reward);
-          const reward = BLADES.find((b) => b.id === quest.reward);
-          return (
-            <li key={quest.id} className={done ? styles.questDone : ''}>
-              <div className={styles.questHead}>
-                <strong>{quest.title}</strong>
-                <span>{done ? '✅ 완료' : `${value} / ${quest.goal}`}</span>
-              </div>
-              <div
-                className={styles.progress}
-                role="progressbar"
-                aria-valuemin={0}
-                aria-valuemax={quest.goal}
-                aria-valuenow={done ? quest.goal : value}
-              >
-                <div style={{ width: `${((done ? quest.goal : value) / quest.goal) * 100}%` }} />
-              </div>
-              <small>
-                보상: {reward?.name}
-                {reward && reward.tier !== 'normal' && ` (${TIER_LABEL[reward.tier]})`}
-              </small>
-            </li>
-          );
-        })}
+      <div className={styles.tabs} role="tablist" aria-label="퀘스트 종류">
+        <button
+          type="button"
+          role="tab"
+          aria-selected={tab === 'blade'}
+          className={`${styles.tab} ${tab === 'blade' ? styles.tabOn : ''}`}
+          onClick={() => setTab('blade')}
+        >
+          🗡️ 검 퀘스트{' '}
+          <small>
+            {bladeDone}/{QUESTS.length}
+          </small>
+        </button>
+        <button
+          type="button"
+          role="tab"
+          aria-selected={tab === 'theme'}
+          className={`${styles.tab} ${tab === 'theme' ? styles.tabOn : ''}`}
+          onClick={() => setTab('theme')}
+        >
+          🎨 테마 퀘스트{' '}
+          <small>
+            {themeDone}/{THEME_QUESTS.length}
+          </small>
+        </button>
+      </div>
+      <ul className={styles.questList} role="tabpanel">
+        {tab === 'blade'
+          ? QUESTS.map((quest) => {
+              const reward = BLADES.find((b) => b.id === quest.reward);
+              return (
+                <QuestRow
+                  key={quest.id}
+                  quest={quest}
+                  snapshot={snapshot}
+                  done={snapshot.unlocked.has(quest.reward)}
+                  rewardName={reward?.name ?? ''}
+                  rewardPreview={reward?.preview ?? ''}
+                  rewardTier={reward && reward.tier !== 'normal' ? TIER_LABEL[reward.tier] : ''}
+                />
+              );
+            })
+          : THEME_QUESTS.map((quest) => {
+              const reward = THEMES.find((t) => t.id === quest.reward);
+              return (
+                <QuestRow
+                  key={quest.id}
+                  quest={quest}
+                  snapshot={snapshot}
+                  done={snapshot.unlockedThemes.has(quest.reward)}
+                  rewardName={reward ? `${reward.name} 테마` : ''}
+                  rewardPreview={reward?.preview ?? ''}
+                  rewardTier={reward && reward.tier !== 'normal' ? TIER_LABEL[reward.tier] : ''}
+                />
+              );
+            })}
       </ul>
     </>
   );
+}
+
+function QuestRow({
+  quest,
+  snapshot,
+  done,
+  rewardName,
+  rewardPreview,
+  rewardTier,
+}: {
+  quest: QuestDef<string>;
+  snapshot: QuestSnapshot;
+  done: boolean;
+  rewardName: string;
+  rewardPreview: string;
+  rewardTier: string;
+}) {
+  const value = Math.min(quest.progress(snapshot.stats), quest.goal);
+  const shown = done ? quest.goal : value;
+  return (
+    <li className={done ? styles.questDone : ''}>
+      <div className={styles.questHead}>
+        <strong>{quest.title}</strong>
+        <span>
+          {done ? '✅ 완료' : `${value.toLocaleString()} / ${quest.goal.toLocaleString()}`}
+        </span>
+      </div>
+      <div
+        className={styles.progress}
+        role="progressbar"
+        aria-valuemin={0}
+        aria-valuemax={quest.goal}
+        aria-valuenow={shown}
+      >
+        <div style={{ width: `${(shown / quest.goal) * 100}%` }} />
+      </div>
+      <small className={styles.questReward}>
+        <span className={styles.inlineSwatch} style={{ background: rewardPreview }} />
+        보상: {rewardName}
+        {rewardTier && ` (${rewardTier})`}
+      </small>
+    </li>
+  );
+}
+
+/* ---------------- 배경 테마 선택 ---------------- */
+
+function ThemeGallery({
+  snapshot,
+  onSelect,
+}: {
+  snapshot: QuestSnapshot;
+  onSelect: (id: ThemeId) => void;
+}) {
+  return (
+    <>
+      <h2 className={styles.panelTitle}>배경 테마</h2>
+      <p className={styles.panelText}>
+        테마 퀘스트를 달성하면 새 배경이 열려요 ({snapshot.unlockedThemes.size}/{THEMES.length})
+      </p>
+      <ul className={styles.themeGrid}>
+        {THEMES.map((theme) => (
+          <li key={theme.id}>
+            <ThemeCard
+              theme={theme}
+              snapshot={snapshot}
+              selected={snapshot.selectedTheme === theme.id}
+              unlocked={snapshot.unlockedThemes.has(theme.id)}
+              onSelect={onSelect}
+            />
+          </li>
+        ))}
+      </ul>
+    </>
+  );
+}
+
+const THEME_TIER_CLASS: Record<ThemeDef['tier'], string> = {
+  normal: '',
+  epic: styles.themeEpic ?? '',
+  legend: styles.themeLegend ?? '',
+};
+
+function ThemeCard({
+  theme,
+  snapshot,
+  selected,
+  unlocked,
+  onSelect,
+}: {
+  theme: ThemeDef;
+  snapshot: QuestSnapshot;
+  selected: boolean;
+  unlocked: boolean;
+  onSelect: (id: ThemeId) => void;
+}) {
+  const quest = THEME_QUESTS.find((q) => q.reward === theme.id);
+  const value = quest ? Math.min(quest.progress(snapshot.stats), quest.goal) : 0;
+  return (
+    <button
+      type="button"
+      className={`${styles.themeCard} ${THEME_TIER_CLASS[theme.tier]} ${selected ? styles.themeSelected : ''}`}
+      disabled={!unlocked}
+      aria-pressed={selected}
+      onClick={() => onSelect(theme.id)}
+    >
+      <span className={styles.themePreviewWrap}>
+        <ThemePreview id={theme.id} />
+        {!unlocked && <span className={styles.themeLock}>🔒</span>}
+        {selected && <span className={styles.themeEquipped}>사용중</span>}
+      </span>
+      <span className={styles.themeInfo}>
+        <strong>
+          {theme.name}
+          {theme.tier !== 'normal' && (
+            <span className={TIER_BADGE_CLASS[theme.tier]}>{TIER_LABEL[theme.tier]}</span>
+          )}
+        </strong>
+        {unlocked ? (
+          <small>{theme.description}</small>
+        ) : (
+          <>
+            <small>해금 조건: {quest?.title ?? '-'}</small>
+            {quest && (
+              <span className={styles.themeProgress} aria-hidden="true">
+                <span style={{ width: `${(value / quest.goal) * 100}%` }} />
+              </span>
+            )}
+          </>
+        )}
+      </span>
+    </button>
+  );
+}
+
+/** 테마 카드의 미리보기 — 실제 게임 배경과 같은 그리기 함수로 한 번만 그린다 */
+function ThemePreview({ id }: { id: ThemeId }) {
+  const ref = useRef<HTMLCanvasElement>(null);
+  useEffect(() => {
+    const canvas = ref.current;
+    const ctx = canvas?.getContext('2d');
+    if (!canvas || !ctx) return;
+    // 게임과 같은 논리 높이(500)로 그리고 캔버스 크기에 맞춰 줄인다
+    const scale = canvas.height / 500;
+    ctx.setTransform(scale, 0, 0, scale, 0, 0);
+    drawThemeSnapshot(ctx, id, canvas.width / scale, 500);
+  }, [id]);
+  return <canvas ref={ref} width={320} height={200} className={styles.themePreview} aria-hidden />;
 }
 
 function HowToPlay() {

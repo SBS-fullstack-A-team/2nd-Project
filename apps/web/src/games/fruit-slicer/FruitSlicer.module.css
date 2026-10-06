@@ -125,6 +125,17 @@
   grid-template-columns: 1fr 1fr;
   gap: 8px;
 }
+/* 버튼 수가 홀수라 마지막 버튼은 한 줄을 다 쓴다 */
+.menuWide {
+  grid-column: 1 / -1;
+}
+/* 메뉴 버튼 옆 수집 개수 */
+.menuCount {
+  margin-left: 4px;
+  font-size: 0.78em;
+  font-weight: 700;
+  opacity: 0.65;
+}
 
 .backButton {
   margin-top: 14px;
@@ -354,6 +365,171 @@
   background: linear-gradient(90deg, var(--accent), #ff9a3c);
   border-radius: inherit;
   transition: width 0.3s;
+}
+
+/* 퀘스트 종류 탭 (검 / 테마) */
+.tabs {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 6px;
+  margin-bottom: 12px;
+  padding: 4px;
+  background: var(--bg);
+  border: 2px solid var(--border);
+  border-radius: 999px;
+}
+.tab {
+  padding: 7px 8px;
+  font: inherit;
+  font-size: 0.88rem;
+  font-weight: 800;
+  color: var(--text-muted);
+  background: none;
+  border: none;
+  border-radius: 999px;
+  cursor: pointer;
+  transition:
+    background 0.15s,
+    color 0.15s;
+}
+.tab small {
+  font-weight: 700;
+  opacity: 0.8;
+}
+.tabOn {
+  color: #fff;
+  background: var(--accent);
+  box-shadow: 0 2px 0 rgba(0, 0, 0, 0.2);
+}
+.questReward {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+
+/* ---------- 배경 테마 ---------- */
+
+.themeGrid {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  gap: 10px;
+}
+@media (max-width: 340px) {
+  .themeGrid {
+    grid-template-columns: 1fr;
+  }
+}
+.themeCard {
+  width: 100%;
+  height: 100%;
+  display: flex;
+  flex-direction: column;
+  padding: 0;
+  font: inherit;
+  text-align: left;
+  color: var(--text);
+  background: var(--surface);
+  border: 2px solid var(--border);
+  border-radius: var(--radius-sm);
+  overflow: hidden;
+  cursor: pointer;
+  transition:
+    transform 0.12s,
+    border-color 0.12s,
+    box-shadow 0.12s;
+}
+.themeCard:hover:not(:disabled) {
+  border-color: var(--text);
+  transform: translateY(-2px);
+  box-shadow: 0 4px 0 rgba(0, 0, 0, 0.12);
+}
+.themeCard:disabled {
+  cursor: not-allowed;
+}
+.themeCard:focus-visible {
+  outline: 3px solid var(--accent);
+  outline-offset: 2px;
+}
+.themeEpic {
+  border-color: #9b5cff;
+}
+.themeLegend {
+  border-color: #e6b422;
+  box-shadow: 0 0 12px rgba(230, 180, 34, 0.35);
+}
+.themeSelected,
+.themeEpic.themeSelected,
+.themeLegend.themeSelected {
+  border-color: var(--accent);
+  box-shadow:
+    0 0 0 2px var(--accent),
+    0 4px 14px rgba(232, 56, 109, 0.3);
+}
+.themePreviewWrap {
+  position: relative;
+  display: block;
+  aspect-ratio: 16 / 10;
+  background: #111;
+}
+.themePreview {
+  display: block;
+  width: 100%;
+  height: 100%;
+}
+.themeCard:disabled .themePreview {
+  filter: grayscale(0.85) brightness(0.55);
+}
+.themeLock {
+  position: absolute;
+  inset: 0;
+  display: grid;
+  place-items: center;
+  font-size: 1.6rem;
+  text-shadow: 0 2px 6px rgba(0, 0, 0, 0.6);
+}
+.themeEquipped {
+  position: absolute;
+  top: 6px;
+  right: 6px;
+  padding: 2px 8px;
+  font-size: 0.72rem;
+  font-weight: 900;
+  color: #fff;
+  background: var(--accent);
+  border-radius: 999px;
+  box-shadow: 0 2px 6px rgba(0, 0, 0, 0.35);
+}
+.themeInfo {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  padding: 8px 10px 10px;
+}
+.themeInfo strong {
+  font-size: 0.92rem;
+  line-height: 1.3;
+}
+.themeInfo small {
+  font-size: 0.76rem;
+  line-height: 1.35;
+  color: var(--text-muted);
+}
+.themeProgress {
+  display: block;
+  height: 5px;
+  margin-top: 2px;
+  background: var(--border);
+  border-radius: 999px;
+  overflow: hidden;
+}
+.themeProgress span {
+  display: block;
+  height: 100%;
+  background: linear-gradient(90deg, var(--accent), #ff9a3c);
+  border-radius: inherit;
 }
 
 /* ---------- 게임 방법 ---------- */
