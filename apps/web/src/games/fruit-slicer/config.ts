@@ -310,17 +310,24 @@ export interface PlayerStats {
   maxCombo: number;
   /** 누적 피버 타임 발동 횟수 */
   totalFevers: number;
+  /** 끝까지 마친 판 수 (게임 오버까지 간 판만 센다) */
+  gamesPlayed: number;
+  /** 끝까지 마친 판들의 점수 합계 */
+  totalScore: number;
+  /** 피버 타임 중에 벤 폭탄 수 (누적) */
+  bombsDefused: number;
 }
 
-export interface QuestDef {
+/** 퀘스트 — 보상은 검(QUESTS) 또는 배경 테마(THEME_QUESTS) */
+export interface QuestDef<R extends string = BladeId> {
   id: string;
   title: string;
-  reward: BladeId;
+  reward: R;
   goal: number;
   progress: (stats: PlayerStats) => number;
 }
 
-export const QUESTS: readonly QuestDef[] = [
+export const QUESTS: readonly QuestDef<BladeId>[] = [
   {
     id: 'q1',
     title: '누적 과일 50개 슬라이스',
@@ -423,6 +430,190 @@ export const QUESTS: readonly QuestDef[] = [
   },
 ];
 
+// ---------- 배경 테마 ----------
+
+export type ThemeId =
+  | 'board'
+  | 'sakura'
+  | 'bamboo'
+  | 'beach'
+  | 'snow'
+  | 'deepsea'
+  | 'desert'
+  | 'neon'
+  | 'volcano'
+  | 'aurora'
+  | 'cosmos';
+
+/** 테마 등급 — 검과 같은 기준(일반 < 에픽 < 전설)으로 선택창에 표시 */
+export type ThemeTier = Exclude<BladeTier, 'champion'>;
+
+export interface ThemeDef {
+  id: ThemeId;
+  name: string;
+  description: string;
+  tier: ThemeTier;
+  /** 해금 알림·목록 미리보기 색 (CSS gradient) */
+  preview: string;
+}
+
+/** 처음부터 쓸 수 있는 기본 테마 */
+export const DEFAULT_THEME: ThemeId = 'board';
+
+export const THEMES: readonly ThemeDef[] = [
+  {
+    id: 'board',
+    name: '나무 도마',
+    description: '손때 묻은 원목 도마 — 처음부터 쓸 수 있는 기본 테마',
+    tier: 'normal',
+    preview: 'linear-gradient(135deg, #6b4426, #3a2312)',
+  },
+  {
+    id: 'sakura',
+    name: '밤벚꽃 정원',
+    description: '보름달 아래 벚꽃 가지와 석등, 흩날리는 꽃잎',
+    tier: 'normal',
+    preview: 'linear-gradient(135deg, #2a1650, #a0457e, #ffb3d4)',
+  },
+  {
+    id: 'bamboo',
+    name: '대나무 숲',
+    description: '빛줄기가 스며드는 깊은 대숲과 떨어지는 댓잎',
+    tier: 'normal',
+    preview: 'linear-gradient(135deg, #0d2a14, #3f7a3a, #c8e89a)',
+  },
+  {
+    id: 'beach',
+    name: '노을 해변',
+    description: '수평선에 걸린 해, 반짝이는 물결과 야자수 실루엣',
+    tier: 'normal',
+    preview: 'linear-gradient(135deg, #2b1b4a, #c4506a, #ffc07a)',
+  },
+  {
+    id: 'snow',
+    name: '눈 내리는 밤',
+    description: '초승달 아래 설산, 불 켜진 오두막과 소복이 내리는 눈',
+    tier: 'normal',
+    preview: 'linear-gradient(135deg, #0b1530, #2e4a7a, #c9d8f0)',
+  },
+  {
+    id: 'deepsea',
+    name: '심해 산호초',
+    description: '물속으로 쏟아지는 빛, 떠다니는 해파리와 피어오르는 물방울',
+    tier: 'epic',
+    preview: 'linear-gradient(135deg, #020b18, #0a3a5c, #2fb8d8)',
+  },
+  {
+    id: 'desert',
+    name: '사막의 황혼',
+    description: '노을 진 모래 언덕, 피라미드와 낙타 행렬, 흩날리는 모래바람',
+    tier: 'epic',
+    preview: 'linear-gradient(135deg, #16204a, #d0786a, #ffc58a)',
+  },
+  {
+    id: 'neon',
+    name: '네온 시티',
+    description: '비 내리는 밤의 마천루, 깜빡이는 간판과 흐르는 네온 그리드',
+    tier: 'epic',
+    preview: 'linear-gradient(135deg, #07021a, #ff3cc7, #29f0ff)',
+  },
+  {
+    id: 'volcano',
+    name: '불타는 화산',
+    description: '솟구치는 분화구와 흘러내리는 용암, 날아오르는 불씨',
+    tier: 'legend',
+    preview: 'linear-gradient(135deg, #0c0303, #a82a0a, #ffb347)',
+  },
+  {
+    id: 'aurora',
+    name: '오로라 설원',
+    description: '밤하늘에 일렁이는 오로라 커튼과 얼어붙은 호수',
+    tier: 'legend',
+    preview: 'linear-gradient(135deg, #01040c, #3dffa8, #9b6bff)',
+  },
+  {
+    id: 'cosmos',
+    name: '우주 성운',
+    description: '고리 행성과 소용돌이치는 성운, 이따금 떨어지는 별똥별',
+    tier: 'legend',
+    preview: 'linear-gradient(135deg, #03010a, #8c3cff, #ff3caa, #28c8ff)',
+  },
+];
+
+/** 테마 퀘스트 — 달성하면 배경 테마가 열린다 (기본 테마는 퀘스트 없음) */
+export const THEME_QUESTS: readonly QuestDef<ThemeId>[] = [
+  {
+    id: 't1',
+    title: '게임 3판 끝까지 플레이',
+    reward: 'sakura',
+    goal: 3,
+    progress: (s) => s.gamesPlayed,
+  },
+  {
+    id: 't2',
+    title: '누적 과일 150개 슬라이스',
+    reward: 'bamboo',
+    goal: 150,
+    progress: (s) => s.totalSliced,
+  },
+  {
+    id: 't3',
+    title: '최고 점수 300점 달성',
+    reward: 'beach',
+    goal: 300,
+    progress: (s) => s.highScore,
+  },
+  {
+    id: 't4',
+    title: '콤보 30 달성',
+    reward: 'snow',
+    goal: 30,
+    progress: (s) => s.maxCombo,
+  },
+  {
+    id: 't5',
+    title: '피버 타임 중 폭탄 5개 베기',
+    reward: 'deepsea',
+    goal: 5,
+    progress: (s) => s.bombsDefused,
+  },
+  {
+    id: 't6',
+    title: '누적 점수 5,000점 모으기',
+    reward: 'desert',
+    goal: 5000,
+    progress: (s) => s.totalScore,
+  },
+  {
+    id: 't7',
+    title: '누적 과일 800개 슬라이스',
+    reward: 'neon',
+    goal: 800,
+    progress: (s) => s.totalSliced,
+  },
+  {
+    id: 't8',
+    title: '피버 타임 중 폭탄 20개 베기',
+    reward: 'volcano',
+    goal: 20,
+    progress: (s) => s.bombsDefused,
+  },
+  {
+    id: 't9',
+    title: '콤보 80 달성',
+    reward: 'aurora',
+    goal: 80,
+    progress: (s) => s.maxCombo,
+  },
+  {
+    id: 't10',
+    title: '누적 점수 30,000점 모으기',
+    reward: 'cosmos',
+    goal: 30000,
+    progress: (s) => s.totalScore,
+  },
+];
+
 // ---------- 게임 설명 (메뉴 화면 · 나중에 카드 "게임 설명" 버튼에서도 사용) ----------
 
 export const HOW_TO_PLAY: readonly string[] = [
@@ -434,5 +625,6 @@ export const HOW_TO_PLAY: readonly string[] = [
   `🔥 콤보 ${FEVER_COMBO_GOAL}을 쌓으면 ${FEVER_DURATION_SEC}초간 피버 타임! 폭탄까지 전부 벨 수 있고 점수 ${FEVER_SCORE_MULTIPLIER}배, 과일을 놓쳐도 목숨과 콤보가 유지돼요.`,
   '퀘스트를 달성하면 새로운 검 스킨이 열려요. 일반 → 에픽 → 전설 등급 검 15종을 모아 보세요!',
   `👑 전체 랭킹 TOP ${CHAMPION_RANK} 안에 이름을 올리면 랭커 전용 검 「여명의 검」을 쓸 수 있어요. 순위 밖으로 밀려나면 다시 잠겨요!`,
+  '🎨 테마 퀘스트를 달성하면 배경 테마가 열려요. 벚꽃 정원부터 우주 성운까지 10종을 모아 보세요!',
   '⚙️ 오른쪽 위 설정 버튼(또는 Esc 키)으로 일시정지하고 사운드·밝기를 바꿀 수 있어요.',
 ];

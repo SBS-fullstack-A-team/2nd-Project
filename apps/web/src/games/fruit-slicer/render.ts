@@ -8,7 +8,7 @@ import type { FruitKind, FruitType } from './config';
 export const TAU = Math.PI * 2;
 
 /** 매 판 같은 무늬가 나오도록 고정 시드 난수 */
-function seeded(seed: number) {
+export function seeded(seed: number) {
   let s = seed;
   return () => {
     s = (s * 16807) % 2147483647;

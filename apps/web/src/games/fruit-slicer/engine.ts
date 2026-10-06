@@ -18,12 +18,13 @@ import {
   SPAWN_INTERVAL_START,
   START_LIVES,
   VIEW_HEIGHT,
-  type BladeDef,
   type BladeId,
+  type ThemeId,
 } from './config';
 import { Blade, Fruit, FruitHalf, Particle, Popup, Splat, pick, rand } from './entities';
-import { TAU, bombFuseTip, drawBackground } from './render';
-import type { QuestManager } from './QuestManager';
+import { TAU, bombFuseTip } from './render';
+import { ThemeAmbient, drawThemeAnimated, drawThemeBack, drawThemeFront } from './themes';
+import type { QuestManager, Unlock } from './QuestManager';
 import type { SoundManager } from './SoundManager';
 
 /* =========================================================
@@ -62,8 +63,8 @@ class ScoreManager {
  * FruitSlicerEngine — 게임 루프(requestAnimationFrame), 입력, 스폰, 렌더링
  * ========================================================= */
 export interface EngineCallbacks {
-  /** 퀘스트 달성으로 새 검이 열렸을 때 */
-  onUnlock: (blades: BladeDef[]) => void;
+  /** 퀘스트 달성으로 새 검·테마가 열렸을 때 */
+  onUnlock: (unlocks: Unlock[]) => void;
   /** 게임이 끝났을 때 (연출이 끝난 뒤 한 번) */
   onGameOver: (score: number) => void;
 }
@@ -93,7 +94,14 @@ const SETTINGS_BUTTON_SPACE_CSS = 60;
 
 export class FruitSlicerEngine {
   private readonly ctx: CanvasRenderingContext2D;
+  /** 테마 뒷배경 (하늘·먼 풍경) — 크기·테마가 바뀔 때만 다시 그린다 */
   private readonly bg = document.createElement('canvas');
+  /** 테마 앞쪽 실루엣 — 움직이는 층 위에 덮는다 (없는 테마도 있다) */
+  private readonly fg = document.createElement('canvas');
+  private hasFront = false;
+  private theme: ThemeId;
+  private readonly ambient = new ThemeAmbient();
+  private ambientReady = false;
   private readonly resizeObserver: ResizeObserver;
   private raf = 0;
   private lastFrame = 0;
@@ -154,6 +162,7 @@ export class FruitSlicerEngine {
     if (!ctx) throw new Error('Canvas 2D 를 사용할 수 없습니다.');
     this.ctx = ctx;
     this.blade.skin = quests.selected;
+    this.theme = quests.selectedTheme;
 
     this.resizeObserver = new ResizeObserver(() => this.resize());
     this.resizeObserver.observe(canvas);
@@ -248,6 +257,14 @@ export class FruitSlicerEngine {
     this.blade.skin = id;
   }
 
+  /** 배경 테마 바꾸기 — 메뉴에서 고르면 뒤에 보이는 데모 화면도 바로 바뀐다 */
+  setTheme(id: ThemeId) {
+    if (this.theme === id) return;
+    this.theme = id;
+    this.ambient.setTheme(id, this.width, this.height);
+    this.paintTheme();
+  }
+
   // ---------------- 크기 ----------------
 
   private resize() {
@@ -262,13 +279,29 @@ export class FruitSlicerEngine {
     // 설정 버튼(44px + 여백) 만큼을 논리 좌표로 환산
     this.hudInsetRight = (SETTINGS_BUTTON_SPACE_CSS * this.height) / cssH;
 
-    // 배경은 크기가 바뀔 때만 다시 그린다
-    this.bg.width = this.canvas.width;
-    this.bg.height = this.canvas.height;
+    // 배경은 크기가 바뀔 때만 다시 그린다 (입자는 처음 한 번만 만들고, 이후엔 비율대로 옮긴다)
+    if (this.ambientReady) this.ambient.resize(this.width, this.height);
+    else this.ambient.setTheme(this.theme, this.width, this.height);
+    this.ambientReady = true;
+    this.paintTheme();
+  }
+
+  /** 테마의 정지된 두 층(뒷배경·앞 실루엣)을 오프스크린 캔버스에 그린다 */
+  private paintTheme() {
+    for (const layer of [this.bg, this.fg]) {
+      layer.width = this.canvas.width;
+      layer.height = this.canvas.height;
+    }
     const bctx = this.bg.getContext('2d');
     if (bctx) {
       bctx.setTransform(this.scale, 0, 0, this.scale, 0, 0);
-      drawBackground(bctx, this.width, this.height);
+      drawThemeBack(bctx, this.theme, this.width, this.height);
+    }
+    const fctx = this.fg.getContext('2d');
+    this.hasFront = false;
+    if (fctx) {
+      fctx.setTransform(this.scale, 0, 0, this.scale, 0, 0);
+      this.hasFront = drawThemeFront(fctx, this.theme, this.width, this.height);
     }
   }
 
@@ -471,6 +504,7 @@ export class FruitSlicerEngine {
     this.popups.push(new Popup(`+${FEVER_BOMB_POINTS}`, '', x, y - 10, '#ffe36e', 28, 0.8));
     // 폭탄은 과일이 아니므로 콤보·스와이프 개수에는 넣지 않는다
     this.scoreBoard.add(FEVER_BOMB_POINTS);
+    this.unlock(this.quests.recordDefuse());
     this.unlock(this.quests.recordScore(this.scoreBoard.score));
   }
 
@@ -581,8 +615,8 @@ export class FruitSlicerEngine {
     this.endGame(1.6, 0.35);
   }
 
-  private unlock(blades: BladeDef[]) {
-    if (blades.length > 0) this.callbacks.onUnlock(blades);
+  private unlock(unlocks: Unlock[]) {
+    if (unlocks.length > 0) this.callbacks.onUnlock(unlocks);
   }
 
   private shakeFor(duration: number, magnitude: number) {
@@ -602,7 +636,8 @@ export class FruitSlicerEngine {
     this.pending = [];
     this.releasePointer();
     this.sound.stopBgm();
-    this.quests.recordScore(this.scoreBoard.score);
+    // 끝까지 마친 판만 판 수·누적 점수에 들어간다 (중간에 홈으로 나가면 기록 없음)
+    this.unlock(this.quests.recordGameEnd(this.scoreBoard.score));
     this.quests.save();
   }
 
@@ -753,6 +788,7 @@ export class FruitSlicerEngine {
     for (const p of this.popups) p.update(realDt);
     this.popups = this.popups.filter((p) => p.alive);
     this.blade.update(this.time);
+    this.ambient.update(dt);
 
     if (this.state === 'playing' && this.fever) {
       this.feverTime = Math.max(0, this.feverTime - realDt);
@@ -833,6 +869,14 @@ export class FruitSlicerEngine {
     ctx.setTransform(1, 0, 0, 1, 0, 0);
     ctx.drawImage(this.bg, 0, 0);
     ctx.setTransform(this.scale, 0, 0, this.scale, 0, 0);
+    // 테마: 움직이는 층 → 앞 실루엣 → 흩날리는 입자
+    drawThemeAnimated(ctx, this.theme, W, H, this.time);
+    if (this.hasFront) {
+      ctx.setTransform(1, 0, 0, 1, 0, 0);
+      ctx.drawImage(this.fg, 0, 0);
+      ctx.setTransform(this.scale, 0, 0, this.scale, 0, 0);
+    }
+    this.ambient.draw(ctx);
 
     if (this.fever) this.drawFeverBackdrop(ctx);
 
