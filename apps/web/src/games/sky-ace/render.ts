@@ -437,11 +437,53 @@ export function drawBigBomber(
   ctx.restore();
 }
 
+/**
+ * 파워 최대(5단계) 오라 — 기체 둘레를 도는 빛 고리와 맴도는 불티.
+ * 기체보다 먼저(아래에) 그린다
+ */
+export function drawMaxPowerAura(
+  ctx: CanvasRenderingContext2D,
+  x: number,
+  y: number,
+  t: number,
+  color: string,
+) {
+  ctx.save();
+  ctx.translate(x, y);
+  ctx.globalCompositeOperation = 'lighter';
+  const pulse = 0.75 + 0.25 * Math.sin(t * 6);
+  ctx.globalAlpha = 0.55 * pulse;
+  drawSprite(ctx, glowSprite(color, 16), 0, 2);
+  ctx.globalAlpha = 0.7;
+  ctx.strokeStyle = color;
+  ctx.lineWidth = 1.6;
+  ctx.lineCap = 'round';
+  for (const [r, speed, len] of [
+    [27, 2.4, 1.3],
+    [31, -1.7, 0.9],
+  ] as const) {
+    for (let k = 0; k < 2; k++) {
+      const a = t * speed + k * Math.PI;
+      ctx.beginPath();
+      ctx.ellipse(0, 2, r, r * 0.82, 0, a, a + len);
+      ctx.stroke();
+    }
+  }
+  // 맴도는 불티 3개
+  for (let k = 0; k < 3; k++) {
+    const a = t * 3.1 + (k * TAU) / 3;
+    ctx.globalAlpha = 0.9;
+    drawSprite(ctx, glowSprite('#fff2c0', 2.4), Math.cos(a) * 29, 2 + Math.sin(a) * 24);
+  }
+  ctx.restore();
+}
+
 /* =========================================================
  * 일반 적 기체 (아래를 바라봄)
  * ========================================================= */
-export type EnemyLook = 'fighter' | 'swooper' | 'gunship' | 'heavy';
+export type EnemyLook = 'fighter' | 'swooper' | 'gunship' | 'heavy' | 'lancer' | 'mine';
 
+/** charge: lancer 는 조준 충전 정도, mine 은 폭발 직전 깜빡임 정도 (0~1) */
 export function drawEnemyCraft(
   ctx: CanvasRenderingContext2D,
   kind: EnemyLook,
@@ -450,10 +492,21 @@ export function drawEnemyCraft(
   angle: number,
   t: number,
   flash: boolean,
+  charge = 0,
 ) {
   ctx.save();
   ctx.translate(x, y);
   ctx.rotate(angle);
+  if (kind === 'lancer') {
+    drawLancer(ctx, t, flash, charge);
+    ctx.restore();
+    return;
+  }
+  if (kind === 'mine') {
+    drawMine(ctx, t, flash, charge);
+    ctx.restore();
+    return;
+  }
   if (kind === 'fighter') {
     drawThrust(ctx, 0, 13, 5, 10, t);
     ctx.fillStyle = flash ? '#ffffff' : '#3e5a3a';
@@ -514,6 +567,106 @@ export function drawEnemyCraft(
   ctx.restore();
 }
 
+/**
+ * 랜서 — 진홍색 전진익 요격기. 기수 끝의 조준 장치가 충전될수록 밝아지고
+ * 기수 방향으로 조준선이 뻗는다 (기수 = -y)
+ */
+function drawLancer(ctx: CanvasRenderingContext2D, t: number, flash: boolean, charge: number) {
+  drawThrust(ctx, -4, 13, 4, 12, t, '#ffd6e6', '#ff3a7a');
+  drawThrust(ctx, 4, 13, 4, 12, t + 0.3, '#ffd6e6', '#ff3a7a');
+  const hull = flash ? '#ffffff' : '#7a1f35';
+  const dark = flash ? '#ffffff' : '#3a0c18';
+  // 앞으로 꺾인 날개
+  ctx.fillStyle = dark;
+  poly(ctx, [-3, 2, -19, -6, -17, 2, -5, 10]);
+  poly(ctx, [-3, 2, -19, -6, -17, 2, -5, 10], true);
+  ctx.fillStyle = hull;
+  poly(ctx, [-3, 3, -17, -4, -16, 1, -5, 8]);
+  poly(ctx, [-3, 3, -17, -4, -16, 1, -5, 8], true);
+  // 날개 끝 발광 줄
+  ctx.fillStyle = '#ff4a7a';
+  poly(ctx, [-17, -4, -19, -6, -18, -2]);
+  poly(ctx, [-17, -4, -19, -6, -18, -2], true);
+  // 꼬리날개
+  ctx.fillStyle = dark;
+  poly(ctx, [-4, 8, -9, 15, -6, 15, -2, 10]);
+  poly(ctx, [-4, 8, -9, 15, -6, 15, -2, 10], true);
+  // 동체 — 길고 뾰족한 창 모양
+  const g = ctx.createLinearGradient(-5, 0, 5, 0);
+  g.addColorStop(0, dark);
+  g.addColorStop(0.5, flash ? '#ffffff' : '#c2405e');
+  g.addColorStop(1, dark);
+  ctx.fillStyle = g;
+  poly(ctx, [0, -20, 5, -4, 4, 12, -4, 12, -5, -4]);
+  // 조종석
+  ctx.fillStyle = '#1a0610';
+  ellipse(ctx, 0, -3, 2.2, 4.5);
+  ctx.fillStyle = 'rgba(255,170,200,0.6)';
+  ellipse(ctx, -0.7, -5, 0.8, 1.8);
+  // 조준 충전
+  if (charge > 0) {
+    ctx.save();
+    ctx.globalCompositeOperation = 'lighter';
+    ctx.globalAlpha = charge;
+    drawSprite(ctx, glowSprite('#ff4a7a', 4 + charge * 6), 0, -21);
+    // 조준선 — 충전이 거의 끝나면 깜빡인다
+    const blink = charge > 0.85 ? (Math.floor(t * 20) % 2 === 0 ? 1 : 0.3) : 0.6;
+    ctx.globalAlpha = charge * 0.35 * blink;
+    ctx.fillStyle = '#ff4a7a';
+    ctx.fillRect(-0.6, -400, 1.2, 380);
+    ctx.restore();
+  }
+}
+
+/**
+ * 기뢰 — 가시 달린 강철 구체. 가운데 경고등이 천천히 깜빡이다가
+ * 터지기 직전에는 빠르게 깜빡이며 붉은 고리가 부풀어 오른다
+ */
+function drawMine(ctx: CanvasRenderingContext2D, t: number, flash: boolean, charge: number) {
+  if (charge > 0) {
+    ctx.save();
+    ctx.globalCompositeOperation = 'lighter';
+    ctx.globalAlpha = 0.35 + charge * 0.5;
+    drawSprite(ctx, glowSprite('#ff3a3a', 12 + charge * 10), 0, 0);
+    ctx.strokeStyle = `rgba(255,90,90,${0.8 * charge})`;
+    ctx.lineWidth = 1.5;
+    ctx.beginPath();
+    ctx.arc(0, 0, 14 + charge * 14, 0, TAU);
+    ctx.stroke();
+    ctx.restore();
+  }
+  // 가시 8개
+  for (let i = 0; i < 8; i++) {
+    ctx.save();
+    ctx.rotate((i * TAU) / 8);
+    ctx.fillStyle = flash ? '#ffffff' : '#5a606a';
+    poly(ctx, [-2.4, -9, 0, -17, 2.4, -9]);
+    ctx.fillStyle = flash ? '#ffffff' : '#c8ccd4';
+    ellipse(ctx, 0, -16.5, 1.4, 1.4);
+    ctx.restore();
+  }
+  // 본체
+  const body = ctx.createRadialGradient(-3, -3, 1, 0, 0, 11);
+  body.addColorStop(0, flash ? '#ffffff' : '#8a909c');
+  body.addColorStop(0.6, flash ? '#ffffff' : '#3a3f48');
+  body.addColorStop(1, '#14161a');
+  ctx.fillStyle = body;
+  ellipse(ctx, 0, 0, 11, 11);
+  // 적도 이음매
+  ctx.strokeStyle = 'rgba(0,0,0,0.5)';
+  ctx.lineWidth = 1.2;
+  ctx.beginPath();
+  ctx.ellipse(0, 0, 11, 3.5, 0, 0, TAU);
+  ctx.stroke();
+  // 경고등
+  const rate = charge > 0 ? 18 : 3;
+  const on = Math.sin(t * rate) > 0;
+  ctx.save();
+  ctx.globalCompositeOperation = 'lighter';
+  drawSprite(ctx, glowSprite(on ? '#ff3a3a' : '#7a1a1a', on ? 5 : 3), 0, 0);
+  ctx.restore();
+}
+
 /* =========================================================
  * 스크롤 배경 — 스테이지마다 다른 분위기
  * ========================================================= */
@@ -539,22 +692,38 @@ export class StageBackground {
     this.reset(1);
   }
 
+  /** stage: 1 구름 · 2 바다 · 3 화산 · 4 궤도 · 5 시공의 균열 */
   reset(stage: number) {
     this.stage = stage;
-    this.near = Array.from({ length: 7 }, () => this.makeDeco(rnd(-VIEW_H, VIEW_H), true));
-    this.far = Array.from({ length: stage === 3 ? 90 : 14 }, () =>
-      this.makeDeco(rnd(-VIEW_H, VIEW_H), false),
-    );
+    const counts: Record<number, [number, number]> = {
+      1: [7, 14],
+      2: [7, 14],
+      3: [9, 26],
+      4: [6, 110],
+      5: [7, 90],
+    };
+    const [nearN, farN] = counts[stage] ?? [7, 14];
+    this.near = Array.from({ length: nearN }, () => this.makeDeco(rnd(-VIEW_H, VIEW_H), true));
+    this.far = Array.from({ length: farN }, () => this.makeDeco(rnd(-VIEW_H, VIEW_H), false));
   }
 
   private makeDeco(y: number, near: boolean): Deco {
-    return {
+    const d: Deco = {
       x: rnd(-40, VIEW_W + 40),
       y,
       s: near ? rnd(0.8, 1.6) : rnd(0.4, 1),
       v: near ? rnd(90, 130) : rnd(30, 55),
       k: Math.random(),
     };
+    if (this.stage === 3 && !near) {
+      // 화산 — 먼 쪽 장식은 땅에 박힌 분화구라 땅과 같은 속도로 흐른다
+      d.v = 60;
+      d.s = rnd(0.5, 1.4);
+    } else if (this.stage === 4) {
+      // 궤도 — 별은 아주 느리게, 잔해는 조금 빠르게
+      d.v = near ? rnd(70, 110) : rnd(8, 22);
+    }
+    return d;
   }
 
   update(dt: number, speed = 1) {
@@ -571,6 +740,8 @@ export class StageBackground {
   draw(ctx: CanvasRenderingContext2D, t: number) {
     if (this.stage === 1) this.drawSky(ctx);
     else if (this.stage === 2) this.drawSea(ctx, t);
+    else if (this.stage === 3) this.drawVolcano(ctx, t);
+    else if (this.stage === 4) this.drawOrbit(ctx, t);
     else this.drawRift(ctx, t);
   }
 
@@ -612,6 +783,218 @@ export class StageBackground {
       ctx.fillRect(d.x, d.y, 18 * d.s, 3);
     }
     for (const d of this.near) this.cloud(ctx, d.x, d.y, d.s * 0.8, 'rgba(200,215,230,0.35)');
+  }
+
+  /**
+   * 화산 지대 — 검은 현무암 대지 위로 용암 강 두 줄이 굽이쳐 흐른다.
+   * 적탄(주황·빨강)이 묻히지 않게 용암은 화면 양쪽으로 비키고 밝기를 눌러 둔다.
+   */
+  private drawVolcano(ctx: CanvasRenderingContext2D, t: number) {
+    const g = ctx.createLinearGradient(0, 0, 0, VIEW_H);
+    g.addColorStop(0, '#0f0706');
+    g.addColorStop(1, '#1a0c08');
+    ctx.fillStyle = g;
+    ctx.fillRect(0, 0, VIEW_W, VIEW_H);
+
+    // 땅에 박힌 분화구·바위
+    for (const d of this.far) {
+      const r = 22 * d.s;
+      ctx.fillStyle = 'rgba(0,0,0,0.35)';
+      ellipse(ctx, d.x, d.y, r, r * 0.8);
+      ctx.strokeStyle = 'rgba(120,60,40,0.22)';
+      ctx.lineWidth = 2;
+      ctx.beginPath();
+      ctx.ellipse(d.x, d.y - 1, r, r * 0.8, 0, Math.PI * 1.05, Math.PI * 1.95);
+      ctx.stroke();
+      if (d.k > 0.75) {
+        // 몇몇 분화구 바닥에는 용암이 고여 있다
+        const pulse = 0.5 + 0.5 * Math.sin(t * 3 + d.x);
+        ctx.fillStyle = `rgba(255,90,20,${0.25 + pulse * 0.2})`;
+        ellipse(ctx, d.x, d.y + 1, r * 0.45, r * 0.32);
+      }
+    }
+
+    // 용암 강 — 화면 좌표 y 를 땅 좌표(y - scroll)로 바꿔 굽이를 계산하므로 땅과 함께 흐른다
+    const river = (cx: number, amp: number, phase: number) => {
+      const pts: [number, number][] = [];
+      for (let y = -20; y <= VIEW_H + 20; y += 10) {
+        const wy = y - this.scroll;
+        const x =
+          cx + Math.sin(wy * 0.008 + phase) * amp + Math.sin(wy * 0.021 + phase * 2) * amp * 0.3;
+        pts.push([x, y]);
+      }
+      const path = () => {
+        ctx.beginPath();
+        pts.forEach(([x, y], i) => (i === 0 ? ctx.moveTo(x, y) : ctx.lineTo(x, y)));
+      };
+      ctx.lineJoin = 'round';
+      path();
+      ctx.strokeStyle = '#241008';
+      ctx.lineWidth = 24;
+      ctx.stroke();
+      ctx.save();
+      ctx.globalCompositeOperation = 'lighter';
+      path();
+      ctx.strokeStyle = 'rgba(170,40,8,0.32)';
+      ctx.lineWidth = 16;
+      ctx.stroke();
+      ctx.strokeStyle = 'rgba(230,90,20,0.32)';
+      ctx.lineWidth = 7;
+      ctx.stroke();
+      // 흐르는 밝은 결 — 점선을 아래로 흘린다
+      ctx.setLineDash([12, 26]);
+      ctx.lineDashOffset = -this.scroll * 1.8;
+      ctx.strokeStyle = `rgba(255,200,110,${0.22 + 0.08 * Math.sin(t * 5 + phase)})`;
+      ctx.lineWidth = 2;
+      ctx.stroke();
+      ctx.setLineDash([]);
+      ctx.restore();
+    };
+    river(VIEW_W * 0.1, 36, 0);
+    river(VIEW_W * 0.9, 40, 2.4);
+
+    // 떠오르는 불씨
+    ctx.save();
+    ctx.globalCompositeOperation = 'lighter';
+    for (let i = 0; i < 24; i++) {
+      const k = (((t * (0.08 + (i % 5) * 0.015) + i * 0.137) % 1) + 1) % 1;
+      const x = ((i * 97.3) % VIEW_W) + Math.sin(t * 1.3 + i) * 12;
+      const y = VIEW_H * (1 - k);
+      ctx.globalAlpha = 0.6 * Math.sin(k * Math.PI);
+      drawSprite(ctx, glowSprite(i % 3 === 0 ? '#ffd27a' : '#ff7a2a', 2), x, y);
+    }
+    ctx.restore();
+
+    // 가까이 흘러가는 화산 연기
+    for (const d of this.near) {
+      const r = 46 * d.s;
+      const sg = ctx.createRadialGradient(d.x, d.y, 0, d.x, d.y, r);
+      sg.addColorStop(0, 'rgba(40,24,20,0.45)');
+      sg.addColorStop(1, 'rgba(40,24,20,0)');
+      ctx.fillStyle = sg;
+      ellipse(ctx, d.x, d.y, r, r * 0.75);
+    }
+    // 화면 가장자리의 열기
+    const heat = ctx.createLinearGradient(0, 0, VIEW_W, 0);
+    heat.addColorStop(0, 'rgba(255,60,10,0.12)');
+    heat.addColorStop(0.25, 'rgba(255,60,10,0)');
+    heat.addColorStop(0.75, 'rgba(255,60,10,0)');
+    heat.addColorStop(1, 'rgba(255,60,10,0.12)');
+    ctx.fillStyle = heat;
+    ctx.fillRect(0, 0, VIEW_W, VIEW_H);
+  }
+
+  /**
+   * 궤도 방어선 — 왼쪽 아래로 지구의 밤 쪽 가장자리가 걸려 있고(도시 불빛·대기광),
+   * 별이 천천히 흐르며 위성 잔해가 떠내려간다
+   */
+  private drawOrbit(ctx: CanvasRenderingContext2D, t: number) {
+    const g = ctx.createLinearGradient(0, 0, 0, VIEW_H);
+    g.addColorStop(0, '#01030a');
+    g.addColorStop(1, '#060d20');
+    ctx.fillStyle = g;
+    ctx.fillRect(0, 0, VIEW_W, VIEW_H);
+
+    // 별 — 일부는 반짝인다
+    for (const d of this.far) {
+      const tw = d.k > 0.8 ? 0.5 + 0.5 * Math.sin(t * (2 + d.k * 3) + d.x) : 1;
+      ctx.globalAlpha = (0.35 + d.s * 0.55) * tw;
+      ctx.fillStyle = d.k > 0.9 ? '#ffe2c8' : d.k > 0.75 ? '#c8dcff' : '#ffffff';
+      ctx.fillRect(d.x, d.y, 1.2 * d.s + 0.4, 1.2 * d.s + 0.4);
+    }
+    ctx.globalAlpha = 1;
+
+    // 지구 — 중심은 화면 왼쪽 밖
+    const ex = -430;
+    const ey = VIEW_H * 0.62;
+    const er = 560;
+    ctx.save();
+    ctx.beginPath();
+    ctx.arc(ex, ey, er, 0, TAU);
+    ctx.clip();
+    // 밤 쪽 지구 — 탄이 묻히지 않도록 아주 어둡게, 가장자리만 살짝 푸르다
+    const body = ctx.createRadialGradient(ex, ey, er * 0.7, ex, ey, er);
+    body.addColorStop(0, '#02060f');
+    body.addColorStop(0.85, '#061430');
+    body.addColorStop(1, '#0c2550');
+    ctx.fillStyle = body;
+    ctx.fillRect(0, 0, VIEW_W, VIEW_H);
+    // 천천히 흘러가는 구름띠와 도시 불빛 (지구가 도는 만큼 아래로 흐른다)
+    const spin = this.scroll * 0.25;
+    for (let i = 0; i < 14; i++) {
+      const y = ((((i * 83 + spin) % (VIEW_H + 160)) + VIEW_H + 160) % (VIEW_H + 160)) - 80;
+      const cx = 30 + ((i * 53) % 90);
+      ctx.fillStyle = 'rgba(120,150,200,0.06)';
+      ctx.beginPath();
+      ctx.ellipse(cx, y, 60, 9, -0.5, 0, TAU);
+      ctx.fill();
+      // 도시 불빛 무리
+      ctx.fillStyle = 'rgba(255,190,110,0.75)';
+      for (let k = 0; k < 6; k++) {
+        const lx = cx - 30 + ((k * 37 + i * 11) % 60);
+        const ly = y + 20 + ((k * 23 + i * 7) % 30);
+        ctx.fillRect(lx, ly, 1.4, 1.4);
+      }
+    }
+    ctx.restore();
+    // 대기광 — 가장자리의 얇은 푸른 빛
+    ctx.save();
+    ctx.globalCompositeOperation = 'lighter';
+    ctx.strokeStyle = 'rgba(90,180,255,0.45)';
+    ctx.lineWidth = 2;
+    ctx.beginPath();
+    ctx.arc(ex, ey, er + 1, -0.9, 0.9);
+    ctx.stroke();
+    const atmo = ctx.createRadialGradient(ex, ey, er - 6, ex, ey, er + 40);
+    atmo.addColorStop(0, 'rgba(90,180,255,0.22)');
+    atmo.addColorStop(1, 'rgba(90,180,255,0)');
+    ctx.fillStyle = atmo;
+    ctx.beginPath();
+    ctx.arc(ex, ey, er + 40, 0, TAU);
+    ctx.fill();
+    ctx.restore();
+
+    // 위성 잔해 — 깨진 태양전지판과 금속 조각이 돌며 떠내려간다
+    for (const d of this.near) {
+      ctx.save();
+      ctx.translate(d.x, d.y);
+      ctx.rotate(t * (d.k - 0.5) * 1.6 + d.k * 10);
+      ctx.globalAlpha = 0.55;
+      if (d.k > 0.45) {
+        const w = 26 * d.s;
+        const h = 12 * d.s;
+        ctx.fillStyle = '#1a2a52';
+        ctx.fillRect(-w / 2, -h / 2, w, h);
+        ctx.strokeStyle = 'rgba(140,180,255,0.6)';
+        ctx.lineWidth = 0.8;
+        for (let cx = -w / 2 + w / 4; cx < w / 2; cx += w / 4) {
+          ctx.beginPath();
+          ctx.moveTo(cx, -h / 2);
+          ctx.lineTo(cx, h / 2);
+          ctx.stroke();
+        }
+        ctx.strokeRect(-w / 2, -h / 2, w, h);
+        ctx.fillStyle = '#8a8f98';
+        ctx.fillRect(w / 2, -1.5, 8 * d.s, 3);
+      } else {
+        ctx.fillStyle = '#5a5e66';
+        poly(ctx, [
+          -8 * d.s,
+          -3 * d.s,
+          2 * d.s,
+          -7 * d.s,
+          9 * d.s,
+          0,
+          3 * d.s,
+          6 * d.s,
+          -6 * d.s,
+          4 * d.s,
+        ]);
+        ctx.fillStyle = 'rgba(255,255,255,0.25)';
+        poly(ctx, [-8 * d.s, -3 * d.s, 2 * d.s, -7 * d.s, 1 * d.s, -3 * d.s]);
+      }
+      ctx.restore();
+    }
   }
 
   private drawRift(ctx: CanvasRenderingContext2D, t: number) {

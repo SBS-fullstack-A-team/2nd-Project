@@ -13,7 +13,7 @@ export const VIEW_H = 720;
 export const STEP = 1 / 60;
 
 /** 서버 상한(packages/shared MAX_SCORE_BY_GAME)과 같게 유지 */
-export const MAX_SCORE = 1_500_000;
+export const MAX_SCORE = 3_000_000;
 
 /* ---------------- 플레이어 ---------------- */
 
@@ -22,7 +22,10 @@ export const START_BOMBS = 3;
 export const MAX_BOMBS = 6;
 /** 기체별 시작 목숨·필살기가 많아도 이 개수까지는 쥘 수 있다 */
 export const MAX_BOMBS_SECRET = 8;
-export const MAX_POWER = 3;
+/** 주포 강화 최대 단계 — 모든 기체가 1 → 5단계까지 강해진다 */
+export const MAX_POWER = 5;
+/** [P] 를 이만큼 못 먹고 적을 격추하면 다음 격추 때 [P] 를 보장한다 */
+export const POWER_PITY_KILLS = 26;
 /** 피격 판정 반지름 — 탄막 슈팅답게 기체 그림보다 훨씬 작다 */
 export const PLAYER_HIT_RADIUS = 4;
 /** 아이템·적 기체 충돌용 반지름 */
@@ -129,7 +132,11 @@ export function getAircraft(id: AircraftId): AircraftDef {
 
 /* ---------------- 적 ---------------- */
 
-export type EnemyKind = 'fighter' | 'swooper' | 'gunship' | 'heavy';
+/**
+ * fighter 정면 진입 / swooper 곡선 유도 / gunship 체공 포격 / heavy 대형 중장갑
+ * lancer 급강하 → 멈춰서 조준 연사 → 이탈 / mine 떠내려오다 시간이 지나면 사방으로 터지는 기뢰
+ */
+export type EnemyKind = 'fighter' | 'swooper' | 'gunship' | 'heavy' | 'lancer' | 'mine';
 
 export interface EnemyStats {
   hp: number;
@@ -146,7 +153,13 @@ export const ENEMY_STATS: Record<EnemyKind, EnemyStats> = {
   swooper: { hp: 4, radius: 13, points: 150, dropP: 0.04, dropB: 0.008 },
   gunship: { hp: 22, radius: 22, points: 600, dropP: 0.35, dropB: 0.08 },
   heavy: { hp: 80, radius: 38, points: 2500, dropP: 1, dropB: 0.35 },
+  lancer: { hp: 10, radius: 15, points: 350, dropP: 0.1, dropB: 0.02 },
+  mine: { hp: 7, radius: 14, points: 250, dropP: 0.05, dropB: 0.015 },
 };
+
+/** 기뢰 — 화면에 들어온 뒤 이 시간이 지나면 깜빡이다가 터진다 (초) */
+export const MINE_FUSE_SEC = 4.2;
+export const MINE_ARM_SEC = 0.9;
 
 /* ---------------- 점수 ---------------- */
 
@@ -167,7 +180,7 @@ export const POINTS_ALL_CLEAR = 100_000;
 
 /* ---------------- 스테이지 ---------------- */
 
-export type BossId = 'goliath' | 'kraken' | 'chronos';
+export type BossId = 'goliath' | 'kraken' | 'ignis' | 'seraph' | 'chronos';
 
 /**
  * 적 편대 출현 스크립트 한 줄.
@@ -179,7 +192,9 @@ export type WaveDef =
   | { t: number; f: 'swoop'; n: number; side: 'L' | 'R' }
   | { t: number; f: 'gunship'; x: number }
   | { t: number; f: 'heavy'; x: number }
-  | { t: number; f: 'rain'; n: number; dur: number };
+  | { t: number; f: 'rain'; n: number; dur: number }
+  | { t: number; f: 'lancer'; n: number; x: number }
+  | { t: number; f: 'mines'; n: number; dur: number };
 
 export interface StageDef {
   stage: number;
@@ -232,10 +247,10 @@ export const STAGES: readonly StageDef[] = [
     name: '폭풍의 바다',
     boss: 'kraken',
     bossName: '해상 요새 크라켄',
-    bossHp: 2700,
+    bossHp: 2800,
     bossPoints: 80_000,
-    bulletSpeed: 1.12,
-    fireRate: 1.2,
+    bulletSpeed: 1.1,
+    fireRate: 1.15,
     waves: [
       { t: 1.5, f: 'swoop', n: 6, side: 'L' },
       { t: 3, f: 'swoop', n: 6, side: 'R' },
@@ -261,35 +276,105 @@ export const STAGES: readonly StageDef[] = [
   },
   {
     stage: 3,
+    name: '불타는 화산 지대',
+    boss: 'ignis',
+    bossName: '용암 거신 이그니스',
+    bossHp: 3400,
+    bossPoints: 110_000,
+    bulletSpeed: 1.17,
+    fireRate: 1.3,
+    waves: [
+      { t: 1.5, f: 'v', n: 7, x: 0.5 },
+      { t: 4, f: 'lancer', n: 2, x: 0.5 },
+      { t: 7, f: 'swoop', n: 7, side: 'L' },
+      { t: 8, f: 'swoop', n: 7, side: 'R' },
+      { t: 11, f: 'gunship', x: 0.3 },
+      { t: 11.5, f: 'gunship', x: 0.7 },
+      { t: 14, f: 'lancer', n: 3, x: 0.5 },
+      { t: 18, f: 'heavy', x: 0.5 },
+      { t: 24, f: 'rain', n: 16, dur: 5 },
+      { t: 27, f: 'lancer', n: 2, x: 0.25 },
+      { t: 28, f: 'lancer', n: 2, x: 0.75 },
+      { t: 32, f: 'line', n: 7, x: 0.5, gap: 55 },
+      { t: 34, f: 'swoop', n: 8, side: 'R' },
+      { t: 35, f: 'swoop', n: 8, side: 'L' },
+      { t: 38, f: 'heavy', x: 0.3 },
+      { t: 40, f: 'lancer', n: 3, x: 0.7 },
+      { t: 45, f: 'gunship', x: 0.2 },
+      { t: 45.5, f: 'gunship', x: 0.5 },
+      { t: 46, f: 'gunship', x: 0.8 },
+      { t: 50, f: 'v', n: 9, x: 0.5 },
+      { t: 53, f: 'lancer', n: 4, x: 0.5 },
+    ],
+  },
+  {
+    stage: 4,
+    name: '궤도 방어선',
+    boss: 'seraph',
+    bossName: '궤도 요새 세라핌',
+    bossHp: 4200,
+    bossPoints: 150_000,
+    bulletSpeed: 1.24,
+    fireRate: 1.45,
+    waves: [
+      { t: 1.5, f: 'mines', n: 6, dur: 4 },
+      { t: 4, f: 'v', n: 7, x: 0.5 },
+      { t: 7, f: 'lancer', n: 3, x: 0.5 },
+      { t: 10, f: 'swoop', n: 8, side: 'L' },
+      { t: 11, f: 'swoop', n: 8, side: 'R' },
+      { t: 14, f: 'mines', n: 8, dur: 5 },
+      { t: 16, f: 'gunship', x: 0.3 },
+      { t: 16.5, f: 'gunship', x: 0.7 },
+      { t: 21, f: 'heavy', x: 0.5 },
+      { t: 26, f: 'lancer', n: 2, x: 0.2 },
+      { t: 26.5, f: 'lancer', n: 2, x: 0.8 },
+      { t: 30, f: 'rain', n: 18, dur: 6 },
+      { t: 33, f: 'mines', n: 8, dur: 4 },
+      { t: 37, f: 'heavy', x: 0.25 },
+      { t: 39, f: 'heavy', x: 0.75 },
+      { t: 45, f: 'swoop', n: 8, side: 'R' },
+      { t: 45.5, f: 'swoop', n: 8, side: 'L' },
+      { t: 48, f: 'lancer', n: 4, x: 0.5 },
+      { t: 52, f: 'gunship', x: 0.35 },
+      { t: 52.5, f: 'gunship', x: 0.65 },
+      { t: 54, f: 'mines', n: 6, dur: 3 },
+    ],
+  },
+  {
+    stage: 5,
     name: '시공의 균열',
     boss: 'chronos',
     bossName: '시공간 메카 크로노스',
-    bossHp: 3600,
-    bossPoints: 120_000,
-    bulletSpeed: 1.22,
-    fireRate: 1.4,
+    bossHp: 5200,
+    bossPoints: 220_000,
+    bulletSpeed: 1.3,
+    fireRate: 1.6,
     waves: [
       { t: 1.5, f: 'v', n: 7, x: 0.5 },
       { t: 4, f: 'swoop', n: 8, side: 'L' },
       { t: 5, f: 'swoop', n: 8, side: 'R' },
-      { t: 9, f: 'gunship', x: 0.25 },
-      { t: 9.5, f: 'gunship', x: 0.75 },
-      { t: 12, f: 'heavy', x: 0.5 },
-      { t: 18, f: 'rain', n: 18, dur: 6 },
-      { t: 22, f: 'line', n: 7, x: 0.5, gap: 55 },
-      { t: 24, f: 'swoop', n: 8, side: 'R' },
-      { t: 25, f: 'swoop', n: 8, side: 'L' },
-      { t: 28, f: 'heavy', x: 0.25 },
-      { t: 30, f: 'heavy', x: 0.75 },
-      { t: 37, f: 'gunship', x: 0.2 },
-      { t: 37.5, f: 'gunship', x: 0.5 },
-      { t: 38, f: 'gunship', x: 0.8 },
-      { t: 42, f: 'rain', n: 20, dur: 6 },
-      { t: 46, f: 'v', n: 9, x: 0.5 },
-      { t: 49, f: 'swoop', n: 8, side: 'L' },
-      { t: 49.5, f: 'swoop', n: 8, side: 'R' },
-      { t: 53, f: 'gunship', x: 0.35 },
-      { t: 53.5, f: 'gunship', x: 0.65 },
+      { t: 8, f: 'lancer', n: 3, x: 0.5 },
+      { t: 11, f: 'gunship', x: 0.25 },
+      { t: 11.5, f: 'gunship', x: 0.75 },
+      { t: 14, f: 'heavy', x: 0.5 },
+      { t: 19, f: 'mines', n: 8, dur: 5 },
+      { t: 21, f: 'rain', n: 18, dur: 6 },
+      { t: 25, f: 'line', n: 7, x: 0.5, gap: 55 },
+      { t: 27, f: 'swoop', n: 8, side: 'R' },
+      { t: 28, f: 'swoop', n: 8, side: 'L' },
+      { t: 31, f: 'heavy', x: 0.25 },
+      { t: 33, f: 'heavy', x: 0.75 },
+      { t: 38, f: 'lancer', n: 4, x: 0.5 },
+      { t: 41, f: 'gunship', x: 0.2 },
+      { t: 41.5, f: 'gunship', x: 0.5 },
+      { t: 42, f: 'gunship', x: 0.8 },
+      { t: 46, f: 'rain', n: 20, dur: 6 },
+      { t: 48, f: 'mines', n: 8, dur: 4 },
+      { t: 51, f: 'v', n: 9, x: 0.5 },
+      { t: 54, f: 'swoop', n: 8, side: 'L' },
+      { t: 54.5, f: 'swoop', n: 8, side: 'R' },
+      { t: 57, f: 'gunship', x: 0.35 },
+      { t: 57.5, f: 'gunship', x: 0.65 },
     ],
   },
 ];
@@ -304,6 +389,8 @@ export const HOW_TO_PLAY: readonly string[] = [
   '사격: 자동 연사 · Shift 를 누르고 있으면 정밀 이동',
   '필살기: 스페이스바 · 모바일은 오른쪽 아래 BOMB 버튼',
   '일시정지: Esc 또는 P',
-  '[P] 주포 강화 (최대 3단계) · [B] 필살기 +1',
+  '[P] 주포 강화 (최대 5단계 — 5단계는 기체가 빛나요) · [B] 필살기 +1',
+  '격추되면 파워가 1단계 내려가고, 떨어진 [P] 를 다시 주울 수 있어요',
+  '깜빡이는 기뢰는 터지기 전에 격추하세요 · 랜서는 멈춘 뒤 조준 사격해요',
   '반짝이는 작은 점이 진짜 피격 판정이에요',
 ];
