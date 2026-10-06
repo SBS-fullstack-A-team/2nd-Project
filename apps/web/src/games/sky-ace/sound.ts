@@ -34,35 +34,67 @@ function getAudioContextCtor(): AudioContextCtor | null {
 
 const MUTE_KEY = 'simsim:sky-ace:muted:v1';
 
-/** 스테이지별 배경음 (반음 단위, null = 쉼표) — 16분음표 16칸 */
-const BGM: Record<number, { root: number; lead: (number | null)[]; bass: number[]; bpm: number }> =
-  {
-    1: {
-      root: 57,
-      bpm: 150,
-      lead: [12, null, 12, 15, null, 17, 15, null, 12, null, 10, 12, null, 7, null, 10],
-      bass: [0, 0, 12, 0, 0, 0, 12, 0, -2, -2, 10, -2, 3, 3, 15, 3],
-    },
-    2: {
-      root: 55,
-      bpm: 158,
-      lead: [12, 14, 15, null, 19, null, 15, 14, 12, null, 15, null, 14, 10, null, 7],
-      bass: [0, 12, 0, 12, -4, 8, -4, 8, -2, 10, -2, 10, -5, 7, -5, 7],
-    },
-    3: {
-      root: 52,
-      bpm: 168,
-      lead: [12, 13, 12, 19, null, 18, 19, 13, 12, null, 16, 15, 13, null, 12, 11],
-      bass: [0, 0, 12, 0, 1, 1, 13, 1, 0, 0, 12, 0, -1, -1, 11, -1],
-    },
-    4: {
-      // 보스전
-      root: 50,
-      bpm: 176,
-      lead: [12, null, 15, 12, 18, null, 17, 15, 12, null, 15, 12, 20, 19, 18, 15],
-      bass: [0, 0, 0, 12, 0, 0, 0, 12, 1, 1, 1, 13, 1, 1, 1, 13],
-    },
-  };
+/** 배경음 곡 — 1~5 = 스테이지, 'boss' = 보스전, 'final' = 마지막 보스전 */
+export type BgmTrack = number | 'boss' | 'final';
+
+interface Song {
+  root: number;
+  bpm: number;
+  lead: (number | null)[];
+  bass: number[];
+}
+
+/** 곡별 악보 (반음 단위, null = 쉼표) — 16분음표 16칸 */
+const BGM: Record<string, Song> = {
+  // 1. 구름 위의 전선 — 경쾌한 행진
+  1: {
+    root: 57,
+    bpm: 150,
+    lead: [12, null, 12, 15, null, 17, 15, null, 12, null, 10, 12, null, 7, null, 10],
+    bass: [0, 0, 12, 0, 0, 0, 12, 0, -2, -2, 10, -2, 3, 3, 15, 3],
+  },
+  // 2. 폭풍의 바다 — 물결치는 아르페지오
+  2: {
+    root: 55,
+    bpm: 158,
+    lead: [12, 14, 15, null, 19, null, 15, 14, 12, null, 15, null, 14, 10, null, 7],
+    bass: [0, 12, 0, 12, -4, 8, -4, 8, -2, 10, -2, 10, -5, 7, -5, 7],
+  },
+  // 3. 불타는 화산 지대 — 반음 위로 긁는 프리지안 리프
+  3: {
+    root: 53,
+    bpm: 162,
+    lead: [12, null, 13, 12, 15, null, 13, 12, 10, null, 12, null, 8, 10, 12, null],
+    bass: [0, 0, 12, 0, 1, 1, 13, 1, 0, 0, 12, 0, -2, -2, 10, -2],
+  },
+  // 4. 궤도 방어선 — 높이 떠다니는 장조 선율
+  4: {
+    root: 57,
+    bpm: 164,
+    lead: [19, null, 17, 19, 21, null, 19, null, 16, null, 14, 16, 17, null, 14, 12],
+    bass: [0, 12, 0, 12, -3, 9, -3, 9, -5, 7, -5, 7, -7, 5, -7, 5],
+  },
+  // 5. 시공의 균열 — 불안하게 비틀린 반음계
+  5: {
+    root: 52,
+    bpm: 168,
+    lead: [12, 13, 12, 19, null, 18, 19, 13, 12, null, 16, 15, 13, null, 12, 11],
+    bass: [0, 0, 12, 0, 1, 1, 13, 1, 0, 0, 12, 0, -1, -1, 11, -1],
+  },
+  boss: {
+    root: 50,
+    bpm: 176,
+    lead: [12, null, 15, 12, 18, null, 17, 15, 12, null, 15, 12, 20, 19, 18, 15],
+    bass: [0, 0, 0, 12, 0, 0, 0, 12, 1, 1, 1, 13, 1, 1, 1, 13],
+  },
+  // 마지막 보스 — 더 빠르고 높게 몰아친다
+  final: {
+    root: 48,
+    bpm: 186,
+    lead: [12, 13, 12, 18, 12, 13, 19, 18, 12, 13, 12, 20, 19, 18, 15, 13],
+    bass: [0, 0, 12, 0, 0, 0, 12, 0, 1, 1, 13, 1, -1, -1, 11, -1],
+  },
+};
 
 const midiToHz = (m: number) => 440 * Math.pow(2, (m - 69) / 12);
 
@@ -76,7 +108,7 @@ export class SoundManager {
   /** 같은 효과음이 한 프레임에 수십 번 겹치지 않도록 마지막 재생 시각 */
   private lastPlay = new Map<SfxName, number>();
   private bgmTimer: number | null = null;
-  private bgmTrack = 0;
+  private bgmTrack: BgmTrack = 0;
   private bgmStep = 0;
   private bgmNext = 0;
 
@@ -277,8 +309,8 @@ export class SoundManager {
 
   /* ---------------- 배경음 ---------------- */
 
-  /** track: 1~3 = 스테이지, 4 = 보스전 */
-  playBgm(track: number) {
+  /** track: 1~5 = 스테이지, 'boss' = 보스전, 'final' = 마지막 보스전 */
+  playBgm(track: BgmTrack) {
     if (!this.ctx) return;
     if (this.bgmTimer !== null && this.bgmTrack === track) return;
     this.stopBgm();
@@ -296,7 +328,7 @@ export class SoundManager {
 
   private scheduleBgm() {
     const ctx = this.ctx;
-    const song = BGM[this.bgmTrack];
+    const song = BGM[String(this.bgmTrack)];
     if (!ctx || !song || ctx.state !== 'running') return;
     const stepDur = 60 / song.bpm / 4;
     while (this.bgmNext < ctx.currentTime + 0.2) {

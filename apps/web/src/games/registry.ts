@@ -112,7 +112,8 @@ const GAME_ENTRIES: readonly GameEntry[] = [
   {
     id: 'sky-ace',
     name: '스카이 에이스',
-    description: '기체 3종 중 하나로 출격! 2단 변신 보스 3체가 기다리는 종스크롤 탄막 슈팅',
+    description:
+      '기체 3종 중 하나로 출격! 2단 변신 보스 5체가 기다리는 5스테이지 종스크롤 탄막 슈팅',
     thumbnail: skyAceThumbnail,
     category: 'arcade',
     owner: '신영',

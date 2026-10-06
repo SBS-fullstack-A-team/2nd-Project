@@ -10,7 +10,7 @@ type Screen = { name: 'menu' } | { name: 'playing' } | { name: 'result'; summary
 
 /**
  * 스카이 에이스 — Canvas 로 그리는 종스크롤 탄막 슈팅.
- * 기체 선택 → 3개 스테이지(각 2단 변신 보스) → 결과 요약 후 onFinish(점수) 한 번 호출.
+ * 기체 선택 → 5개 스테이지(각 2단 변신 보스) → 결과 요약 후 onFinish(점수) 한 번 호출.
  * 닉네임 입력·점수 등록·랭킹은 GamePage 의 공통 결과창이 처리한다.
  */
 export default function SkyAce({ onFinish }: GameProps) {

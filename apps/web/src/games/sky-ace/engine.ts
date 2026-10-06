@@ -19,6 +19,7 @@ import {
   POINTS_PER_LIFE_LEFT,
   POINTS_PER_SEC,
   POINTS_STAGE_CLEAR,
+  POWER_PITY_KILLS,
   STAGES,
   START_BOMBS,
   START_LIVES,
@@ -53,6 +54,7 @@ import {
   drawBigBomber,
   drawDrone,
   drawFirebird,
+  drawMaxPowerAura,
   drawPlayerPlane,
   drawSprite,
   glowSprite,
@@ -64,9 +66,9 @@ export interface GameSummary {
   score: number;
   kills: number;
   timeSec: number;
-  /** 도달한 스테이지 (1~3) */
+  /** 도달한 스테이지 (1~5) */
   stageReached: number;
-  /** 클리어한 스테이지 수 (0~3) */
+  /** 클리어한 스테이지 수 (0~5) */
   stagesCleared: number;
   allClear: boolean;
   aircraftName: string;
@@ -258,6 +260,29 @@ class StageManager {
             const x = rand(30, VIEW_W - 30);
             const toward = clamp((e.player.x - x) * 0.25, -60, 60);
             e.addEnemy(this.fighter(x, -30, toward, rand(170, 230)));
+          });
+        }
+        break;
+      }
+      case 'lancer': {
+        // 가운데를 기준으로 70px 간격, 0.25초씩 시간차를 두고 내리꽂힌다
+        for (let i = 0; i < w.n; i++) {
+          const x = clamp(X(w.x) + (i - (w.n - 1) / 2) * 70, 30, VIEW_W - 30);
+          this.later(i * 0.25, () => {
+            const en = new Enemy('lancer', x, -30);
+            en.holdY = rand(110, 230);
+            en.exitSide = x < VIEW_W / 2 ? -1 : 1;
+            e.addEnemy(en);
+          });
+        }
+        break;
+      }
+      case 'mines': {
+        for (let i = 0; i < w.n; i++) {
+          this.later(rand(0, w.dur), () => {
+            const en = new Enemy('mine', rand(40, VIEW_W - 40), -24);
+            en.armMine();
+            e.addEnemy(en);
           });
         }
         break;
@@ -586,7 +611,8 @@ export class SkyAceEngine implements World {
 
   spawnBoss(def: StageDef) {
     this.boss = new Boss(def.boss, def.bossHp);
-    this.sound.playBgm(4);
+    // 마지막 보스는 전용 곡
+    this.sound.playBgm(def.stage === STAGES.length ? 'final' : 'boss');
   }
 
   finish(allClear: boolean) {
@@ -654,6 +680,7 @@ export class SkyAceEngine implements World {
       if (this.boss.dead) this.onBossDestroyed();
     }
     for (const b of this.enemyBullets) b.update(edt, p);
+    this.splitBullets();
     for (const l of this.lasers) l.update(edt, this);
     for (const b of this.bullets) b.update(dt, this.pickTarget);
     for (const it of this.items) it.update(dt);
@@ -672,6 +699,20 @@ export class SkyAceEngine implements World {
         this.mode = 'over';
         this.cb.onEnd(this.summary());
       }
+    }
+  }
+
+  /** 갈라질 때가 된 용암탄·운석을 고리 모양 탄으로 바꾼다 */
+  private splitBullets() {
+    const ready = this.enemyBullets.filter((b) => b.split && !b.dead && b.age >= b.split.at);
+    for (const b of ready) {
+      const s = b.split!;
+      b.dead = true;
+      const off = rand(0, TAU);
+      for (let i = 0; i < s.n; i++) {
+        this.fire(b.x, b.y, off + (i / s.n) * TAU, s.speed, { color: s.color, r: s.r });
+      }
+      this.particle('ring', b.x, b.y, 0, 0, 0.3, 26, '#ffb03a');
     }
   }
 
@@ -732,6 +773,13 @@ export class SkyAceEngine implements World {
     );
   }
 
+  /**
+   * 주포·서브 사격 — 파워 1~5단계마다 탄 수·각도·위력·연사 속도가 달라진다.
+   *  P-38      2연장 → 4연장 → +사선 2발 → +바깥 사선 2발·드론 4기 → +가운데 플라즈마 창
+   *  신덴      3 → 5 → 7방향 관통탄 · 빔 굵기/위력 5단계 · 5단계 9방향
+   *  스핏파이어 1 → 2 → 3 → 4 → 5연장 · 미사일 2발 → (4단계부터) 4발
+   *  피닉스    3 → 5 → 7 → 9 → 11방향 플레어 · 미사일 2발 → (4단계부터) 4발
+   */
   private firePlayer(dt: number) {
     const p = this.player;
     const lv = p.power;
@@ -740,89 +788,139 @@ export class SkyAceEngine implements World {
     const firing = this.stage.phase !== 'clear';
     p.beamOn = false;
     if (!firing) return;
+    const pick = <T>(table: readonly T[]) => table[Math.min(table.length, lv) - 1]!;
 
     if (p.def.id === 'p38') {
       if (p.shotCool <= 0) {
         p.shotCool += 0.09;
+        const dmg = pick([1.1, 1.1, 1.1, 1.15, 1.2]);
         const xs = lv === 1 ? [-6, 6] : [-15, -5, 5, 15];
-        for (const ox of xs) this.shot('plasma', p.x + ox, p.y - 16, 0, 900, 1.1, 6);
-        if (lv === 3) {
+        for (const ox of xs) this.shot('plasma', p.x + ox, p.y - 16, 0, 900, dmg, 6);
+        if (lv >= 3) {
           this.shot('plasma', p.x - 20, p.y - 8, -0.14, 880, 0.9, 6);
           this.shot('plasma', p.x + 20, p.y - 8, 0.14, 880, 0.9, 6);
+        }
+        if (lv >= 4) {
+          this.shot('plasma', p.x - 24, p.y - 4, -0.27, 860, 0.85, 6);
+          this.shot('plasma', p.x + 24, p.y - 4, 0.27, 860, 0.85, 6);
+        }
+        // 5단계 — 두 번에 한 번 가운데로 굵은 플라즈마 창 (P-38 은 미사일이 없어 missileSide 를 박자로 쓴다)
+        if (lv >= 5) {
+          p.missileSide *= -1;
+          if (p.missileSide > 0) this.shot('plasmaBig', p.x, p.y - 24, 0, 950, 3.2, 9);
         }
         this.sound.play('shot');
       }
       if (p.subCool <= 0) {
-        p.subCool += [0.22, 0.18, 0.14][lv - 1]!;
-        for (const d of p.drones) {
-          this.shot('drone', d.x, d.y - 8, 0, 800, 0.9, 4);
-          if (lv === 3) this.shot('drone', d.x, d.y - 8, d.x < p.x ? -0.08 : 0.08, 800, 0.9, 4);
-        }
+        p.subCool += pick([0.22, 0.18, 0.14, 0.13, 0.11]);
+        const dmg = lv >= 5 ? 1.1 : 0.9;
+        p.drones.slice(0, p.droneCount).forEach((d) => {
+          this.shot('drone', d.x, d.y - 8, 0, 800, dmg, 4);
+          if (lv >= 3) this.shot('drone', d.x, d.y - 8, d.x < p.x ? -0.08 : 0.08, 800, dmg, 4);
+        });
       }
     } else if (p.def.id === 'shinden') {
       if (p.shotCool <= 0) {
-        p.shotCool += 0.12;
-        const ways = [3, 5, 7][lv - 1]!;
+        p.shotCool += pick([0.12, 0.12, 0.12, 0.105, 0.1]);
+        const ways = pick([3, 5, 7, 7, 9]);
+        const spread = pick([0.13, 0.13, 0.13, 0.12, 0.11]);
+        const dmg = pick([1, 1, 1, 1.2, 1.3]);
         for (let i = 0; i < ways; i++) {
-          const a = (i - (ways - 1) / 2) * 0.13;
-          this.shot('pierce', p.x + a * 30, p.y - 14, a, 820, 1, 6);
+          const a = (i - (ways - 1) / 2) * spread;
+          this.shot('pierce', p.x + a * 30, p.y - 14, a, 820, dmg, 6);
         }
         this.sound.play('shot');
       }
       this.fireBeam(dt);
     } else if (p.def.id === 'phoenix') {
-      // 주포: 부채꼴 프리즘 플레어 (3 → 5 → 7방향)
+      // 주포: 부채꼴 프리즘 플레어 (3 → 5 → 7 → 9 → 11방향)
       if (p.shotCool <= 0) {
         p.shotCool += 0.075;
-        const ways = [3, 5, 7][lv - 1]!;
+        const ways = pick([3, 5, 7, 9, 11]);
+        const spread = pick([0.09, 0.09, 0.09, 0.085, 0.08]);
         for (let i = 0; i < ways; i++) {
-          const a = (i - (ways - 1) / 2) * 0.09;
+          const a = (i - (ways - 1) / 2) * spread;
           this.shot('flare', p.x + a * 40, p.y - 20, a, 1050, 1.3, 6);
         }
         this.sound.play('shot');
       }
-      // 서브: 날개 끝에서 양쪽으로 퍼졌다가 꺾이는 유도 미사일
+      // 서브: 날개 끝에서 양쪽으로 퍼졌다가 꺾이는 유도 미사일 (4단계부터 두 쌍)
       if (p.subCool <= 0) {
-        p.subCool += [0.42, 0.34, 0.26][lv - 1]!;
+        p.subCool += pick([0.42, 0.34, 0.26, 0.22, 0.18]);
         for (const s of [-1, 1]) {
           this.bullets.push(
             new PlayerBullet('missile', p.x + s * 26, p.y + 8, s * 220, -160, 3.4, 6),
           );
+          if (lv >= 4) {
+            this.bullets.push(
+              new PlayerBullet('missile', p.x + s * 16, p.y + 14, s * 150, -230, 3.4, 6),
+            );
+          }
         }
       }
     } else {
       if (p.shotCool <= 0) {
         p.shotCool += 0.065;
-        if (lv === 1) {
-          p.missileSide *= -1;
-          this.shot('rapid', p.x + p.missileSide * 4, p.y - 18, 0, 1000, 1.2, 5);
-        } else if (lv === 2) {
-          this.shot('rapid', p.x - 5, p.y - 18, 0, 1000, 1, 5);
-          this.shot('rapid', p.x + 5, p.y - 18, 0, 1000, 1, 5);
-        } else {
-          this.shot('rapid', p.x, p.y - 20, 0, 1000, 1, 5);
-          this.shot('rapid', p.x - 7, p.y - 16, -0.07, 1000, 1, 5);
-          this.shot('rapid', p.x + 7, p.y - 16, 0.07, 1000, 1, 5);
-        }
+        // 1단계는 좌우를 번갈아 한 발씩
+        if (lv === 1) p.missileSide *= -1;
+        // [x 위치, 각도, 위력] — 단계마다 연장 수가 하나씩 늘어난다
+        const pattern: readonly (readonly [number, number, number])[] =
+          lv === 1
+            ? [[p.missileSide * 4, 0, 1.2]]
+            : lv === 2
+              ? [
+                  [-5, 0, 1],
+                  [5, 0, 1],
+                ]
+              : lv === 3
+                ? [
+                    [0, 0, 1],
+                    [-7, -0.07, 1],
+                    [7, 0.07, 1],
+                  ]
+                : lv === 4
+                  ? [
+                      [-4, 0, 1.05],
+                      [4, 0, 1.05],
+                      [-11, -0.08, 1],
+                      [11, 0.08, 1],
+                    ]
+                  : [
+                      [0, 0, 1.15],
+                      [-7, -0.06, 1.1],
+                      [7, 0.06, 1.1],
+                      [-14, -0.13, 1.05],
+                      [14, 0.13, 1.05],
+                    ];
+        for (const [ox, a, dmg] of pattern) this.shot('rapid', p.x + ox, p.y - 18, a, 1000, dmg, 5);
         this.sound.play('shot');
       }
       if (p.subCool <= 0) {
-        p.subCool += [0.6, 0.5, 0.4][lv - 1]!;
-        // 왼쪽에서 오른쪽으로, 오른쪽에서 왼쪽으로 교차 발사
+        p.subCool += pick([0.6, 0.5, 0.4, 0.34, 0.28]);
+        const dmg = lv >= 5 ? 3.4 : 3;
+        // 왼쪽에서 오른쪽으로, 오른쪽에서 왼쪽으로 교차 발사 (4단계부터 두 쌍)
         for (const s of [-1, 1]) {
-          const m = new PlayerBullet('missile', p.x + s * 10, p.y, -s * 260, -120, 3, 6);
-          this.bullets.push(m);
+          this.bullets.push(new PlayerBullet('missile', p.x + s * 10, p.y, -s * 260, -120, dmg, 6));
+          if (lv >= 4) {
+            this.bullets.push(
+              new PlayerBullet('missile', p.x + s * 18, p.y + 6, -s * 180, -200, dmg, 6),
+            );
+          }
         }
       }
     }
   }
 
+  /** 신덴 빔 굵기·초당 위력 (파워 단계별) */
+  private static readonly BEAM_WIDTH = [10, 14, 18, 22, 27] as const;
+  private static readonly BEAM_DPS = [18, 24, 30, 40, 52] as const;
+
   /** 신덴 빔 — 가장 가까운 대상에서 멈추고 초당 데미지를 준다 */
   private fireBeam(dt: number) {
     const p = this.player;
     const lv = p.power;
-    const w = [10, 14, 18][lv - 1]!;
-    const dps = [18, 24, 30][lv - 1]!;
+    const w = SkyAceEngine.BEAM_WIDTH[lv - 1]!;
+    const dps = SkyAceEngine.BEAM_DPS[lv - 1]!;
     let endY = -20;
     let target: Target | null = null;
     for (const e of this.enemies) {
@@ -1144,7 +1242,7 @@ export class SkyAceEngine implements World {
     const st = ENEMY_STATS[e.kind];
     this.killsSincePower += 1;
     // 오래 못 먹었으면 [P] 를 보장해 준다
-    const pity = this.player.power < MAX_POWER && this.killsSincePower >= 28;
+    const pity = this.player.power < MAX_POWER && this.killsSincePower >= POWER_PITY_KILLS;
     if (Math.random() < st.dropP || pity) {
       this.items.push(new Item('P', e.x, e.y));
       this.killsSincePower = 0;
@@ -1175,7 +1273,13 @@ export class SkyAceEngine implements World {
     if (it.kind === 'P') {
       if (p.power < MAX_POWER) {
         p.power += 1;
-        this.popup(p.x, p.y - 30, p.power === MAX_POWER ? 'MAX POWER!' : 'POWER UP', '#ff8a8a', 16);
+        if (p.power === MAX_POWER) {
+          this.popup(p.x, p.y - 30, 'MAX POWER!', '#ffe07a', 18);
+          this.particle('ring', p.x, p.y, 0, 0, 0.5, 70, '#ffe07a');
+          this.particle('ring', p.x, p.y, 0, 0, 0.35, 45, p.def.accent);
+        } else {
+          this.popup(p.x, p.y - 30, `POWER UP  Lv.${p.power}`, '#ff8a8a', 16);
+        }
       } else {
         this.score.add(POINTS_ITEM_MAXED);
         this.popup(p.x, p.y - 30, `+${POINTS_ITEM_MAXED}`, '#ff8a8a', 14);
@@ -1313,7 +1417,15 @@ export class SkyAceEngine implements World {
     const p = this.player;
     if (!p.alive) return;
     if (p.invincible > 0 && !this.bomb && Math.floor(this.t * 20) % 2 === 0) return;
-    if (p.def.id === 'p38') for (const d of p.drones) drawDrone(ctx, d.x, d.y, this.t);
+    if (p.power >= MAX_POWER) drawMaxPowerAura(ctx, p.x, p.y, this.t, p.def.accent);
+    if (p.def.id === 'p38') {
+      // 바깥 드론은 기체에 숨어 있다가 4단계부터 나온다
+      p.drones.forEach((d, i) => {
+        if (i < p.droneCount || Math.hypot(d.x - p.x, d.y - p.y) > 14) {
+          drawDrone(ctx, d.x, d.y, this.t);
+        }
+      });
+    }
     drawPlayerPlane(ctx, p.def.id, p.x, p.y, this.t, p.bank, p.def.color, p.def.accent);
     // 진짜 피격 판정 위치
     drawSprite(ctx, glowSprite('#ff3a6a', 3), p.x, p.y);
@@ -1326,7 +1438,7 @@ export class SkyAceEngine implements World {
   private drawBeam(ctx: CanvasRenderingContext2D) {
     const p = this.player;
     if (!p.beamOn || !p.alive) return;
-    const w = [10, 14, 18][p.power - 1]! * (1 + Math.sin(this.t * 60) * 0.12);
+    const w = SkyAceEngine.BEAM_WIDTH[p.power - 1]! * (1 + Math.sin(this.t * 60) * 0.12);
     const top = p.beamEndY;
     const bottom = p.y - 22;
     if (bottom <= top) return;
@@ -1338,6 +1450,24 @@ export class SkyAceEngine implements World {
     g.addColorStop(1, 'rgba(255,120,20,0)');
     ctx.fillStyle = g;
     ctx.fillRect(p.x - w, top, w * 2, bottom - top);
+    // 4단계부터 빔을 감싸고 도는 나선 에너지, 5단계는 하얀 심이 더 굵다
+    if (p.power >= 4) {
+      ctx.strokeStyle = p.power >= 5 ? 'rgba(255,240,200,0.75)' : 'rgba(255,200,120,0.55)';
+      ctx.lineWidth = 2;
+      for (const phase of [0, Math.PI]) {
+        ctx.beginPath();
+        for (let y = bottom; y >= top; y -= 6) {
+          const x = p.x + Math.sin(y * 0.09 + this.t * 24 + phase) * w * 0.85;
+          if (y === bottom) ctx.moveTo(x, y);
+          else ctx.lineTo(x, y);
+        }
+        ctx.stroke();
+      }
+    }
+    if (p.power >= 5) {
+      ctx.fillStyle = 'rgba(255,255,255,0.85)';
+      ctx.fillRect(p.x - w * 0.18, top, w * 0.36, bottom - top);
+    }
     drawSprite(ctx, glowSprite('#ff9a3a', w * 0.8), p.x, bottom);
     drawSprite(ctx, glowSprite('#ffd08a', w), p.x, top);
   }
@@ -1488,14 +1618,25 @@ export class SkyAceEngine implements World {
       ctx.textAlign = 'center';
       ctx.fillText('B', x, y + 4);
     }
-    // 파워
+    // 파워 — 5칸 게이지, 꽉 차면 금빛으로 반짝인다
+    const pipW = 10;
+    const pipGap = 13;
+    const pipX = VIEW_W - 12 - pipGap * (MAX_POWER - 1) - pipW;
+    const maxed = p.power >= MAX_POWER;
     ctx.textAlign = 'right';
     ctx.font = 'bold 11px system-ui, sans-serif';
-    ctx.fillStyle = '#ffffff';
-    ctx.fillText('POWER', VIEW_W - 64, VIEW_H - 14);
+    ctx.fillStyle = maxed ? `hsl(45, 100%, ${65 + Math.sin(this.t * 8) * 15}%)` : '#ffffff';
+    ctx.fillText(maxed ? 'MAX' : `POWER ${p.power}`, pipX - 6, VIEW_H - 14);
     for (let i = 0; i < MAX_POWER; i++) {
-      ctx.fillStyle = i < p.power ? '#ff5a5a' : 'rgba(255,255,255,0.25)';
-      ctx.fillRect(VIEW_W - 58 + i * 16, VIEW_H - 24, 12, 12);
+      const on = i < p.power;
+      ctx.fillStyle = !on
+        ? 'rgba(255,255,255,0.25)'
+        : maxed
+          ? '#ffd24a'
+          : i >= 3
+            ? '#ff8a3a'
+            : '#ff5a5a';
+      ctx.fillRect(pipX + i * pipGap, VIEW_H - 24, pipW, 12);
     }
     ctx.restore();
 

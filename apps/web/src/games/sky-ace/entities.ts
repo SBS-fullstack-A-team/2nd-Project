@@ -5,6 +5,8 @@
  */
 import {
   ENEMY_STATS,
+  MINE_ARM_SEC,
+  MINE_FUSE_SEC,
   VIEW_H,
   VIEW_W,
   type AircraftDef,
@@ -12,7 +14,14 @@ import {
   type EnemyKind,
   type StageDef,
 } from './config';
-import { drawChronos, drawGoliath, drawKraken, type BossLook } from './bossRender';
+import {
+  drawChronos,
+  drawGoliath,
+  drawIgnis,
+  drawKraken,
+  drawSeraph,
+  type BossLook,
+} from './bossRender';
 import { TAU, drawEnemyCraft, drawSprite, glowSprite } from './render';
 
 export const rand = (a: number, b: number) => a + Math.random() * (b - a);
@@ -24,9 +33,21 @@ export interface World {
   readonly stageDef: StageDef;
   fire(x: number, y: number, angle: number, speed: number, opts?: BulletOpts): EnemyBullet;
   addLaser(laser: EnemyLaser): void;
+  /** 보스가 기뢰 등을 떨어뜨릴 때 */
+  addEnemy(enemy: Enemy): void;
   explode(x: number, y: number, size: number): void;
   shake(amount: number): void;
   sfx(name: 'laser' | 'explode' | 'bigExplode'): void;
+}
+
+/** 일정 시간 뒤 사방으로 갈라지는 탄 (용암탄·운석) */
+export interface SplitSpec {
+  /** 발사 후 몇 초 뒤에 갈라지는지 */
+  at: number;
+  n: number;
+  speed: number;
+  color: string;
+  r: number;
 }
 
 export interface BulletOpts {
@@ -36,6 +57,7 @@ export interface BulletOpts {
   homing?: number;
   turn?: number;
   accel?: number;
+  split?: SplitSpec;
 }
 
 /* =========================================================
@@ -145,6 +167,14 @@ export interface Drone {
   y: number;
 }
 
+/** P-38 지원 드론 자리 (기체 기준) — 4단계부터 바깥쪽 한 쌍이 더 붙는다 */
+export const DRONE_SLOTS: readonly [number, number][] = [
+  [-34, 12],
+  [34, 12],
+  [-58, 30],
+  [58, 30],
+];
+
 export class Player {
   x = VIEW_W / 2;
   y = VIEW_H - 90;
@@ -159,10 +189,7 @@ export class Player {
   shotCool = 0;
   subCool = 0;
   missileSide = 1;
-  drones: Drone[] = [
-    { x: VIEW_W / 2 - 34, y: VIEW_H - 80 },
-    { x: VIEW_W / 2 + 34, y: VIEW_H - 80 },
-  ];
+  drones: Drone[] = DRONE_SLOTS.map(([dx, dy]) => ({ x: VIEW_W / 2 + dx, y: VIEW_H - 90 + dy }));
   /** 신덴 빔이 닿은 지점 (그리기용) */
   beamEndY = 0;
   beamOn = false;
@@ -186,15 +213,23 @@ export class Player {
     this.bank = clamp(this.bank + dx * 0.08, -1, 1);
   }
 
+  /** 지금 파워에서 쓰는 드론 수 (P-38) */
+  get droneCount() {
+    return this.power >= 4 ? 4 : 2;
+  }
+
   update(dt: number) {
     this.bank *= Math.pow(0.85, dt * 60);
     if (this.invincible > 0) this.invincible -= dt;
-    // 드론은 살짝 늦게 따라온다
+    // 드론은 살짝 늦게 따라온다 (바깥 드론은 조금 더 늦게)
     for (let i = 0; i < this.drones.length; i++) {
       const d = this.drones[i]!;
-      const tx = this.x + (i === 0 ? -34 : 34);
-      const ty = this.y + 12;
-      const k = 1 - Math.pow(0.001, dt * 1.6);
+      const [dx, dy] = DRONE_SLOTS[i]!;
+      // 아직 안 쓰는 바깥 드론은 기체 뒤에 숨어 있다가 4단계가 되면 날개를 펴듯 나온다
+      const active = i < this.droneCount;
+      const tx = this.x + (active ? dx : 0);
+      const ty = this.y + (active ? dy : 10);
+      const k = 1 - Math.pow(i < 2 ? 0.001 : 0.004, dt * 1.6);
       d.x += (tx - d.x) * k;
       d.y += (ty - d.y) * k;
     }
@@ -214,7 +249,7 @@ export class PlayerBullet {
   target: Target | null = null;
 
   constructor(
-    public kind: 'plasma' | 'pierce' | 'rapid' | 'drone' | 'missile' | 'flare',
+    public kind: 'plasma' | 'plasmaBig' | 'pierce' | 'rapid' | 'drone' | 'missile' | 'flare',
     public x: number,
     public y: number,
     public vx: number,
@@ -258,7 +293,18 @@ export class PlayerBullet {
     switch (this.kind) {
       case 'plasma': {
         const s = glowSprite('#3ab8ff', 6);
-        ctx.drawImage(s, this.x - 6, this.y - 14, 12, 28);
+        ctx.save();
+        ctx.translate(this.x, this.y);
+        ctx.rotate(Math.atan2(this.vy, this.vx) + Math.PI / 2);
+        ctx.drawImage(s, -6, -14, 12, 28);
+        ctx.restore();
+        break;
+      }
+      case 'plasmaBig': {
+        // 5단계 P-38 — 가운데로 나가는 굵은 플라즈마 창
+        const pulse = 1 + Math.sin(this.age * 40) * 0.12;
+        ctx.drawImage(glowSprite('#3ab8ff', 10), this.x - 10 * pulse, this.y - 26, 20 * pulse, 52);
+        ctx.drawImage(glowSprite('#c8f0ff', 5), this.x - 5, this.y - 18, 10, 36);
         break;
       }
       case 'pierce': {
@@ -320,6 +366,7 @@ export class EnemyBullet {
   homing = 0;
   turn = 0;
   accel = 0;
+  split: SplitSpec | null = null;
 
   constructor(
     public x: number,
@@ -328,7 +375,7 @@ export class EnemyBullet {
     public vy: number,
     public r: number,
     public color: string,
-    public kind: 'orb' | 'needle' | 'missile',
+    public kind: 'orb' | 'needle' | 'missile' | 'magma',
   ) {}
 
   update(dt: number, player: Player) {
@@ -361,6 +408,31 @@ export class EnemyBullet {
   draw(ctx: CanvasRenderingContext2D) {
     if (this.kind === 'orb') {
       drawSprite(ctx, glowSprite(this.color, this.r), this.x, this.y);
+      return;
+    }
+    if (this.kind === 'magma') {
+      // 용암탄 — 검게 굳은 껍질 사이로 불빛이 새고, 갈라질 때가 가까우면 하얗게 달아오른다
+      const heat = this.split ? Math.min(1, this.age / this.split.at) : 0.5;
+      const flick = 0.85 + Math.sin(this.age * 30 + this.x) * 0.15;
+      drawSprite(
+        ctx,
+        glowSprite(heat > 0.75 ? '#ffd27a' : '#ff6a1a', this.r * 1.5 * flick),
+        this.x,
+        this.y,
+      );
+      ctx.fillStyle = '#2a0e06';
+      ctx.beginPath();
+      ctx.arc(this.x, this.y, this.r * 0.78, 0, TAU);
+      ctx.fill();
+      ctx.strokeStyle = heat > 0.75 ? '#fff2c0' : '#ffb03a';
+      ctx.lineWidth = 1.4;
+      ctx.beginPath();
+      for (let i = 0; i < 4; i++) {
+        const a = i * 1.7 + this.age * 2;
+        ctx.moveTo(this.x, this.y);
+        ctx.lineTo(this.x + Math.cos(a) * this.r * 0.75, this.y + Math.sin(a) * this.r * 0.75);
+      }
+      ctx.stroke();
       return;
     }
     ctx.save();
@@ -555,8 +627,14 @@ export class Enemy {
   vy = 0;
   fireCool: number;
   swoop: SwoopPath | null = null;
-  /** gunship/heavy — 멈춰서 싸울 높이 */
+  /** gunship/heavy/lancer — 멈춰서 싸울 높이 */
   holdY = 150;
+  /** lancer — 사격을 마치고 빠져나갈 방향 (-1 왼쪽, 1 오른쪽) */
+  exitSide = 1;
+  /** 그리기용 0~1 — lancer 는 조준 충전, mine 은 폭발 직전 깜빡임 */
+  charge = 0;
+  /** mine — 좌우로 흔들리는 위상 */
+  private sway = rand(0, TAU);
   private shotsLeft: number;
 
   constructor(
@@ -570,7 +648,14 @@ export class Enemy {
     this.radius = s.radius;
     this.points = s.points;
     this.fireCool = rand(0.6, 1.6);
-    this.shotsLeft = kind === 'fighter' || kind === 'swooper' ? 1 : 999;
+    this.shotsLeft =
+      kind === 'fighter' || kind === 'swooper'
+        ? 1
+        : kind === 'lancer'
+          ? 2
+          : kind === 'mine'
+            ? 0
+            : 999;
   }
 
   hit(damage: number): boolean {
@@ -620,15 +705,95 @@ export class Enemy {
         this.x += Math.sin(this.age * 0.8) * (this.kind === 'gunship' ? 40 : 18) * dt;
         break;
       }
+      case 'lancer':
+        this.updateLancer(dt, w, aim);
+        break;
+      case 'mine':
+        this.updateMine(dt, w);
+        break;
     }
 
-    // 사격 — 화면 안쪽, 플레이어와 너무 가깝지 않을 때만
-    if (this.y > 20 && this.y < VIEW_H * 0.72 && w.player.alive && this.shotsLeft > 0) {
+    // 사격 — 화면 안쪽, 플레이어와 너무 가깝지 않을 때만 (lancer·mine 은 자기 규칙대로)
+    if (
+      this.kind !== 'lancer' &&
+      this.kind !== 'mine' &&
+      this.y > 20 &&
+      this.y < VIEW_H * 0.72 &&
+      w.player.alive &&
+      this.shotsLeft > 0
+    ) {
       this.fireCool -= dt * st.fireRate;
       if (this.fireCool <= 0) this.shoot(w, aim);
     }
 
     if (this.y > VIEW_H + 80 || this.x < -140 || this.x > VIEW_W + 140) this.escape();
+  }
+
+  /**
+   * 랜서 — 0~0.9초 급강하해서 멈춤 → 0.9~1.6초 플레이어를 겨누며 충전 →
+   * 1.6초·1.9초에 3연발 조준탄 → 2.3초부터 바깥쪽으로 빠져나간다
+   */
+  private updateLancer(dt: number, w: World, aim: number) {
+    const a = this.age;
+    if (a < 0.9) {
+      this.y += (this.holdY - this.y) * (1 - Math.pow(0.004, dt));
+      this.angle = Math.PI;
+    } else if (a < 2.3) {
+      // 멈춘 채 기수를 플레이어 쪽으로 돌린다 (angle - 90° 가 기수 방향)
+      let diff = aim + Math.PI / 2 - this.angle;
+      while (diff > Math.PI) diff -= TAU;
+      while (diff < -Math.PI) diff += TAU;
+      this.angle += clamp(diff, -4 * dt, 4 * dt);
+      this.charge = clamp((a - 0.9) / 0.7, 0, 1);
+      const shotAt = this.shotsLeft === 2 ? 1.6 : 1.9;
+      if (this.shotsLeft > 0 && a >= shotAt && w.player.alive) {
+        this.shotsLeft -= 1;
+        const bs = w.stageDef.bulletSpeed;
+        const fa = this.angle - Math.PI / 2;
+        const nx = this.x + Math.cos(fa) * 16;
+        const ny = this.y + Math.sin(fa) * 16;
+        for (let i = -1; i <= 1; i++) {
+          w.fire(nx, ny, fa + i * 0.11, 230 * bs, { color: '#ff4a7a', kind: 'needle', r: 4 });
+        }
+        if (this.shotsLeft === 0) this.charge = 0;
+      }
+    } else {
+      this.charge = 0;
+      this.vx += this.exitSide * 420 * dt;
+      this.vy = Math.min(260, this.vy + 380 * dt);
+      this.x += this.vx * dt;
+      this.y += this.vy * dt;
+      this.angle = Math.atan2(this.vy, this.vx) + Math.PI / 2;
+    }
+  }
+
+  /** 기뢰 — 천천히 흔들리며 내려오다 퓨즈가 다 타면 사방으로 탄을 뿌리고 사라진다 */
+  private updateMine(dt: number, w: World) {
+    this.y += (this.vy || 52) * dt;
+    this.x += Math.sin(this.age * 1.6 + this.sway) * 22 * dt;
+    this.angle += dt * 0.8;
+    if (this.y < 24) return;
+    // 화면에 들어온 뒤부터 퓨즈 시간을 잰다
+    this.fireCool -= dt;
+    const left = this.fireCool;
+    this.charge = left < MINE_ARM_SEC ? 1 - left / MINE_ARM_SEC : 0;
+    if (left <= 0 && !this.dead) {
+      const bs = w.stageDef.bulletSpeed;
+      const n = 12;
+      const off = rand(0, TAU);
+      for (let i = 0; i < n; i++) {
+        w.fire(this.x, this.y, off + (i / n) * TAU, 115 * bs, { color: '#ff5a5a', r: 5 });
+      }
+      w.explode(this.x, this.y, 0.8);
+      w.sfx('explode');
+      this.escape();
+    }
+  }
+
+  /** 기뢰가 처음 나타날 때 퓨즈를 건다 */
+  armMine() {
+    this.fireCool = MINE_FUSE_SEC + rand(-0.4, 0.4);
+    this.vy = rand(44, 62);
   }
 
   private escape() {
@@ -677,7 +842,7 @@ export class Enemy {
   }
 
   draw(ctx: CanvasRenderingContext2D, t: number) {
-    drawEnemyCraft(ctx, this.kind, this.x, this.y, this.angle, t, this.flash > 0);
+    drawEnemyCraft(ctx, this.kind, this.x, this.y, this.angle, t, this.flash > 0, this.charge);
     if ((this.kind === 'heavy' || this.kind === 'gunship') && this.hp < this.maxHp) {
       const w = this.radius * 1.6;
       ctx.fillStyle = 'rgba(0,0,0,0.5)';
@@ -703,6 +868,14 @@ const BOSS_HITBOX: Record<BossId, [[number, number], [number, number]]> = {
     [145, 62],
     [145, 62],
   ],
+  ignis: [
+    [96, 100],
+    [116, 100],
+  ],
+  seraph: [
+    [84, 74],
+    [90, 80],
+  ],
   chronos: [
     [62, 72],
     [62, 72],
@@ -727,6 +900,11 @@ export class Boss {
   private spinB = 0;
   private laserDir = 1;
   private lastLaserEnd = 0;
+  /** 이그니스 화염 숨결 — 끝나는 시각과 고정된 방향 */
+  private breathEnd = 0;
+  private breathAim = Math.PI / 2;
+  /** 세라핌 — 고리 포대가 차례로 쏘는 순번 */
+  private podTurn = 0;
 
   constructor(
     public id: BossId,
@@ -833,6 +1011,8 @@ export class Boss {
         this.move(dt);
         if (this.id === 'goliath') this.goliath(dt, w);
         else if (this.id === 'kraken') this.kraken(dt, w);
+        else if (this.id === 'ignis') this.ignis(dt, w);
+        else if (this.id === 'seraph') this.seraph(dt, w);
         else this.chronos(dt, w);
         break;
     }
@@ -848,6 +1028,16 @@ export class Boss {
     } else if (this.id === 'kraken') {
       tx += Math.sin(t * 0.35) * 60;
       ty += 10 + Math.sin(t * 0.6) * 8;
+    } else if (this.id === 'ignis') {
+      // 숨을 내뿜는 동안은 거의 멈춘다
+      const breathing = this.t < this.breathEnd ? 0.25 : 1;
+      tx +=
+        Math.sin(t * (this.phase === 1 ? 0.45 : 0.75)) * (this.phase === 1 ? 70 : 100) * breathing;
+      ty += 6 + Math.sin(t * 1.1) * 10;
+    } else if (this.id === 'seraph') {
+      // 궤도를 도는 듯 느리게 8자를 그린다
+      tx += Math.sin(t * 0.4) * (this.phase === 1 ? 60 : 90);
+      ty += 4 + Math.sin(t * 0.8) * (this.phase === 1 ? 10 : 22);
     } else {
       tx += Math.sin(t * (this.phase === 1 ? 0.6 : 1.1)) * (this.phase === 1 ? 80 : 120);
       ty += 10 + Math.sin(t * (this.phase === 1 ? 0.9 : 1.7)) * (this.phase === 1 ? 14 : 30);
@@ -976,7 +1166,168 @@ export class Boss {
     }
   }
 
-  /* ---------- Stage 3: 시공간 메카 크로노스 ---------- */
+  /* ---------- Stage 3: 용암 거신 이그니스 ---------- */
+  /** 머리(입) 위치 — 보스 앞쪽 (bossRender 의 머리 그림과 맞춤) */
+  private get mouth() {
+    return { x: this.x, y: this.y + (this.phase === 1 ? 112 : 118) };
+  }
+
+  private ignis(dt: number, w: World) {
+    const bs = w.stageDef.bulletSpeed;
+    const m = this.mouth;
+    if (this.phase === 1) {
+      // 등의 용암 박격포 — 느린 용암탄 3발이 잠시 뒤 10갈래로 갈라진다
+      if (this.ready('magma', dt, 2.6, 1.4)) {
+        const base = this.aim(w, this.x, this.y);
+        for (const s of [-1, 0, 1]) {
+          // 양옆 두 발은 등의 박격포 포구에서, 가운데 한 발은 등줄기에서
+          w.fire(this.x + s * 39, this.y - (s === 0 ? 40 : 75), base + s * 0.45, 95 * bs, {
+            kind: 'magma',
+            r: 9,
+            split: {
+              at: 1.15 + Math.abs(s) * 0.12,
+              n: 10,
+              speed: 120 * bs,
+              color: '#ff8a2a',
+              r: 4,
+            },
+          });
+        }
+      }
+      // 날개 끝 발톱 — 좌우 번갈아 5갈래 바늘탄
+      if (this.ready('claw', dt, 0.95)) {
+        const s = Math.floor(this.t / 0.95) % 2 === 0 ? -1 : 1;
+        const fx = this.x + s * 104;
+        const fy = this.y + 18;
+        const a = this.aim(w, fx, fy);
+        for (let i = -2; i <= 2; i++) {
+          w.fire(fx, fy, a + i * 0.13, 175 * bs, { color: '#ffb03a', kind: 'needle', r: 4 });
+        }
+      }
+      // 화염 숨결 — 방향을 고정하고 1.3초 동안 불꽃을 뿜는다
+      if (this.ready('breath', dt, 6.5, 3.5)) {
+        this.breathEnd = this.t + 1.3;
+        this.breathAim = this.aim(w, m.x, m.y);
+      }
+      if (this.t < this.breathEnd && this.ready('flame', dt, 0.05)) {
+        for (let k = 0; k < 2; k++) {
+          w.fire(m.x, m.y, this.breathAim + rand(-0.32, 0.32), rand(190, 250) * bs, {
+            color: k ? '#ffd24a' : '#ff6a1a',
+            r: 4,
+          });
+        }
+      }
+    } else {
+      // 휘몰아치는 화염 숨결 — 3.2초 뿜고 1.3초 쉰다
+      const cycle = this.stateT % 4.5;
+      if (cycle < 3.2 && this.ready('sweep', dt, 0.045)) {
+        const a = Math.PI / 2 + Math.sin(this.stateT * 1.35) * 0.95;
+        for (const off of [-0.06, 0.06]) {
+          w.fire(m.x, m.y, a + off, 195 * bs, { color: off < 0 ? '#ff6a1a' : '#ffd24a', r: 4 });
+        }
+      }
+      // 운석 낙하 — 하늘에서 떨어지다 6갈래로 갈라진다
+      if (this.ready('meteor', dt, 1.7, 1)) {
+        for (let i = 0; i < 3; i++) {
+          const x = rand(40, VIEW_W - 40);
+          const toward = clamp((w.player.x - x) * 0.3, -60, 60);
+          w.fire(x, -14, Math.atan2(230, toward), 230 * bs, {
+            kind: 'magma',
+            r: 8,
+            split: { at: rand(0.85, 1.25), n: 6, speed: 110 * bs, color: '#ffb03a', r: 4 },
+          });
+        }
+      }
+      // 가슴 용광로의 고리탄
+      if (this.ready('ring', dt, 3.1, 1.8)) {
+        const n = 24;
+        const off = rand(0, TAU);
+        for (let i = 0; i < n; i++) {
+          w.fire(this.x, this.y + 10, off + (i / n) * TAU, 125 * bs, { color: '#ff9a3a', r: 5 });
+        }
+      }
+    }
+  }
+
+  /* ---------- Stage 4: 궤도 요새 세라핌 ---------- */
+  /** 후광 고리 위 포대 i 의 위치 (그리기와 같은 기울기·반지름) */
+  podPos(i: number) {
+    const a = this.t * (this.phase === 1 ? 0.5 : 1.1) + (i * TAU) / 6;
+    return { x: this.x + Math.cos(a) * 118, y: this.y + Math.sin(a) * 118 * 0.42 };
+  }
+
+  private seraph(dt: number, w: World) {
+    const bs = w.stageDef.bulletSpeed;
+    if (this.phase === 1) {
+      // 고리 포대 6기가 차례로 조준탄
+      if (this.ready('pods', dt, 0.3)) {
+        this.podTurn = (this.podTurn + 1) % 6;
+        const p = this.podPos(this.podTurn);
+        w.fire(p.x, p.y, this.aim(w, p.x, p.y), 205 * bs, {
+          color: '#7fe0ff',
+          kind: 'needle',
+          r: 4,
+        });
+      }
+      // 주포 — 아래를 향했다가 플레이어 쪽으로 쓸어 가는 굵은 레이저
+      if (this.ready('beam', dt, 7.5, 3)) {
+        const dir = w.player.x < this.x ? -1 : 1;
+        w.addLaser(
+          new EnemyLaser(
+            0,
+            0,
+            Math.PI / 2 - dir * 0.55,
+            28,
+            1.1,
+            2.2,
+            dir * 0.42,
+            () => ({ x: this.x, y: this.y + 62 }),
+            '#7fe0ff',
+          ),
+        );
+        this.lastLaserEnd = this.t + 3.3;
+      }
+      // 태양전지판 아래에서 기뢰를 떨어뜨린다 (레이저 중엔 쉰다)
+      if (this.t > this.lastLaserEnd && this.ready('mines', dt, 6.5, 4.5)) {
+        for (const s of [-1, 1]) {
+          const mine = new Enemy('mine', clamp(this.x + s * 150, 30, VIEW_W - 30), this.y + 20);
+          mine.armMine();
+          w.addEnemy(mine);
+        }
+      }
+    } else {
+      // 두 고리에서 서로 반대로 도는 나선
+      if (this.ready('spiral', dt, 0.11)) {
+        this.spinA += 0.23;
+        this.spinB -= 0.19;
+        for (let k = 0; k < 3; k++) {
+          w.fire(this.x, this.y, this.spinA + (k * TAU) / 3, 125 * bs, { color: '#ffd56a', r: 5 });
+          w.fire(this.x, this.y, this.spinB + (k * TAU) / 3, 100 * bs, { color: '#7fe0ff', r: 4 });
+        }
+      }
+      // 궤도 폭격 — 하늘에서 플레이어 자리와 양옆으로 내리꽂히는 빛기둥
+      if (this.ready('strike', dt, 5.2, 2)) {
+        const px = w.player.x;
+        for (const dx of [-115, 0, 115]) {
+          const x = clamp(px + dx, 20, VIEW_W - 20);
+          w.addLaser(new EnemyLaser(x, -30, Math.PI / 2, 30, 1.15, 0.85, 0, null, '#bfefff'));
+        }
+      }
+      // 코어의 7갈래 조준탄
+      if (this.ready('fan', dt, 1.45, 0.8)) {
+        const a = this.aim(w, this.x, this.y + 40);
+        for (let i = -3; i <= 3; i++) {
+          w.fire(this.x, this.y + 40, a + i * 0.12, 210 * bs, {
+            color: '#ffffff',
+            kind: 'needle',
+            r: 4,
+          });
+        }
+      }
+    }
+  }
+
+  /* ---------- Stage 5: 시공간 메카 크로노스 ---------- */
   private chronos(dt: number, w: World) {
     const bs = w.stageDef.bulletSpeed;
     if (this.phase === 1) {
@@ -1052,6 +1403,8 @@ export class Boss {
     };
     if (this.id === 'goliath') drawGoliath(ctx, look);
     else if (this.id === 'kraken') drawKraken(ctx, look);
+    else if (this.id === 'ignis') drawIgnis(ctx, look, this.t < this.breathEnd);
+    else if (this.id === 'seraph') drawSeraph(ctx, look);
     else drawChronos(ctx, look);
   }
 }
