@@ -1,0 +1,660 @@
+/* 지렁이 아레나 — 경기장은 캔버스가 그리고, 안내 창·버튼은 테마 토큰만 써서 모든 테마를 따라간다 */
+
+.root {
+  display: flex;
+  justify-content: center;
+  width: 100%;
+}
+
+/* 가로형 4:3 무대 — 화면 높이에 맞춰 줄어든다 */
+.stage {
+  position: relative;
+  width: min(100%, 760px, calc(76vh * 4 / 3));
+  aspect-ratio: 4 / 3;
+  overflow: hidden;
+  border: 1px solid #05070a;
+  border-radius: var(--radius-sm);
+  background: #0b0e13;
+  user-select: none;
+  -webkit-user-select: none;
+}
+
+/* 전체 화면 — 모니터를 꽉 채운다 (캔버스는 크기 변화를 감지해 다시 그린다) */
+.stage:fullscreen {
+  width: 100vw;
+  height: 100vh;
+  aspect-ratio: auto;
+  border: 0;
+  border-radius: 0;
+}
+.stage:fullscreen .overlay {
+  padding: 24px;
+}
+
+.canvas {
+  display: block;
+  width: 100%;
+  height: 100%;
+  /* 끌어서 방향을 정할 때 화면이 스크롤·확대되지 않게 */
+  touch-action: none;
+  cursor: crosshair;
+}
+
+/* 왼쪽 위 — 내 길이 */
+.hud {
+  position: absolute;
+  top: 10px;
+  left: 10px;
+  display: flex;
+  flex-direction: column;
+  padding: 6px 10px;
+  border-radius: var(--radius-sm);
+  background: rgb(0 0 0 / 0.45);
+  color: #fff;
+  pointer-events: none;
+}
+.length {
+  font-size: 1.6rem;
+  font-weight: 800;
+  line-height: 1.1;
+  font-variant-numeric: tabular-nums;
+}
+.length small {
+  margin-left: 4px;
+  font-size: 0.75rem;
+  font-weight: 700;
+  opacity: 0.75;
+}
+.sub {
+  font-size: 0.75rem;
+  opacity: 0.8;
+}
+
+/* 오른쪽 위 — 길이 순위 */
+.leaders {
+  position: absolute;
+  top: 10px;
+  right: 10px;
+  min-width: 140px;
+  margin: 0;
+  padding: 6px 10px;
+  border-radius: var(--radius-sm);
+  background: rgb(0 0 0 / 0.45);
+  color: rgb(255 255 255 / 0.8);
+  font-size: 0.75rem;
+  list-style: none;
+  pointer-events: none;
+}
+.leaders li {
+  display: flex;
+  justify-content: space-between;
+  gap: 10px;
+  line-height: 1.6;
+}
+.leaders b {
+  font-variant-numeric: tabular-nums;
+}
+.leaders .me {
+  color: #ffe36b;
+  font-weight: 800;
+}
+
+/* 왼쪽 아래 — 소리 · 일시정지 */
+.buttons {
+  position: absolute;
+  left: 10px;
+  bottom: 10px;
+  /* 시작·결과 창 위에서도 전체 화면 버튼을 누를 수 있게 */
+  z-index: 2;
+  display: flex;
+  gap: 6px;
+}
+.iconBtn {
+  width: 36px;
+  height: 36px;
+  border: 1px solid rgb(255 255 255 / 0.35);
+  border-radius: 50%;
+  background: rgb(0 0 0 / 0.5);
+  color: #fff;
+  font-size: 0.9rem;
+  cursor: pointer;
+}
+.iconBtn:hover {
+  background: rgb(0 0 0 / 0.75);
+}
+
+/* 터치 가속 버튼 — 넓은 화면에서는 숨긴다 (마우스 클릭으로 가속) */
+.boostBtn {
+  position: absolute;
+  right: 18px;
+  bottom: calc(20% + 28px);
+  display: none;
+  width: 72px;
+  height: 72px;
+  border: 2px solid rgb(255 255 255 / 0.35);
+  border-radius: 50%;
+  background: rgb(255 255 255 / 0.12);
+  color: #fff;
+  font-size: 0.85rem;
+  font-weight: 800;
+  touch-action: none;
+}
+.boostOn {
+  background: rgb(255 200 60 / 0.45);
+  border-color: #ffd84a;
+}
+.boostBtn:disabled {
+  opacity: 0.4;
+}
+@media (pointer: coarse) {
+  .boostBtn {
+    display: block;
+  }
+}
+
+/* 대시 게이지 — 다 쓰면 빨갛게 깜빡이며 잠긴다 */
+.stamina {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  margin-top: 4px;
+  font-size: 0.75rem;
+}
+.staminaBar {
+  width: 90px;
+  height: 6px;
+  border-radius: 999px;
+  background: rgb(255 255 255 / 0.2);
+  overflow: hidden;
+}
+.staminaBar > span {
+  display: block;
+  height: 100%;
+  background: linear-gradient(90deg, #ffb020, #ffe36b);
+  transition: width 0.1s linear;
+}
+.staminaOut .staminaBar > span {
+  background: #e04a3a;
+}
+.staminaOut {
+  animation: blink 0.5s steps(2) infinite;
+}
+
+/* 걸려 있는 파워업 · 잔치 표시 */
+.effects {
+  display: flex;
+  gap: 6px;
+  margin-top: 4px;
+}
+.effect {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 2px;
+  font-size: 0.95rem;
+  line-height: 1;
+}
+.effectBar {
+  width: 24px;
+  height: 3px;
+  border-radius: 999px;
+  background: rgb(255 255 255 / 0.2);
+  overflow: hidden;
+}
+.effectBar > span {
+  display: block;
+  height: 100%;
+}
+.feast {
+  margin-top: 4px;
+  color: #ffd84a;
+  font-size: 0.72rem;
+  font-weight: 800;
+  animation: blink 1s steps(2) infinite;
+}
+@keyframes blink {
+  50% {
+    opacity: 0.55;
+  }
+}
+
+/* 연속 킬 — 화면 가운데 큰 글씨 */
+.banner {
+  position: absolute;
+  top: 32%;
+  left: 50%;
+  margin: 0;
+  color: #ffd84a;
+  font-size: 2.2rem;
+  font-weight: 900;
+  white-space: nowrap;
+  text-shadow:
+    0 3px 0 #b3261e,
+    0 0 18px rgb(255 120 40 / 0.8);
+  transform: translateX(-50%);
+  pointer-events: none;
+  animation: slam 1.6s ease-out forwards;
+}
+@keyframes slam {
+  0% {
+    transform: translateX(-50%) scale(2.2);
+    opacity: 0;
+  }
+  15% {
+    transform: translateX(-50%) scale(1);
+    opacity: 1;
+  }
+  75% {
+    opacity: 1;
+  }
+  100% {
+    transform: translateX(-50%) translateY(-20px) scale(1);
+    opacity: 0;
+  }
+}
+
+.notices {
+  position: absolute;
+  top: 18%;
+  left: 50%;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 4px;
+  width: 90%;
+  transform: translateX(-50%);
+  pointer-events: none;
+}
+.notice {
+  margin: 0;
+  padding: 5px 14px;
+  border-radius: 999px;
+  background: rgb(0 0 0 / 0.55);
+  color: #fff;
+  font-size: 0.9rem;
+  font-weight: 800;
+  animation: pop 0.2s ease-out;
+}
+@keyframes pop {
+  from {
+    transform: scale(0.8);
+    opacity: 0;
+  }
+}
+
+.overlay {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  padding: 12px;
+  background: rgb(5 8 14 / 0.45);
+  overflow-y: auto;
+}
+
+.panel {
+  width: min(380px, 100%);
+  margin: auto;
+  padding: 20px 18px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  background: var(--surface);
+  color: var(--text);
+  text-align: center;
+}
+
+.title {
+  margin: 0 0 12px;
+  font-size: 1.4rem;
+}
+
+.rules {
+  margin: 0 0 12px;
+  padding: 0;
+  list-style: none;
+  color: var(--text-muted);
+  font-size: 0.88rem;
+  line-height: 1.7;
+}
+
+.pickLabel {
+  margin: 0 0 6px;
+  font-size: 0.85rem;
+  font-weight: 700;
+}
+.skins {
+  display: grid;
+  grid-template-columns: repeat(8, 1fr);
+  gap: 6px;
+}
+.skin {
+  aspect-ratio: 1;
+  border: 2px solid var(--border);
+  border-radius: 50%;
+  cursor: pointer;
+}
+.skinOn {
+  border-color: var(--accent);
+  box-shadow: 0 0 0 3px var(--accent);
+}
+
+.controls {
+  display: grid;
+  gap: 4px;
+  margin: 0 0 12px;
+  font-size: 0.85rem;
+}
+.controls div {
+  display: flex;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 4px 10px;
+  border-radius: var(--radius-sm);
+  background: var(--bg);
+}
+.controls dt {
+  font-weight: 700;
+}
+.controls dd {
+  margin: 0;
+  color: var(--text-muted);
+}
+
+.hint {
+  margin: 8px 0;
+  color: var(--text-muted);
+  font-size: 0.8rem;
+}
+
+.bigScore {
+  margin: 0;
+  color: var(--accent);
+  font-size: 2.6rem;
+  font-weight: 800;
+}
+
+.summary {
+  margin: 0 0 12px;
+  color: var(--text-muted);
+  font-size: 0.85rem;
+}
+
+/* 휴대폰 — 키보드 조작표 대신 터치 안내 */
+.touchHint {
+  display: none;
+}
+@media (max-width: 480px), (pointer: coarse) {
+  .touchHint {
+    display: block;
+  }
+}
+@media (max-width: 480px) {
+  .stage {
+    aspect-ratio: 3 / 4;
+    width: 100%;
+  }
+  .panel {
+    padding: 14px 12px;
+  }
+  .title {
+    font-size: 1.2rem;
+  }
+  .rules {
+    font-size: 0.8rem;
+    line-height: 1.5;
+  }
+  .leaders {
+    min-width: 110px;
+    font-size: 0.68rem;
+  }
+}
+
+/* ---------- 성장 — 레벨 · 탭 · 미션 · 도감 · 결과 ---------- */
+
+.menuPanel {
+  width: min(440px, 100%);
+}
+
+.levelBar {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin: 0 0 10px;
+  font-size: 0.8rem;
+}
+.levelBar b {
+  color: var(--accent);
+}
+.levelBar small {
+  color: var(--text-muted);
+  white-space: nowrap;
+}
+
+.progress {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+.progress small {
+  color: var(--text-muted);
+  font-size: 0.7rem;
+  white-space: nowrap;
+}
+.progressBar {
+  flex: 1;
+  height: 7px;
+  border-radius: 999px;
+  background: var(--bg);
+  box-shadow: inset 0 0 0 1px var(--border);
+  overflow: hidden;
+}
+.progressBar > span {
+  display: block;
+  height: 100%;
+  background: var(--accent);
+  transition: width 0.4s;
+}
+
+.tabs {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 4px;
+  margin: 0 0 12px;
+}
+.tab {
+  position: relative;
+  padding: 6px 2px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  background: var(--bg);
+  color: var(--text);
+  font: inherit;
+  font-size: 0.75rem;
+  font-weight: 700;
+  cursor: pointer;
+}
+.tabOn {
+  border-color: var(--accent);
+  background: var(--accent);
+  color: #fff;
+}
+.dot {
+  position: absolute;
+  top: -6px;
+  right: -4px;
+  min-width: 16px;
+  height: 16px;
+  padding: 0 4px;
+  border-radius: 999px;
+  background: #e04a3a;
+  color: #fff;
+  font-size: 0.65rem;
+  line-height: 16px;
+}
+
+.hats {
+  display: grid;
+  grid-template-columns: repeat(10, 1fr);
+  gap: 4px;
+}
+.hat {
+  aspect-ratio: 1;
+  padding: 0;
+  border: 2px solid var(--border);
+  border-radius: 8px;
+  background: var(--bg);
+  color: var(--text-muted);
+  font-size: 1rem;
+  cursor: pointer;
+}
+.locked {
+  position: relative;
+  filter: grayscale(1);
+  opacity: 0.35;
+}
+
+.list {
+  display: grid;
+  gap: 6px;
+  max-height: 260px;
+  margin: 0 0 12px;
+  padding: 0;
+  overflow-y: auto;
+  list-style: none;
+  text-align: left;
+}
+.list li {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 6px 10px;
+  border-radius: var(--radius-sm);
+  background: var(--bg);
+}
+.list .done {
+  box-shadow: inset 3px 0 0 var(--success, #1f9d6b);
+}
+.listIcon {
+  font-size: 1.2rem;
+}
+.listBody {
+  display: grid;
+  flex: 1;
+  gap: 3px;
+  min-width: 0;
+  font-size: 0.8rem;
+}
+.listBody small {
+  color: var(--text-muted);
+  font-size: 0.7rem;
+  font-weight: 400;
+}
+.good,
+.listBody .good {
+  margin: 0 0 8px;
+  color: var(--success, #1f9d6b);
+  font-weight: 700;
+}
+.listBody .good {
+  margin: 0;
+}
+
+.xpBox {
+  display: grid;
+  gap: 4px;
+  margin: 0 0 12px;
+  padding: 8px 10px;
+  border-radius: var(--radius-sm);
+  background: var(--bg);
+  font-size: 0.85rem;
+  font-weight: 700;
+}
+.xpBox .levelBar {
+  margin: 0;
+}
+.levelUp {
+  color: var(--accent);
+}
+.record {
+  color: var(--accent);
+  font-weight: 800;
+}
+.nextGoal {
+  display: grid;
+  gap: 4px;
+  margin: 0 0 12px;
+  text-align: left;
+}
+.nextGoal small {
+  color: var(--text-muted);
+  font-size: 0.75rem;
+}
+
+@media (max-width: 480px) {
+  .tab {
+    font-size: 0.65rem;
+  }
+  .hats {
+    grid-template-columns: repeat(5, 1fr);
+  }
+}
+
+/* ---------- 첫 판 안내 ---------- */
+
+.tutorial {
+  position: absolute;
+  left: 50%;
+  bottom: 60px;
+  z-index: 2;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  max-width: calc(100% - 140px);
+  padding: 8px 12px;
+  border: 1px solid rgb(255 227 107 / 0.6);
+  border-radius: 12px;
+  background: rgb(0 0 0 / 0.7);
+  color: #fff;
+  transform: translateX(-50%);
+  animation: pop 0.25s ease-out;
+}
+.tutorial p {
+  margin: 0;
+  font-size: 0.85rem;
+  font-weight: 700;
+  line-height: 1.4;
+}
+.tutorialStep {
+  flex: 0 0 auto;
+  color: #ffe36b;
+  font-size: 0.7rem;
+  font-weight: 800;
+}
+.tutorialSkip {
+  flex: 0 0 auto;
+  padding: 2px 8px;
+  border: 1px solid rgb(255 255 255 / 0.4);
+  border-radius: 999px;
+  background: none;
+  color: rgb(255 255 255 / 0.75);
+  font: inherit;
+  font-size: 0.7rem;
+  cursor: pointer;
+}
+.linkBtn {
+  display: block;
+  margin: 0 auto 10px;
+  padding: 0;
+  border: 0;
+  background: none;
+  color: var(--text-muted);
+  font: inherit;
+  font-size: 0.75rem;
+  text-decoration: underline;
+  cursor: pointer;
+}
+@media (max-width: 480px) {
+  .tutorial {
+    bottom: 56px;
+    max-width: calc(100% - 20px);
+  }
+}

@@ -72,6 +72,8 @@ export const MAX_SCORE_BY_GAME: Record<string, number> = {
   'chair-stack': 50_000,
   // 무피해 최단 클리어도 20만 점 안팎 — 게임 내부 상한(config.ts MAX_SCORE)과 같게
   'cat-blade': 500_000,
+  // 점수 = 가장 길었을 때 길이. 경기장 먹이·AI 를 다 먹어도 수만 점 — 게임 내부 상한(config.ts MAX_SCORE)과 같게
+  'worm-arena': 100_000,
 };
 
 export const DEFAULT_MAX_SCORE = 1_000_000;
