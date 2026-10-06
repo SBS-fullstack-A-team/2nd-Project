@@ -1,0 +1,299 @@
+/* 설정 화면 — 참가자 | 결과 | 옵션 */
+.setup {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr) minmax(240px, 300px);
+  gap: 20px;
+}
+.column {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+}
+.side {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+.label {
+  margin: 4px 0 2px;
+  font-weight: 800;
+}
+.textarea {
+  flex: 1;
+  min-height: 260px;
+  font: inherit;
+  font-size: 1rem;
+  line-height: 1.5;
+  padding: 10px 12px;
+  border: 2px solid var(--border);
+  border-radius: var(--radius-sm);
+  background: var(--surface);
+  color: var(--text);
+  resize: vertical;
+}
+.textarea:focus {
+  outline: none;
+  border-color: var(--accent);
+}
+.summary {
+  margin: 8px 0 0;
+  color: var(--text-muted);
+}
+.warn {
+  color: var(--danger);
+}
+.rules {
+  margin: 0 0 8px;
+  padding-left: 18px;
+  color: var(--text-muted);
+  font-size: 0.9rem;
+  line-height: 1.7;
+}
+.toggle {
+  display: flex;
+  gap: 6px;
+}
+.toggleButton {
+  flex: 1;
+  padding: 7px 10px;
+  border: 2px solid var(--border);
+  border-radius: 999px;
+  background: var(--surface);
+  color: var(--text);
+  font: inherit;
+  font-weight: 700;
+  white-space: nowrap;
+  cursor: pointer;
+}
+.toggleButton:hover {
+  border-color: var(--accent);
+}
+.selected,
+.selected:hover {
+  border-color: var(--accent);
+  background: var(--accent);
+  color: #fff;
+}
+.startButton {
+  margin-top: 12px;
+  padding: 12px;
+  font-size: 1.1rem;
+}
+
+/* 추첨 화면 — 왼쪽 추첨판, 오른쪽 짝 목록 */
+.play {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 250px;
+  gap: 12px;
+  height: min(80vh, 860px);
+}
+/* 도구 페이지의 전체 화면 버튼 → 화면을 꽉 채운다 */
+:global(:fullscreen) .play {
+  height: calc(100vh - 32px);
+}
+.stage {
+  position: relative;
+  min-width: 0;
+  min-height: 0;
+  border-radius: var(--radius-sm);
+  overflow: hidden;
+  background: #0a0c1f;
+}
+.canvas {
+  display: block;
+  width: 100%;
+  height: 100%;
+}
+.panel {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  min-height: 0;
+}
+.controls {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+.controls .toggleButton {
+  padding: 4px 6px;
+  font-size: 0.85rem;
+}
+.dropButton {
+  padding: 10px;
+  font-size: 1rem;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.controlRow {
+  display: flex;
+  gap: 6px;
+}
+.controlRow > * {
+  flex: 1;
+  font-size: 0.85rem;
+  white-space: nowrap;
+}
+.status {
+  margin: 4px 0 0;
+  font-weight: 800;
+}
+.matches {
+  position: relative; /* 항목 offsetTop 의 기준 (자동 스크롤) */
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
+  list-style: none;
+  margin: 0;
+  padding: 4px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  background: var(--surface);
+}
+.match {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 4px;
+  font-size: 0.9rem;
+  border-radius: 4px;
+}
+.falling {
+  background: var(--yellow);
+  color: var(--text);
+  font-weight: 800;
+}
+.dot {
+  flex: none;
+  width: 12px;
+  height: 12px;
+  border-radius: 50%;
+  border: 1px solid rgba(0, 0, 0, 0.3);
+}
+.matchName {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.matchResult {
+  max-width: 50%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-weight: 800;
+}
+
+/* 결과 발표 — 추첨판 위에 겹쳐 띄운다 */
+.result {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 12px;
+  padding: 20px;
+  background: rgba(10, 12, 30, 0.84);
+  color: #fff;
+  text-align: center;
+  animation: fadeIn 0.4s ease-out;
+}
+@keyframes fadeIn {
+  from {
+    opacity: 0;
+    transform: scale(0.96);
+  }
+}
+.resultTitle {
+  margin: 0;
+  font-size: clamp(1.8rem, 5vw, 3rem);
+  font-weight: 900;
+  color: #ffd23f;
+}
+.resultList {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+  gap: 4px 20px;
+  width: min(100%, 760px);
+  max-height: 55%;
+  overflow-y: auto;
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  font-size: clamp(1rem, 2.4vw, 1.35rem);
+}
+.resultList li {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 4px 8px;
+  min-width: 0;
+}
+.miss {
+  opacity: 0.6;
+}
+.arrow {
+  color: #c9d1ff;
+}
+.resultValue {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  color: #ffd23f;
+  font-weight: 900;
+}
+.miss .resultValue {
+  color: #fff;
+  font-weight: 700;
+}
+.resultActions {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: 8px;
+}
+.seed {
+  margin: 0;
+  font-size: 0.8rem;
+  opacity: 0.7;
+}
+
+@media (max-width: 900px) {
+  .setup {
+    grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+  }
+  .side {
+    grid-column: 1 / -1;
+  }
+}
+@media (max-width: 720px) {
+  .setup {
+    grid-template-columns: minmax(0, 1fr);
+  }
+  .textarea {
+    min-height: 160px;
+  }
+  /* 휴대폰 — 추첨판을 위에 크게, 조작·목록은 아래로 (목록은 따로 스크롤) */
+  .play {
+    grid-template-columns: minmax(0, 1fr);
+    height: auto;
+  }
+  /* 추첨판 비율(가로 900 : 세로 약 1000)에 맞춰 빈 공간 없이 */
+  .stage {
+    aspect-ratio: 9 / 10;
+    max-height: 72vh;
+  }
+  .matches {
+    flex: none;
+    max-height: 260px;
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .result {
+    animation: none;
+  }
+}
