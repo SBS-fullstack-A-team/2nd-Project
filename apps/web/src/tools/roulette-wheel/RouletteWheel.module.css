@@ -1,0 +1,242 @@
+/* 왼쪽 돌림판, 오른쪽 항목·설정·기록 */
+.tool {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 300px;
+  gap: 14px;
+  height: min(80vh, 860px);
+}
+/* 도구 페이지의 전체 화면 버튼 → 화면을 꽉 채운다 */
+:global(:fullscreen) .tool {
+  height: calc(100vh - 32px);
+}
+.stage {
+  position: relative;
+  min-width: 0;
+  min-height: 0;
+  border-radius: var(--radius-sm);
+  overflow: hidden;
+  background: #0c0e26;
+}
+.canvas {
+  display: block;
+  width: 100%;
+  height: 100%;
+  cursor: pointer;
+}
+.spinButton {
+  position: absolute;
+  left: 50%;
+  bottom: 14px;
+  transform: translateX(-50%);
+  padding: 10px 22px;
+  font-size: 1.05rem;
+  white-space: nowrap;
+}
+
+/* 당첨 발표 — 돌림판 위쪽에 띠로 띄운다 (돌림판의 당첨 칸이 가려지지 않게) */
+.result {
+  position: absolute;
+  left: 50%;
+  top: 8px;
+  transform: translateX(-50%);
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  width: max-content;
+  max-width: calc(100% - 24px);
+  padding: 6px 18px;
+  border-radius: 28px;
+  background: rgba(10, 12, 30, 0.88);
+  color: #fff;
+  pointer-events: none;
+  animation: pop 0.45s cubic-bezier(0.2, 1.6, 0.4, 1);
+}
+@keyframes pop {
+  from {
+    opacity: 0;
+    transform: translateX(-50%) scale(0.6);
+  }
+}
+.resultLabel {
+  flex: none;
+  color: #ffd23f;
+  font-weight: 900;
+  font-size: clamp(1rem, 2.4vw, 1.4rem);
+}
+.resultValue {
+  min-width: 0;
+  padding: 0 10px 2px;
+  border-bottom: 4px solid;
+  font-size: clamp(1.1rem, 3vw, 1.9rem);
+  font-weight: 900;
+  line-height: 1.2;
+  /* 긴 항목은 줄여 쓰지 않고 두 줄까지 보여 준다 */
+  display: -webkit-box;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
+  line-clamp: 2;
+  overflow: hidden;
+  overflow-wrap: anywhere;
+}
+
+.side {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  min-height: 0;
+}
+.label {
+  margin: 2px 0 0;
+  font-weight: 800;
+}
+.items {
+  flex: 1 1 200px;
+  min-height: 140px;
+  font: inherit;
+  font-size: 1rem;
+  line-height: 1.5;
+  padding: 8px 10px;
+  border: 2px solid var(--border);
+  border-radius: var(--radius-sm);
+  background: var(--surface);
+  color: var(--text);
+  resize: none;
+}
+.items:focus {
+  outline: none;
+  border-color: var(--accent);
+}
+.items:disabled {
+  opacity: 0.7;
+}
+.summary {
+  margin: 0;
+  color: var(--text-muted);
+  font-size: 0.9rem;
+}
+.warn {
+  color: var(--danger);
+}
+.toggle {
+  display: flex;
+  gap: 6px;
+}
+.toggleButton {
+  flex: 1;
+  padding: 5px 8px;
+  border: 2px solid var(--border);
+  border-radius: 999px;
+  background: var(--surface);
+  color: var(--text);
+  font: inherit;
+  font-size: 0.9rem;
+  font-weight: 700;
+  white-space: nowrap;
+  cursor: pointer;
+}
+.toggleButton:hover {
+  border-color: var(--accent);
+}
+.selected,
+.selected:hover {
+  border-color: var(--accent);
+  background: var(--accent);
+  color: #fff;
+}
+.check {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 0.9rem;
+  cursor: pointer;
+}
+.controlRow {
+  display: flex;
+  gap: 6px;
+}
+.controlRow > * {
+  flex: 1;
+  font-size: 0.85rem;
+  white-space: nowrap;
+}
+.historyHead {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin-top: 4px;
+}
+.historyHead .label {
+  flex: 1;
+}
+.small {
+  padding: 2px 8px;
+  font-size: 0.8rem;
+}
+.history {
+  flex: 1 1 120px;
+  min-height: 80px;
+  overflow-y: auto;
+  list-style: none;
+  margin: 0;
+  padding: 4px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  background: var(--surface);
+}
+.history li {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 3px 4px;
+  font-size: 0.9rem;
+  border-radius: 4px;
+}
+.latest {
+  background: var(--yellow);
+  color: var(--text);
+  font-weight: 800;
+}
+.empty {
+  color: var(--text-muted);
+}
+.round {
+  min-width: 1.8em;
+  text-align: right;
+  color: var(--text-muted);
+  font-variant-numeric: tabular-nums;
+}
+.dot {
+  flex: none;
+  width: 12px;
+  height: 12px;
+  border-radius: 50%;
+  border: 1px solid rgba(0, 0, 0, 0.3);
+}
+.historyLabel {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+@media (max-width: 720px) {
+  /* 휴대폰 — 돌림판(+ 위 당첨 띠, 아래 버튼)을 위에, 설정·기록은 아래로 */
+  .tool {
+    grid-template-columns: minmax(0, 1fr);
+    height: auto;
+  }
+  .stage {
+    aspect-ratio: 4 / 5;
+    max-height: 78vh;
+  }
+  .history {
+    flex: none;
+    max-height: 200px;
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .result {
+    animation: none;
+  }
+}
