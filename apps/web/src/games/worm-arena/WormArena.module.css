@@ -456,7 +456,7 @@
 
 .tabs {
   display: grid;
-  grid-template-columns: repeat(4, 1fr);
+  grid-template-columns: repeat(5, 1fr);
   gap: 4px;
   margin: 0 0 12px;
 }
@@ -468,7 +468,8 @@
   background: var(--bg);
   color: var(--text);
   font: inherit;
-  font-size: 0.75rem;
+  font-size: 0.72rem;
+  line-height: 1.25;
   font-weight: 700;
   cursor: pointer;
 }

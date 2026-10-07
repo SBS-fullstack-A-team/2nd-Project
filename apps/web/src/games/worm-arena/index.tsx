@@ -1,6 +1,15 @@
 import { useEffect, useRef, useState } from 'react';
 import type { GameProps } from '@simsim/shared';
-import { CONTROLS, HOW_TO_PLAY, SKINS, findPower, type PowerKind } from './config';
+import {
+  CONTROLS,
+  FEAST_INTERVAL,
+  HOW_TO_PLAY,
+  POWERS,
+  SKINS,
+  TRAITS,
+  findPower,
+  type PowerKind,
+} from './config';
 import { WormEngine, type Hud, type Summary } from './engine';
 import {
   ACHIEVEMENTS,
@@ -26,10 +35,11 @@ import styles from './WormArena.module.css';
 type Screen =
   { name: 'menu' } | { name: 'playing' } | { name: 'result'; summary: Summary; report: RunReport };
 
-type MenuTab = 'play' | 'missions' | 'collection' | 'stats';
+type MenuTab = 'play' | 'guide' | 'missions' | 'collection' | 'stats';
 
 const MENU_TABS: readonly { id: MenuTab; label: string }[] = [
   { id: 'play', label: '🎮 플레이' },
+  { id: 'guide', label: '💡 알아두기' },
   { id: 'missions', label: '🎯 오늘의 미션' },
   { id: 'collection', label: '📖 도감' },
   { id: 'stats', label: '📊 기록' },
@@ -189,7 +199,7 @@ export default function WormArena({ onFinish }: GameProps) {
           if (kind === 'feast') notify('✨ 황금 먹이 잔치! ★ 쪽으로 가 보세요');
           if (kind === 'power' && text) {
             const def = findPower(text as PowerKind);
-            notify(`${def.icon} ${def.label} ${def.seconds}초!`);
+            notify(`${def.icon} ${def.label} ${def.seconds}초! ${def.tip}`);
           }
         },
       });
@@ -669,6 +679,55 @@ export default function WormArena({ onFinish }: GameProps) {
                   {profile.daily.allDone && (
                     <p className={styles.good}>🎉 오늘의 미션 완료! 내일 또 만나요</p>
                   )}
+                </>
+              )}
+
+              {tab === 'guide' && (
+                <>
+                  <p className={styles.pickLabel}>
+                    파워업 — 경기장에 떠 있는 아이콘을 머리로 먹어요
+                  </p>
+                  <ul className={styles.list}>
+                    {POWERS.map((p) => (
+                      <li key={p.kind}>
+                        <span className={styles.listIcon}>{p.icon}</span>
+                        <span className={styles.listBody}>
+                          <strong>
+                            {p.label} <small>· {p.seconds}초</small>
+                          </strong>
+                          <small>{p.desc}</small>
+                        </span>
+                      </li>
+                    ))}
+                    <li>
+                      <span className={styles.listIcon}>★</span>
+                      <span className={styles.listBody}>
+                        <strong>
+                          황금 먹이 잔치 <small>· {FEAST_INTERVAL}초마다</small>
+                        </strong>
+                        <small>
+                          경기장 한 곳에 큰 황금 먹이가 쏟아져요. 미니맵의 ★ 를 보고 먼저 가세요. AI
+                          도 몰려와요!
+                        </small>
+                      </span>
+                    </li>
+                  </ul>
+                  <p className={styles.pickLabel}>지렁이 성격 — 이름 앞 아이콘으로 알 수 있어요</p>
+                  <ul className={styles.list}>
+                    {TRAITS.map((t) => (
+                      <li key={t.kind}>
+                        <span className={styles.listIcon}>{t.icon || '🪱'}</span>
+                        <span className={styles.listBody}>
+                          <strong>{t.label}</strong>
+                          <small>{t.desc}</small>
+                        </span>
+                      </li>
+                    ))}
+                  </ul>
+                  <p className={styles.hint}>
+                    파워업은 AI 지렁이도 먹어요. 👻 유령 · 🛡️ 방패를 먹은 지렁이는 부딪혀도 안
+                    쓰러져요.
+                  </p>
                 </>
               )}
 

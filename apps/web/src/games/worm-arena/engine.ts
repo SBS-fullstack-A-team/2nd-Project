@@ -18,7 +18,7 @@ import {
   findPower,
   type PowerKind,
 } from './config';
-import { World, radiusOf, type RunStats, type Worm, type WorldEvents } from './world';
+import { World, displayName, radiusOf, type RunStats, type Worm, type WorldEvents } from './world';
 
 export interface Hud {
   length: number;
@@ -265,7 +265,7 @@ export class WormEngine {
         rank,
         total: ranking.length,
         leaders: ranking.slice(0, LEADERBOARD_SIZE).map((w) => ({
-          name: w.name,
+          name: displayName(w),
           length: Math.floor(w.mass),
           me: w.isPlayer,
         })),
@@ -545,7 +545,7 @@ export class WormEngine {
       ctx.fillStyle = w.isPlayer ? '#fff' : 'rgb(255 255 255 / 0.75)';
       // 모자를 쓴 내 지렁이는 이름을 모자 위로
       const lift = w.isPlayer && this.hat ? r * 1.9 : 0;
-      ctx.fillText(w.name, head.x, head.y - r - 8 - lift);
+      ctx.fillText(displayName(w), head.x, head.y - r - 8 - lift);
     }
 
     ctx.setTransform(1, 0, 0, 1, 0, 0);
