@@ -759,7 +759,7 @@ export class WormEngine {
     let spin = 0;
     let sx = 1;
     let sy = 1;
-    let glow = this.hatGlow;
+    const glow = this.hatGlow;
     let glowPower = 0.55 + Math.sin(t * 3) * 0.15;
 
     // 모자마다 다른 움직임
@@ -796,14 +796,17 @@ export class WormEngine {
         sx = sy = 1 + Math.max(0, Math.sin(t * 3)) * 0.1;
         glowPower = 0.6 + Math.max(0, Math.sin(t * 3)) * 0.35;
         break;
-      case 'dragon':
+      case 'dragonHorns':
+        // 불을 뿜을 때 고개를 살짝 든다
         sx = sy = 1 + Math.max(0, Math.sin(t * 2.2)) * 0.07;
+        if (t % 3 < 0.6) spin = -0.12;
         break;
-      case 'helmet':
-        // 경광등처럼 빨강 · 파랑이 번갈아
-        glow = Math.floor(t * 4) % 2 === 0 ? '#ff4f5e' : '#4fa8ff';
-        glowPower = 0.75;
+      case 'knightHelmet': {
+        // 2.5초마다 강철이 번쩍
+        const c = t % 2.5;
+        glowPower = 0.45 + (c < 0.35 ? Math.sin((c / 0.35) * Math.PI) * 0.5 : 0);
         break;
+      }
       case 'halo':
         hop = r * 0.9 + Math.sin(t * 2.5) * r * 0.12;
         break;
@@ -858,6 +861,18 @@ export class WormEngine {
     ctx.scale(sx, sy);
     drawIcon(ctx, hat, 0, 0, size);
     ctx.restore();
+
+    // 기사 투구 — 번쩍일 때 투구 위에 큰 빛 반짝
+    if (hat === 'knightHelmet') {
+      const c = t % 2.5;
+      if (c < 0.35) {
+        const k = Math.sin((c / 0.35) * Math.PI);
+        ctx.save();
+        ctx.globalAlpha = alpha * k;
+        drawIcon(ctx, 'sparkle', x - size * 0.22, y - size * 0.18, size * 0.6 * (0.6 + k * 0.4));
+        ctx.restore();
+      }
+    }
 
     if (this.hatGlow) {
       for (let i = 0; i < 3; i++) {
@@ -914,7 +929,7 @@ export class WormEngine {
       case 'crown':
         every = 0.18;
         break;
-      case 'dragon':
+      case 'dragonHorns':
         // 3초마다 0.6초 동안 불을 뿜는다
         every = t % 3 < 0.6 ? 0.03 : 0;
         break;
@@ -965,7 +980,7 @@ export class WormEngine {
             pick(['#ffd84a', '#fff3b0']),
           );
           break;
-        case 'dragon': {
+        case 'dragonHorns': {
           const a = angle + rand(-0.25, 0.25);
           const sp = rand(140, 220);
           push(
