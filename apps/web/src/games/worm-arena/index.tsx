@@ -244,7 +244,7 @@ export default function WormArena({ onFinish }: GameProps) {
   const missionsLeft = profile.daily.missions.filter((m) => !m.done).length;
 
   function start() {
-    engineRef.current?.start(skin.colors, hat.icon);
+    engineRef.current?.start(skin.colors, hat.icon, hat.glow ?? null);
     // 단계 시작 시각은 첫 확인 때 잰다
     tutorialRef.current = { moved: false, ate: 0, dashed: false, since: -1 };
     setTutorialStep(loadPref(TUTORIAL_KEY) === '1' ? null : 0);

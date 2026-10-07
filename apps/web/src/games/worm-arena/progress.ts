@@ -174,6 +174,8 @@ export interface Hat {
   icon: IconId | '';
   /** 이 레벨이 되면 열린다 (업적 보상 모자는 없음) */
   level?: number;
+  /** 업적 모자 — 머리 위에서 이 색으로 은은하게 빛나고 반짝인다 */
+  glow?: string;
 }
 
 export const HATS: readonly Hat[] = [
@@ -183,11 +185,11 @@ export const HATS: readonly Hat[] = [
   { id: 'flower', label: '꽃', icon: 'flower', level: 6 },
   { id: 'tophat', label: '신사 모자', icon: 'tophat', level: 8 },
   { id: 'party', label: '고깔', icon: 'partyHat', level: 10 },
-  { id: 'crown', label: '왕관', icon: 'crown' },
-  { id: 'dragon', label: '용', icon: 'dragon' },
-  { id: 'helmet', label: '투구', icon: 'helmet' },
-  { id: 'halo', label: '천사 고리', icon: 'halo' },
-  { id: 'cowboy', label: '카우보이 모자', icon: 'cowboy' },
+  { id: 'crown', label: '왕관', icon: 'crown', glow: '#ffd84a' },
+  { id: 'dragon', label: '용', icon: 'dragon', glow: '#7ee081' },
+  { id: 'helmet', label: '투구', icon: 'helmet', glow: '#ff6b6b' },
+  { id: 'halo', label: '천사 고리', icon: 'halo', glow: '#fff3b0' },
+  { id: 'cowboy', label: '카우보이 모자', icon: 'cowboy', glow: '#ffb02e' },
 ];
 
 /* ---------- 레벨 ---------- */

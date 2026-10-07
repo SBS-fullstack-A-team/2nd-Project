@@ -127,11 +127,16 @@ export class WormEngine {
     this.raf = requestAnimationFrame(this.loop);
   }
 
-  /** 플레이어 머리 위에 그릴 모자 이모지 (없으면 빈 문자열) */
+  /** 플레이어 머리 위에 그릴 모자 아이콘 (없으면 빈 문자열) · 업적 모자의 빛 색 */
   private hat: IconId | '' = '';
+  private hatGlow: string | null = null;
+  /** 모자 기울기(라디안) — 방향이 바뀌면 천천히 따라간다 */
+  private hatTilt = 0;
 
-  start(colors: readonly string[], hat: IconId | '' = '') {
+  start(colors: readonly string[], hat: IconId | '' = '', hatGlow: string | null = null) {
     this.hat = hat;
+    this.hatGlow = hatGlow;
+    this.hatTilt = 0;
     this.world = new World(colors);
     this.running = true;
     this.paused = false;
@@ -578,7 +583,7 @@ export class WormEngine {
       ctx.font = `700 ${fontSize}px sans-serif`;
       const isBounty = w === bounty;
       // 모자 · 왕관을 쓴 지렁이는 이름을 그 위로
-      const lift = (w.isPlayer && this.hat) || isBounty ? r * 1.9 : 0;
+      const lift = w.isPlayer && this.hat ? r * 2.5 : isBounty ? r * 1.9 : 0;
       const y = head.y - r - 8 - lift;
       const icon = findTrait(w.trait).icon;
       const iconSize = icon ? fontSize * 1.5 : 0;
@@ -712,13 +717,8 @@ export class WormEngine {
     }
     ctx.globalAlpha = 1;
 
-    // 모자 — 머리 위에 (화면 위쪽 방향으로 세워서)
-    if (w.isPlayer && this.hat) {
-      ctx.save();
-      ctx.globalAlpha = bodyAlpha;
-      drawIcon(ctx, this.hat, head.x, head.y - r * 1.15, r * 1.9);
-      ctx.restore();
-    }
+    // 모자 — 머리 위에 세우고, 가는 방향 반대로 살짝 기울이고, 움직이면 통통 튄다
+    if (w.isPlayer && this.hat) this.drawHat(this.hat, head, r, w.angle, boosting, bodyAlpha, t);
 
     // 방패 — 머리를 감싼 비눗방울
     if (fx.shield > 0) {
@@ -730,6 +730,62 @@ export class WormEngine {
       ctx.beginPath();
       ctx.arc(head.x, head.y, r * 2.1 + Math.sin(t * 5) * 1.5, 0, Math.PI * 2);
       ctx.fill();
+    }
+  }
+
+  private drawHat(
+    hat: IconId,
+    head: { x: number; y: number },
+    r: number,
+    angle: number,
+    boosting: boolean,
+    alpha: number,
+    t: number,
+  ) {
+    const ctx = this.ctx;
+    const size = r * 2.4;
+    // 오른쪽으로 가면 모자 끝이 왼쪽(뒤)으로 — 바람을 받는 느낌
+    const targetTilt = -Math.cos(angle) * (boosting ? 0.42 : 0.28);
+    this.hatTilt += (targetTilt - this.hatTilt) * 0.12;
+    const hop = Math.abs(Math.sin(t * (boosting ? 18 : 10))) * r * 0.14;
+    const x = head.x - Math.cos(angle) * r * 0.15;
+    const y = head.y - r * 1.25 - hop;
+
+    ctx.save();
+    ctx.globalAlpha = alpha;
+    // 업적 모자 — 뒤에 은은한 빛 + 주위를 도는 반짝이
+    if (this.hatGlow) {
+      const g = ctx.createRadialGradient(x, y, 0, x, y, size * 1.1);
+      g.addColorStop(0, this.hatGlow);
+      g.addColorStop(1, `${this.hatGlow}00`);
+      ctx.globalAlpha = alpha * (0.55 + Math.sin(t * 3) * 0.15);
+      ctx.fillStyle = g;
+      ctx.beginPath();
+      ctx.arc(x, y, size * 1.1, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.globalAlpha = alpha;
+    }
+    ctx.translate(x, y + size * 0.4);
+    ctx.rotate(this.hatTilt);
+    drawIcon(ctx, hat, 0, -size * 0.4, size);
+    ctx.restore();
+
+    if (this.hatGlow) {
+      for (let i = 0; i < 3; i++) {
+        const twinkle = Math.sin(t * 3.2 + i * 2.1);
+        if (twinkle <= 0) continue;
+        const a = t * 1.6 + (i * Math.PI * 2) / 3;
+        ctx.save();
+        ctx.globalAlpha = alpha * twinkle;
+        drawIcon(
+          ctx,
+          'sparkle',
+          x + Math.cos(a) * size * 0.7,
+          y + Math.sin(a) * size * 0.5,
+          size * 0.45 * (0.7 + twinkle * 0.3),
+        );
+        ctx.restore();
+      }
     }
   }
 
