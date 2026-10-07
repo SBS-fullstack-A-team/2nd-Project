@@ -18,8 +18,10 @@ import {
   ZOOM_MIN,
   bountyReward,
   findPower,
+  findTrait,
   type PowerKind,
 } from './config';
+import { drawIcon, type IconId } from './icons';
 import { World, displayName, radiusOf, type RunStats, type Worm, type WorldEvents } from './world';
 
 export interface Hud {
@@ -126,9 +128,9 @@ export class WormEngine {
   }
 
   /** 플레이어 머리 위에 그릴 모자 이모지 (없으면 빈 문자열) */
-  private hat = '';
+  private hat: IconId | '' = '';
 
-  start(colors: readonly string[], hat = '') {
+  start(colors: readonly string[], hat: IconId | '' = '') {
     this.hat = hat;
     this.world = new World(colors);
     this.running = true;
@@ -497,16 +499,14 @@ export class WormEngine {
       ctx.arc(pu.x, pu.y + bob, 30 + Math.sin(t * 5 + pu.phase) * 4, 0, Math.PI * 2);
       ctx.fill();
       ctx.globalAlpha = blink;
+      ctx.fillStyle = '#141822';
       ctx.beginPath();
-      ctx.arc(pu.x, pu.y + bob, 17, 0, Math.PI * 2);
+      ctx.arc(pu.x, pu.y + bob, 18, 0, Math.PI * 2);
       ctx.fill();
       ctx.lineWidth = 3;
-      ctx.strokeStyle = '#fff';
+      ctx.strokeStyle = def.color;
       ctx.stroke();
-      ctx.font = '18px sans-serif';
-      ctx.textAlign = 'center';
-      ctx.textBaseline = 'middle';
-      ctx.fillText(def.icon, pu.x, pu.y + bob + 1);
+      drawIcon(ctx, def.icon, pu.x, pu.y + bob, 26);
     }
     ctx.globalAlpha = 1;
 
@@ -529,10 +529,8 @@ export class WormEngine {
         ctx.stroke();
         ctx.setLineDash([]);
         ctx.globalAlpha = 1;
-        ctx.font = `${Math.round(Math.max(20, r * 1.6))}px sans-serif`;
-        ctx.textAlign = 'center';
-        ctx.textBaseline = 'middle';
-        ctx.fillText('👑', h.x, h.y - r * 1.1 + Math.sin(t * 4) * 2);
+        const size = Math.max(24, r * 1.9);
+        drawIcon(ctx, 'crown', h.x, h.y - r * 1.15 + Math.sin(t * 4) * 2, size);
       }
     }
 
@@ -569,19 +567,26 @@ export class WormEngine {
     });
     ctx.globalAlpha = 1;
 
-    // 이름
-    ctx.textAlign = 'center';
+    // 이름 — 성격이 있으면 이름 앞에 아이콘 배지
+    ctx.textAlign = 'left';
     ctx.textBaseline = 'bottom';
     for (const w of worms) {
       const head = w.segments[0]!;
       const r = radiusOf(w.mass);
       if (!visible(head.x, head.y, 200)) continue;
-      ctx.font = `700 ${Math.max(12, 13 / this.cam.zoom)}px sans-serif`;
+      const fontSize = Math.max(12, 13 / this.cam.zoom);
+      ctx.font = `700 ${fontSize}px sans-serif`;
       const isBounty = w === bounty;
-      ctx.fillStyle = w.isPlayer ? '#fff' : isBounty ? BOUNTY_COLOR : 'rgb(255 255 255 / 0.75)';
       // 모자 · 왕관을 쓴 지렁이는 이름을 그 위로
       const lift = (w.isPlayer && this.hat) || isBounty ? r * 1.9 : 0;
-      ctx.fillText(displayName(w), head.x, head.y - r - 8 - lift);
+      const y = head.y - r - 8 - lift;
+      const icon = findTrait(w.trait).icon;
+      const iconSize = icon ? fontSize * 1.5 : 0;
+      const gap = icon ? fontSize * 0.25 : 0;
+      const left = head.x - (iconSize + gap + ctx.measureText(w.name).width) / 2;
+      if (icon) drawIcon(ctx, icon, left + iconSize / 2, y - fontSize * 0.55, iconSize);
+      ctx.fillStyle = w.isPlayer ? '#fff' : isBounty ? BOUNTY_COLOR : 'rgb(255 255 255 / 0.75)';
+      ctx.fillText(w.name, left + iconSize + gap, y);
     }
 
     ctx.setTransform(1, 0, 0, 1, 0, 0);
@@ -610,14 +615,14 @@ export class WormEngine {
       const fx = (world.feast.x - this.cam.x) * scale + W / 2;
       const fy = (world.feast.y - this.cam.y) * scale + H / 2;
       if (fx < 0 || fx > W || fy < 0 || fy > H)
-        this.drawEdgeArrow(fx, fy, W, H, t, '★', FEAST_COLOR);
+        this.drawEdgeArrow(fx, fy, W, H, t, 'star', FEAST_COLOR);
     }
     if (this.running && bounty && player.alive) {
       const h = bounty.segments[0]!;
       const bx = (h.x - this.cam.x) * scale + W / 2;
       const by = (h.y - this.cam.y) * scale + H / 2;
       if (bx < 0 || bx > W || by < 0 || by > H)
-        this.drawEdgeArrow(bx, by, W, H, t, '👑', BOUNTY_COLOR);
+        this.drawEdgeArrow(bx, by, W, H, t, 'crown', BOUNTY_COLOR);
     }
     this.drawMinimap(world, W, H);
   }
@@ -711,10 +716,7 @@ export class WormEngine {
     if (w.isPlayer && this.hat) {
       ctx.save();
       ctx.globalAlpha = bodyAlpha;
-      ctx.font = `${Math.round(r * 1.7)}px sans-serif`;
-      ctx.textAlign = 'center';
-      ctx.textBaseline = 'middle';
-      ctx.fillText(this.hat, head.x, head.y - r * 1.05);
+      drawIcon(ctx, this.hat, head.x, head.y - r * 1.15, r * 1.9);
       ctx.restore();
     }
 
@@ -738,7 +740,7 @@ export class WormEngine {
     W: number,
     H: number,
     t: number,
-    icon: string,
+    icon: IconId,
     color: string,
   ) {
     const ctx = this.ctx;
@@ -759,11 +761,8 @@ export class WormEngine {
     ctx.beginPath();
     ctx.arc(0, 0, 18, 0, Math.PI * 2);
     ctx.fill();
+    drawIcon(ctx, icon, 0, 0, 24);
     ctx.fillStyle = color;
-    ctx.font = '700 18px sans-serif';
-    ctx.textAlign = 'center';
-    ctx.textBaseline = 'middle';
-    ctx.fillText(icon, 0, 1);
     ctx.rotate(a);
     ctx.beginPath();
     ctx.moveTo(30, 0);
@@ -798,11 +797,7 @@ export class WormEngine {
       );
     }
     if (world.feast) {
-      ctx.fillStyle = FEAST_COLOR;
-      ctx.font = `700 ${12 * this.dpr}px sans-serif`;
-      ctx.textAlign = 'center';
-      ctx.textBaseline = 'middle';
-      ctx.fillText('★', cx + world.feast.x * s, cy + world.feast.y * s);
+      drawIcon(ctx, 'star', cx + world.feast.x * s, cy + world.feast.y * s, 13 * this.dpr);
     }
     for (const w of world.worms) {
       if (!w.alive) continue;

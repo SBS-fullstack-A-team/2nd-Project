@@ -172,10 +172,10 @@ export interface WorldEvents {
   bountyClaimed?: { name: string; bonus: number };
 }
 
-/** 화면에 보여 줄 이름 — 성격 아이콘을 앞에 붙인다 */
+/** 알림 · 순위표에 보여 줄 이름 — 성격 아이콘 토큰(`:sword:`)을 앞에 붙인다 */
 export function displayName(w: Worm): string {
   const icon = findTrait(w.trait).icon;
-  return icon ? `${icon} ${w.name}` : w.name;
+  return icon ? `:${icon}: ${w.name}` : w.name;
 }
 
 export function radiusOf(mass: number): number {

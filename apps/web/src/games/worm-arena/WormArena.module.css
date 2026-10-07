@@ -541,6 +541,7 @@
   box-shadow: inset 3px 0 0 var(--success, #1f9d6b);
 }
 .listIcon {
+  display: inline-flex;
   font-size: 1.2rem;
 }
 .listBody {
@@ -664,4 +665,12 @@
     bottom: 56px;
     max-width: calc(100% - 20px);
   }
+}
+
+/* 직접 그린 아이콘 (Icon.tsx) — 글자 줄에 맞춰 세운다 */
+.icon {
+  display: inline-block;
+  flex: none;
+  vertical-align: -0.28em;
+  overflow: visible;
 }

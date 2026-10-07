@@ -2,6 +2,7 @@
  * 지렁이 아레나 규칙 상수.
  * 월드 좌표 단위는 픽셀과 비슷하다 (카메라 배율 1일 때 1 = 1px). 원형 경기장의 중심이 (0, 0).
  */
+import type { IconId } from './icons';
 
 /** 경기장 반지름 — 테두리에 머리가 닿으면 끝 */
 export const ARENA_RADIUS = 2600;
@@ -95,7 +96,7 @@ export type PowerKind = 'magnet' | 'turbo' | 'shield' | 'double' | 'ghost';
 export interface PowerDef {
   kind: PowerKind;
   label: string;
-  icon: string;
+  icon: IconId;
   color: string;
   /** 지속 시간(초) — 방패는 한 번 막아 주면 바로 사라진다 */
   seconds: number;
@@ -111,7 +112,7 @@ export const POWERS: readonly PowerDef[] = [
   {
     kind: 'magnet',
     label: '자석',
-    icon: '🧲',
+    icon: 'magnet',
     color: '#ff5f6d',
     seconds: 10,
     weight: 3,
@@ -121,7 +122,7 @@ export const POWERS: readonly PowerDef[] = [
   {
     kind: 'turbo',
     label: '터보',
-    icon: '⚡',
+    icon: 'bolt',
     color: '#ffc93c',
     seconds: 7,
     weight: 3,
@@ -131,7 +132,7 @@ export const POWERS: readonly PowerDef[] = [
   {
     kind: 'shield',
     label: '방패',
-    icon: '🛡️',
+    icon: 'shield',
     color: '#4fc3f7',
     seconds: 15,
     weight: 2,
@@ -141,7 +142,7 @@ export const POWERS: readonly PowerDef[] = [
   {
     kind: 'double',
     label: '먹이 ×2',
-    icon: '✖️',
+    icon: 'double',
     color: '#7ee081',
     seconds: 12,
     weight: 2,
@@ -151,7 +152,7 @@ export const POWERS: readonly PowerDef[] = [
   {
     kind: 'ghost',
     label: '유령',
-    icon: '👻',
+    icon: 'ghost',
     color: '#c9b6ff',
     seconds: 5,
     weight: 1.5,
@@ -172,7 +173,7 @@ export interface TraitDef {
   kind: TraitKind;
   label: string;
   /** 이름 앞에 붙는 아이콘 — 보통은 없음 */
-  icon: string;
+  icon: IconId | '';
   desc: string;
   /** 새로 들어올 때 뽑히는 비율 */
   weight: number;
@@ -189,21 +190,21 @@ export const TRAITS: readonly TraitDef[] = [
   {
     kind: 'hunter',
     label: '사냥꾼',
-    icon: '🗡️',
+    icon: 'sword',
     desc: '나를 노려요. 멀리서도 쫓아와 가속해서 앞을 막아요. 작아도 덤비니 옆으로 피하세요.',
     weight: 2,
   },
   {
     kind: 'glutton',
     label: '먹보',
-    icon: '🍖',
+    icon: 'drumstick',
     desc: '나한테는 관심 없고 먹을 것만 봐요. 파워업과 황금 먹이 잔치에 멀리서도 달려가요.',
     weight: 2,
   },
   {
     kind: 'coward',
     label: '겁쟁이',
-    icon: '💧',
+    icon: 'drop',
     desc: '자기보다 큰 지렁이가 다가오면 가속해서 도망가요. 쫓아가서 앞을 막으면 잡기 좋아요.',
     weight: 2,
   },
@@ -326,12 +327,13 @@ export const LEADERBOARD_SIZE = 5;
  */
 export const MAX_SCORE = 100_000;
 
+/** `:아이콘id:` 는 화면에서 아이콘으로 바뀐다 */
 export const HOW_TO_PLAY = [
-  '먹이를 먹고 길어지세요. 가장 길었을 때 길이가 점수예요.',
-  '머리가 다른 지렁이 몸에 닿거나 경기장 벽에 닿으면 끝!',
-  '가속해서 다른 지렁이 앞을 막으면, 부딪힌 지렁이가 먹이로 변해요.',
-  '🧲⚡🛡️✖️👻 파워업을 먹고, ★ 황금 먹이 잔치와 👑 현상금 지렁이를 노려 보세요!',
-  '이름 앞 🗡️🍖💧 는 지렁이 성격이에요. 자세한 건 「💡 알아두기」 탭에서!',
+  ':food: 먹이를 먹고 길어지세요. 가장 길었을 때 길이가 점수예요.',
+  ':burst: 머리가 다른 지렁이 몸에 닿거나 경기장 벽에 닿으면 끝!',
+  ':bolt: 가속해서 다른 지렁이 앞을 막으면, 부딪힌 지렁이가 먹이로 변해요.',
+  ':magnet::bolt::shield::double::ghost: 파워업을 먹고, :star: 황금 먹이 잔치와 :crown: 현상금 지렁이를 노려 보세요!',
+  ':sword::drumstick::drop: 이름 앞 아이콘은 지렁이 성격이에요. 자세한 건 「알아두기」 탭에서!',
 ] as const;
 
 export const CONTROLS = [
@@ -339,5 +341,5 @@ export const CONTROLS = [
   { keys: '클릭 (꾹) · 스페이스', action: '가속' },
   { keys: '← → / A D', action: '키보드로 돌기' },
   { keys: 'Esc · P', action: '일시정지' },
-  { keys: 'F · ⛶', action: '전체 화면' },
+  { keys: 'F · :fullscreen:', action: '전체 화면' },
 ] as const;

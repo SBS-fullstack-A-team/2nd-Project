@@ -4,6 +4,7 @@
  */
 import { SKINS } from './config';
 import type { Summary } from './engine';
+import type { IconId } from './icons';
 
 const STORE_KEY = 'worm-arena:profile:v1';
 
@@ -60,7 +61,7 @@ function toRun(s: Summary): Run {
 
 export interface Achievement {
   id: string;
-  icon: string;
+  icon: IconId;
   title: string;
   /** 해금 조건 설명 */
   goal: string;
@@ -73,7 +74,7 @@ export interface Achievement {
 export const ACHIEVEMENTS: readonly Achievement[] = [
   {
     id: 'len300',
-    icon: '📏',
+    icon: 'ruler',
     title: '쑥쑥 자람',
     goal: '한 판에 길이 300',
     reward: { skin: 'sky' },
@@ -81,7 +82,7 @@ export const ACHIEVEMENTS: readonly Achievement[] = [
   },
   {
     id: 'kill3',
-    icon: '💥',
+    icon: 'burst',
     title: '사냥꾼',
     goal: '한 판에 3마리 쓰러뜨리기',
     reward: { skin: 'sunset' },
@@ -89,7 +90,7 @@ export const ACHIEVEMENTS: readonly Achievement[] = [
   },
   {
     id: 'power20',
-    icon: '🧲',
+    icon: 'magnet',
     title: '아이템 수집가',
     goal: '파워업 누적 20개',
     reward: { skin: 'grape' },
@@ -97,7 +98,7 @@ export const ACHIEVEMENTS: readonly Achievement[] = [
   },
   {
     id: 'survive120',
-    icon: '⏱️',
+    icon: 'stopwatch',
     title: '끈질긴 지렁이',
     goal: '한 판에 2분 버티기',
     reward: { skin: 'zebra' },
@@ -105,7 +106,7 @@ export const ACHIEVEMENTS: readonly Achievement[] = [
   },
   {
     id: 'triple',
-    icon: '🔥',
+    icon: 'flame',
     title: '트리플 킬',
     goal: '연속 킬 3번',
     reward: { skin: 'rainbow' },
@@ -113,7 +114,7 @@ export const ACHIEVEMENTS: readonly Achievement[] = [
   },
   {
     id: 'golden100',
-    icon: '✨',
+    icon: 'sparkle',
     title: '황금 미식가',
     goal: '황금 먹이 누적 100개',
     reward: { skin: 'gold' },
@@ -121,7 +122,7 @@ export const ACHIEVEMENTS: readonly Achievement[] = [
   },
   {
     id: 'first',
-    icon: '🏆',
+    icon: 'trophy',
     title: '아레나의 왕',
     goal: '길이 순위 1위 찍기',
     reward: { hat: 'crown' },
@@ -129,7 +130,7 @@ export const ACHIEVEMENTS: readonly Achievement[] = [
   },
   {
     id: 'len1000',
-    icon: '🐉',
+    icon: 'dragon',
     title: '전설의 지렁이',
     goal: '한 판에 길이 1000',
     reward: { hat: 'dragon' },
@@ -137,7 +138,7 @@ export const ACHIEVEMENTS: readonly Achievement[] = [
   },
   {
     id: 'kills100',
-    icon: '⚔️',
+    icon: 'swords',
     title: '백전노장',
     goal: '누적 100마리 쓰러뜨리기',
     reward: { hat: 'helmet' },
@@ -145,7 +146,7 @@ export const ACHIEVEMENTS: readonly Achievement[] = [
   },
   {
     id: 'bounty5',
-    icon: '👑',
+    icon: 'crown',
     title: '현상금 사냥꾼',
     goal: '현상금 지렁이 누적 5마리',
     reward: { hat: 'cowboy' },
@@ -153,7 +154,7 @@ export const ACHIEVEMENTS: readonly Achievement[] = [
   },
   {
     id: 'days3',
-    icon: '📅',
+    icon: 'calendar',
     title: '성실한 지렁이',
     goal: '오늘의 미션 3일 완료',
     reward: { hat: 'halo' },
@@ -169,24 +170,24 @@ const FREE_SKINS = ['pink', 'lime'];
 export interface Hat {
   id: string;
   label: string;
-  /** 머리 위에 그릴 이모지 (없음은 빈 문자열) */
-  icon: string;
+  /** 머리 위에 그릴 아이콘 (없음은 빈 문자열) */
+  icon: IconId | '';
   /** 이 레벨이 되면 열린다 (업적 보상 모자는 없음) */
   level?: number;
 }
 
 export const HATS: readonly Hat[] = [
   { id: 'none', label: '없음', icon: '', level: 1 },
-  { id: 'ribbon', label: '리본', icon: '🎀', level: 2 },
-  { id: 'cap', label: '야구모자', icon: '🧢', level: 4 },
-  { id: 'flower', label: '꽃', icon: '🌸', level: 6 },
-  { id: 'tophat', label: '신사 모자', icon: '🎩', level: 8 },
-  { id: 'party', label: '고깔', icon: '🥳', level: 10 },
-  { id: 'crown', label: '왕관', icon: '👑' },
-  { id: 'dragon', label: '용', icon: '🐲' },
-  { id: 'helmet', label: '투구', icon: '⛑️' },
-  { id: 'halo', label: '천사 고리', icon: '😇' },
-  { id: 'cowboy', label: '카우보이 모자', icon: '🤠' },
+  { id: 'ribbon', label: '리본', icon: 'ribbon', level: 2 },
+  { id: 'cap', label: '야구모자', icon: 'cap', level: 4 },
+  { id: 'flower', label: '꽃', icon: 'flower', level: 6 },
+  { id: 'tophat', label: '신사 모자', icon: 'tophat', level: 8 },
+  { id: 'party', label: '고깔', icon: 'partyHat', level: 10 },
+  { id: 'crown', label: '왕관', icon: 'crown' },
+  { id: 'dragon', label: '용', icon: 'dragon' },
+  { id: 'helmet', label: '투구', icon: 'helmet' },
+  { id: 'halo', label: '천사 고리', icon: 'halo' },
+  { id: 'cowboy', label: '카우보이 모자', icon: 'cowboy' },
 ];
 
 /* ---------- 레벨 ---------- */
