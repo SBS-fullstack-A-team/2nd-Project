@@ -796,10 +796,10 @@ export class WormEngine {
         sx = sy = 1 + Math.max(0, Math.sin(t * 3)) * 0.1;
         glowPower = 0.6 + Math.max(0, Math.sin(t * 3)) * 0.35;
         break;
-      case 'dragonHorns':
-        // 불을 뿜을 때 고개를 살짝 든다
-        sx = sy = 1 + Math.max(0, Math.sin(t * 2.2)) * 0.07;
-        if (t % 3 < 0.6) spin = -0.12;
+      case 'dragonCrest':
+        // 용이 몸을 틀듯 부드럽게 좌우로
+        spin = Math.sin(t * 2.6) * 0.14;
+        sx = sy = 1 + Math.sin(t * 5.2) * 0.04;
         break;
       case 'knightHelmet': {
         // 2.5초마다 강철이 번쩍
@@ -862,6 +862,29 @@ export class WormEngine {
     drawIcon(ctx, hat, 0, 0, size);
     ctx.restore();
 
+    // 용의 관 — 빛나는 여의주가 모자 주위를 돈다 (뒤로 갈 때는 작고 흐리게)
+    if (hat === 'dragonCrest') {
+      const a = t * 2.2;
+      const depth = (Math.sin(a) + 1) / 2;
+      const px = x + Math.cos(a) * size * 0.8;
+      const py = y + size * 0.1 + Math.sin(a) * size * 0.3;
+      const pr = size * (0.1 + depth * 0.06);
+      ctx.save();
+      ctx.globalAlpha = alpha * (0.55 + depth * 0.45);
+      const g = ctx.createRadialGradient(px, py, 0, px, py, pr * 3);
+      g.addColorStop(0, 'rgb(191 232 255 / 0.9)');
+      g.addColorStop(1, 'rgb(191 232 255 / 0)');
+      ctx.fillStyle = g;
+      ctx.beginPath();
+      ctx.arc(px, py, pr * 3, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.fillStyle = '#e8f8ff';
+      ctx.beginPath();
+      ctx.arc(px, py, pr, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.restore();
+    }
+
     // 기사 투구 — 번쩍일 때 투구 위에 큰 빛 반짝
     if (hat === 'knightHelmet') {
       const c = t % 2.5;
@@ -892,7 +915,7 @@ export class WormEngine {
       }
     }
 
-    this.emitHatParticles(hat, x, y, size, angle, boosting, t, dt);
+    this.emitHatParticles(hat, x, y, size, angle, boosting, dt);
   }
 
   /** 모자에서 나오는 파티클 — 꽃잎 · 색종이 · 금가루 · 불꽃 · 흙먼지 */
@@ -903,7 +926,6 @@ export class WormEngine {
     size: number,
     angle: number,
     boosting: boolean,
-    t: number,
     dt: number,
   ) {
     const rand = (a: number, b: number) => a + Math.random() * (b - a);
@@ -929,9 +951,8 @@ export class WormEngine {
       case 'crown':
         every = 0.18;
         break;
-      case 'dragonHorns':
-        // 3초마다 0.6초 동안 불을 뿜는다
-        every = t % 3 < 0.6 ? 0.03 : 0;
+      case 'dragonCrest':
+        every = 0.28;
         break;
       case 'cowboy':
         every = boosting ? 0.05 : 0;
@@ -980,17 +1001,17 @@ export class WormEngine {
             pick(['#ffd84a', '#fff3b0']),
           );
           break;
-        case 'dragonHorns': {
-          const a = angle + rand(-0.25, 0.25);
-          const sp = rand(140, 220);
+        case 'dragonCrest': {
+          // 모자 뒤에서 생겨 뒤로 흘러가는 구름 조각 (얼굴을 가리지 않게)
+          const back = angle + Math.PI + rand(-0.4, 0.4);
           push(
-            x + Math.cos(angle) * size * 0.5,
-            y + Math.sin(angle) * size * 0.3,
-            Math.cos(a) * sp,
-            Math.sin(a) * sp,
-            0.45,
-            size * 0.16,
-            pick(['#ff7a45', '#ffd84a', '#ff4f2e']),
+            x - Math.cos(angle) * size * 0.7 + rand(-size, size) * 0.15,
+            y - size * 0.15 + rand(-size, size) * 0.15,
+            Math.cos(back) * 34,
+            Math.sin(back) * 34 - 10,
+            1.1,
+            size * rand(0.1, 0.16),
+            pick(['#fff3e0', '#ffe0b8', '#ffd0d0']),
           );
           break;
         }

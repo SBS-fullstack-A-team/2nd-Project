@@ -186,7 +186,7 @@ export const HATS: readonly Hat[] = [
   { id: 'tophat', label: '신사 모자', icon: 'tophat', level: 8 },
   { id: 'party', label: '고깔', icon: 'partyHat', level: 10 },
   { id: 'crown', label: '왕관', icon: 'crown', glow: '#ffd84a' },
-  { id: 'dragon', label: '용의 뿔', icon: 'dragonHorns', glow: '#7ee081' },
+  { id: 'dragon', label: '용의 관', icon: 'dragonCrest', glow: '#ff7a45' },
   { id: 'helmet', label: '기사 투구', icon: 'knightHelmet', glow: '#9ad0ff' },
   { id: 'halo', label: '천사 고리', icon: 'halo', glow: '#fff3b0' },
   { id: 'cowboy', label: '카우보이 모자', icon: 'cowboy', glow: '#ffb02e' },
