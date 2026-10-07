@@ -862,7 +862,7 @@ export type BossState = 'enter' | 'fight' | 'transform' | 'dying';
 const BOSS_HITBOX: Record<BossId, [[number, number], [number, number]]> = {
   goliath: [
     [145, 52],
-    [112, 40],
+    [112, 56],
   ],
   kraken: [
     [145, 62],
@@ -1169,7 +1169,7 @@ export class Boss {
   /* ---------- Stage 3: 용암 거신 이그니스 ---------- */
   /** 머리(입) 위치 — 보스 앞쪽 (bossRender 의 머리 그림과 맞춤) */
   private get mouth() {
-    return { x: this.x, y: this.y + (this.phase === 1 ? 112 : 118) };
+    return { x: this.x, y: this.y + (this.phase === 1 ? 118 : 122) };
   }
 
   private ignis(dt: number, w: World) {

@@ -135,6 +135,124 @@ function scorch(
   }
 }
 
+/** 관(촉수·팔·꼬리)의 중심선 한 점 — 위치와 그 자리의 반지름 */
+type TubePt = readonly [x: number, y: number, r: number];
+
+/** 굵기가 변하는 관 윤곽 경로 — 양 끝은 둥글게 닫는다 */
+function tubePath(ctx: CanvasRenderingContext2D, pts: readonly TubePt[]) {
+  const n = pts.length;
+  const left: [number, number][] = [];
+  const right: [number, number][] = [];
+  const dirs: number[] = [];
+  for (let i = 0; i < n; i++) {
+    const [x, y, r] = pts[i]!;
+    const a = pts[Math.max(0, i - 1)]!;
+    const c = pts[Math.min(n - 1, i + 1)]!;
+    const d = Math.atan2(c[1] - a[1], c[0] - a[0]);
+    dirs.push(d);
+    left.push([x + Math.cos(d + Math.PI / 2) * r, y + Math.sin(d + Math.PI / 2) * r]);
+    right.push([x + Math.cos(d - Math.PI / 2) * r, y + Math.sin(d - Math.PI / 2) * r]);
+  }
+  // 이웃 점의 중간을 지나는 곡선으로 매끈하게 잇는다
+  const side = (s: [number, number][]) => {
+    for (let i = 1; i < s.length - 1; i++) {
+      const [x, y] = s[i]!;
+      const [nx, ny] = s[i + 1]!;
+      ctx.quadraticCurveTo(x, y, (x + nx) / 2, (y + ny) / 2);
+    }
+    const last = s[s.length - 1]!;
+    ctx.lineTo(last[0], last[1]);
+  };
+  ctx.beginPath();
+  ctx.moveTo(left[0]![0], left[0]![1]);
+  side(left);
+  const [ex, ey, er] = pts[n - 1]!;
+  ctx.arc(ex, ey, er, dirs[n - 1]! + Math.PI / 2, dirs[n - 1]! - Math.PI / 2, true);
+  side(right.reverse());
+  const [sx, sy, sr] = pts[0]!;
+  ctx.arc(sx, sy, sr, dirs[0]! - Math.PI / 2, dirs[0]! + Math.PI / 2, true);
+  ctx.closePath();
+}
+
+/** 관을 칠한다 — 바탕 + 왼쪽 위 하이라이트 + 오른쪽 아래 그림자로 둥근 입체감 */
+function tube(
+  ctx: CanvasRenderingContext2D,
+  pts: readonly TubePt[],
+  base: string | CanvasGradient,
+  light = 'rgba(255,255,255,0.2)',
+  dark = 'rgba(0,0,0,0.38)',
+) {
+  tubePath(ctx, pts);
+  ctx.fillStyle = base;
+  ctx.fill();
+  ctx.save();
+  ctx.clip();
+  // 겹쳐 칠하면 마디마다 진해지므로, 옮긴 관 하나를 한 번에 칠한다
+  tubePath(
+    ctx,
+    pts.map(([x, y, r]) => [x + r * 0.5, y + r * 0.5, r * 0.8] as const),
+  );
+  ctx.fillStyle = dark;
+  ctx.fill();
+  tubePath(
+    ctx,
+    pts.map(([x, y, r]) => [x - r * 0.38, y - r * 0.38, r * 0.3] as const),
+  );
+  ctx.fillStyle = light;
+  ctx.fill();
+  ctx.restore();
+}
+
+/** 관절 사슬 중심선 — 방향 angle(q) 를 따라 한 마디씩 뻗는다 (q = 0 뿌리 ~ 1 끝) */
+function chain(
+  x: number,
+  y: number,
+  len: number,
+  segs: number,
+  angle: (q: number) => number,
+  radius: (q: number) => number,
+): TubePt[] {
+  const pts: TubePt[] = [[x, y, radius(0)]];
+  const step = len / segs;
+  for (let i = 1; i <= segs; i++) {
+    const a = angle((i - 0.5) / segs);
+    x += Math.cos(a) * step;
+    y += Math.sin(a) * step;
+    pts.push([x, y, radius(i / segs)]);
+  }
+  return pts;
+}
+
+/** 사슬 끝을 (tx, ty) 에 맞춘다 — 뿌리는 그대로 두고 끝으로 갈수록 많이 옮긴다 */
+function pinTip(pts: readonly TubePt[], tx: number, ty: number): TubePt[] {
+  const n = pts.length - 1;
+  const [lx, ly] = pts[n]!;
+  return pts.map(([x, y, r], i) => {
+    const q = (i / n) ** 1.5;
+    return [x + (tx - lx) * q, y + (ty - ly) * q, r] as const;
+  });
+}
+
+/** 두 점 사이를 굵기가 변하는 직선 관 마디로 나눈다 */
+function limb(ax: number, ay: number, ar: number, bx: number, by: number, br: number, n = 5) {
+  const pts: TubePt[] = [];
+  for (let i = 0; i <= n; i++) {
+    const q = i / n;
+    pts.push([ax + (bx - ax) * q, ay + (by - ay) * q, ar + (br - ar) * q]);
+  }
+  return pts;
+}
+
+/** x 좌우 반전 (오른쪽 기준으로 만든 관을 왼쪽에 쓸 때) */
+const mirrorX = (pts: readonly TubePt[], s: number): TubePt[] =>
+  pts.map(([x, y, r]) => [x * s, y, r] as const);
+
+/** 결정적 의사 난수 0~1 — 매 프레임 같은 모양(균열·판 흔들림)을 내기 위해 쓴다 */
+function hash(n: number) {
+  const v = Math.sin(n * 127.1 + 311.7) * 43758.5453;
+  return v - Math.floor(v);
+}
+
 /* =========================================================
  * Stage 1 — 거대 비행선 골리앗
  * ========================================================= */
@@ -322,181 +440,508 @@ function goliathShip(ctx: CanvasRenderingContext2D, b: BossLook) {
   glowOrb(ctx, 148, 0, blink ? 4 : 9, '#2aff6a');
 }
 
+/**
+ * 골리앗 2단계 — 불타 버린 기낭을 찢고 나온 강철 거인.
+ * 투구를 쓴 머리, 포탑을 얹은 거대한 견갑, 앞으로 뻗은 건틀릿 두 팔, 가슴 원자로.
+ * 등 뒤로는 찢어진 기낭 잔해가 불타며 펄럭이고 검은 연기가 흩날린다.
+ */
 function goliathMech(ctx: CanvasRenderingContext2D, b: BossLook) {
   const t = b.t;
-  dropShadow(ctx, 30, 80, 150, 40);
+  const pulse = 0.65 + 0.35 * Math.sin(t * 7);
+  dropShadow(ctx, 30, 86, 168, 46);
 
-  // 찢어진 기낭 잔해 (양 끝에서 펄럭인다)
+  // ---------- 1) 연기 꼬리 — 찢어진 기낭에서 검은 연기가 뒤로 흩날린다 ----------
+  for (const s of [-1, 1]) {
+    for (let i = 0; i < 7; i++) {
+      const k = (t * 0.55 + i / 7) % 1;
+      const r = 9 + k * 26;
+      ctx.fillStyle = `rgba(38,34,32,${0.4 * (1 - k)})`;
+      ellipse(ctx, s * (120 + k * 26 + Math.sin(t * 2 + i) * 4), -16 - k * 120, r, r * 0.85);
+    }
+  }
+
+  // ---------- 2) 찢어진 기낭 잔해 ----------
   for (const s of [-1, 1]) {
     ctx.save();
     ctx.scale(s, 1);
-    const f = Math.sin(t * 5) * 4;
-    ctx.fillStyle = '#6e6246';
-    poly(ctx, [
-      96,
-      -46,
-      132,
-      -38 + f,
-      150,
-      -14,
-      138,
-      -6 + f,
-      146,
-      8,
-      130,
-      20 - f,
-      138,
-      34,
-      112,
-      44,
-      100,
-      30,
-      110,
-      10,
-      98,
-      -8,
-    ]);
-    ctx.strokeStyle = '#2a1e10';
-    ctx.lineWidth = 2;
-    ctx.stroke();
-    ctx.fillStyle = 'rgba(255,120,30,0.5)';
-    ellipse(ctx, 140, -10 + f, 3, 3);
-    ellipse(ctx, 134, 26 - f, 2.5, 2.5);
+    goliathTatters(ctx, t + (s > 0 ? 0 : 1.7));
     ctx.restore();
   }
 
-  // 트러스 골격
-  const beam = (y: number) => {
-    const g = ctx.createLinearGradient(0, y - 6, 0, y + 6);
-    g.addColorStop(0, '#2b2e35');
-    g.addColorStop(0.5, '#7b818d');
-    g.addColorStop(1, '#23252b');
-    ctx.fillStyle = g;
-    ctx.fillRect(-118, y - 5, 236, 10);
-  };
-  ctx.strokeStyle = '#5b606b';
-  ctx.lineWidth = 3;
-  ctx.beginPath();
-  for (let x = -110; x < 110; x += 22) {
-    ctx.moveTo(x, -34);
-    ctx.lineTo(x + 22, 34);
-    ctx.moveTo(x + 22, -34);
-    ctx.lineTo(x, 34);
+  // ---------- 3) 등 뒤 쌍발 추진기 ----------
+  for (const s of [-1, 1]) {
+    const ex = s * 30;
+    ctx.save();
+    ctx.translate(ex, -58);
+    ctx.scale(1, -1);
+    drawThrust(ctx, 0, 0, 15, 30, t + s, '#ffe0ff', '#ff3a8a');
+    ctx.restore();
+    ctx.fillStyle = metal(ctx, ex - 12, -64, ex + 12, -40, '#8a8670', '#45443a', '#1a1a16');
+    ctx.beginPath();
+    ctx.roundRect(ex - 12, -64, 24, 28, 5);
+    ctx.fill();
+    ctx.fillStyle = '#0d0d0b';
+    for (const by of [-58, -52, -46]) ctx.fillRect(ex - 12, by, 24, 2);
+    ctx.fillStyle = `rgba(255,74,154,${0.7 * pulse})`;
+    ctx.fillRect(ex - 8, -66, 16, 3);
   }
-  ctx.stroke();
-  beam(-34);
-  beam(34);
 
-  // 에너지 도관 (코어 → 포드)
+  // ---------- 4) 건틀릿 팔 (견갑 아래로 뻗는다) ----------
+  for (const s of [-1, 1]) goliathArm(ctx, t, s, pulse);
+
+  // ---------- 5) 흉갑 몸통 ----------
+  const chest = [
+    -44, -52, 44, -52, 60, -28, 62, 6, 48, 32, 22, 44, -22, 44, -48, 32, -62, 6, -60, -28,
+  ];
+  ctx.fillStyle = '#0c0c0a';
   ctx.save();
-  ctx.strokeStyle = '#ff4a9a';
-  ctx.lineWidth = 3;
-  ctx.setLineDash([8, 6]);
-  ctx.lineDashOffset = -t * 60;
+  ctx.scale(1.05, 1.05);
+  poly(ctx, chest);
+  ctx.restore();
+  ctx.fillStyle = metal(ctx, -50, -52, 50, 44, '#9a9478', '#55523f', '#1f1e17');
+  poly(ctx, chest);
+  // 왼쪽 위 빛을 받는 모서리
+  ctx.fillStyle = 'rgba(255,250,220,0.12)';
+  poly(ctx, [-42, -48, 0, -48, -8, -40, -52, -26, -56, 2, -60, -26]);
+  // 장갑판 이음선 (어두운 홈 + 밝은 턱)
+  for (const [color, dy] of [
+    ['rgba(0,0,0,0.55)', 0],
+    ['rgba(255,250,220,0.14)', 1],
+  ] as const) {
+    ctx.strokeStyle = color;
+    ctx.lineWidth = 1;
+    polyline(ctx, [-60, -28 + dy, -30, -36 + dy, 30, -36 + dy, 60, -28 + dy]);
+    polyline(ctx, [-62, 6 + dy, -36, 18 + dy]);
+    polyline(ctx, [62, 6 + dy, 36, 18 + dy]);
+    polyline(ctx, [0, -52 + dy, 0, -36 + dy]);
+  }
+  // 배 갑옷 비늘판 (앞으로 겹친 세 겹)
+  for (let k = 0; k < 3; k++) {
+    const y = 20 + k * 8;
+    const w = 34 - k * 6;
+    ctx.fillStyle = metal(ctx, -w, y - 4, w, y + 6, '#8a8670', '#45443a', '#1a1a16');
+    ctx.beginPath();
+    ctx.moveTo(-w, y);
+    ctx.quadraticCurveTo(0, y + 10, w, y);
+    ctx.lineTo(w - 3, y + 7);
+    ctx.quadraticCurveTo(0, y + 16, -w + 3, y + 7);
+    ctx.closePath();
+    ctx.fill();
+    ctx.strokeStyle = '#c9a45a';
+    ctx.lineWidth = 1;
+    ctx.beginPath();
+    ctx.moveTo(-w, y);
+    ctx.quadraticCurveTo(0, y + 10, w, y);
+    ctx.stroke();
+  }
+  // 등 방열 격자 — 원자로 열이 새어 나온다
+  for (let k = 0; k < 4; k++) {
+    ctx.fillStyle = '#0d0d0b';
+    ctx.fillRect(-20, -48 + k * 4, 40, 2.4);
+    ctx.fillStyle = `rgba(255,74,154,${0.55 * pulse})`;
+    ctx.fillRect(-18, -47.4 + k * 4, 36, 1);
+  }
+  // 황동 테두리
+  ctx.strokeStyle = '#c9a45a';
+  ctx.lineWidth = 1.4;
+  ctx.globalAlpha = 0.8;
+  polyline(ctx, [...chest, chest[0]!, chest[1]!]);
+  ctx.globalAlpha = 1;
+  rivets(
+    ctx,
+    [
+      [-38, -44],
+      [38, -44],
+      [-54, -20],
+      [54, -20],
+      [-54, 4],
+      [54, 4],
+      [-40, 26],
+      [40, 26],
+    ],
+    1.3,
+  );
+  // 원자로 → 어깨로 흐르는 에너지 도관
+  ctx.save();
   ctx.globalCompositeOperation = 'lighter';
-  ctx.beginPath();
-  ctx.moveTo(-60, 0);
-  ctx.bezierCurveTo(-40, -20, -20, -20, 0, 0);
-  ctx.bezierCurveTo(20, -20, 40, -20, 60, 0);
-  ctx.stroke();
+  ctx.strokeStyle = 'rgba(255,74,154,0.85)';
+  ctx.lineWidth = 2.4;
+  ctx.setLineDash([6, 5]);
+  ctx.lineDashOffset = -t * 50;
+  for (const s of [-1, 1]) {
+    ctx.beginPath();
+    ctx.moveTo(s * 26, -10);
+    ctx.quadraticCurveTo(s * 40, -22, s * 56, -6);
+    ctx.stroke();
+  }
   ctx.restore();
 
-  // 기계 팔 (양옆 집게)
-  for (const s of [-1, 1]) {
-    ctx.save();
-    ctx.translate(70 * s, 20);
-    const swing = Math.sin(t * 2 + s) * 0.25;
-    ctx.rotate(s * (0.5 + swing));
-    ctx.fillStyle = '#3a3d45';
-    ctx.fillRect(-5, 0, 10, 44);
-    ctx.fillStyle = '#7a808c';
-    ellipse(ctx, 0, 0, 8, 8);
-    ellipse(ctx, 0, 44, 7, 7);
-    ctx.translate(0, 44);
-    ctx.rotate(-s * swing * 1.5);
-    ctx.fillStyle = '#2b2d33';
-    poly(ctx, [-3, 0, -12, 16, -6, 24, -2, 12]);
-    poly(ctx, [3, 0, 12, 16, 6, 24, 2, 12]);
-    ctx.restore();
-  }
-
-  // 포드 — 플레이어를 조준하는 포신
-  for (const s of [-1, 1]) {
-    const px = 60 * s;
-    ctx.save();
-    ctx.translate(px, 0);
-    ctx.save();
-    ctx.rotate(Math.PI);
-    drawThrust(ctx, 0, 30, 14, 34, t, '#ffe0ff', '#ff3a8a');
-    ctx.restore();
-    const pod = ctx.createRadialGradient(-5, -6, 2, 0, 0, 22);
-    pod.addColorStop(0, '#8a909c');
-    pod.addColorStop(1, '#23252b');
-    ctx.fillStyle = pod;
-    ellipse(ctx, 0, 0, 17, 25);
-    ctx.fillStyle = '#ff4a9a';
-    for (let i = 0; i < 3; i++) {
-      ctx.globalAlpha = 0.5 + 0.5 * Math.sin(t * 8 + i);
-      ctx.fillRect(-10, -14 + i * 7, 20, 2);
-    }
-    ctx.globalAlpha = 1;
-    ctx.restore();
-    barrel(ctx, px, 16, b.aim, 22, 6);
-  }
-
-  // 중앙 원자로 하우징
-  const house = ctx.createLinearGradient(0, -44, 0, 44);
-  house.addColorStop(0, '#4a4e58');
-  house.addColorStop(1, '#1d1f25');
-  ctx.fillStyle = house;
-  poly(ctx, [-44, -18, -24, -42, 24, -42, 44, -18, 44, 18, 24, 42, -24, 42, -44, 18]);
-  ctx.strokeStyle = '#101115';
-  ctx.lineWidth = 2;
-  ctx.stroke();
-  rivets(ctx, [
-    [-34, -20],
-    [34, -20],
-    [-34, 20],
-    [34, 20],
-    [0, -36],
-    [0, 36],
-  ]);
-  // 회전 포탑 링
+  // ---------- 6) 가슴 원자로 + 회전 포탑 고리 (회전 탄막의 발사점) ----------
+  const cy = -8;
+  ctx.fillStyle = '#08080a';
+  ellipse(ctx, 0, cy, 30, 30);
   ctx.save();
+  ctx.translate(0, cy);
   ctx.rotate(t * 3);
   for (let i = 0; i < 8; i++) {
     ctx.rotate(TAU / 8);
-    ctx.fillStyle = '#9aa0ab';
-    ctx.fillRect(-3.5, 24, 7, 12);
+    ctx.fillStyle = metal(ctx, -4, 20, 4, 34, '#b0b4bc', '#6a707b', '#2a2d33');
+    ctx.fillRect(-3.5, 20, 7, 13);
     ctx.fillStyle = '#101115';
-    ctx.fillRect(-2, 32, 4, 5);
+    ctx.fillRect(-2, 29, 4, 5);
   }
   ctx.strokeStyle = '#6a707b';
   ctx.lineWidth = 4;
   ctx.beginPath();
-  ctx.arc(0, 0, 25, 0, TAU);
+  ctx.arc(0, 0, 21, 0, TAU);
   ctx.stroke();
   ctx.restore();
-  // 코어
-  const pulse = 1 + Math.sin(t * 7) * 0.12;
-  glowOrb(ctx, 0, 0, 34 * pulse, 'rgba(255,60,150,0.7)');
-  const core = ctx.createRadialGradient(-4, -4, 1, 0, 0, 18);
+  ctx.save();
+  ctx.globalCompositeOperation = 'lighter';
+  glowOrb(ctx, 0, cy, 36 * (0.9 + pulse * 0.2), 'rgba(255,60,150,0.7)', 0.8);
+  ctx.restore();
+  const core = ctx.createRadialGradient(-4, cy - 4, 1, 0, cy, 16);
   core.addColorStop(0, '#ffffff');
   core.addColorStop(0.35, '#ff8ac8');
   core.addColorStop(1, '#8a0a4a');
   ctx.fillStyle = core;
-  ellipse(ctx, 0, 0, 17, 17);
+  ellipse(ctx, 0, cy, 15, 15);
+  // 원자로를 감싼 4개의 걸쇠
+  for (let i = 0; i < 4; i++) {
+    const a = (i / 4) * TAU + Math.PI / 4;
+    ctx.save();
+    ctx.translate(Math.cos(a) * 17, cy + Math.sin(a) * 17);
+    ctx.rotate(a);
+    ctx.fillStyle = '#2a2b30';
+    ctx.fillRect(-2, -4, 6, 8);
+    ctx.restore();
+  }
 
-  // 튀는 스파크
+  // ---------- 7) 견갑 + 어깨 포탑 (조준탄 발사점 ±60, +16) ----------
+  for (const s of [-1, 1]) {
+    ctx.save();
+    ctx.translate(s * 66, 2);
+    ctx.scale(s, 1);
+    // 겹친 견갑 세 장 — 바깥쪽이 크고 아래에 깔린다
+    for (let k = 0; k < 3; k++) {
+      const rx = 32 - k * 7;
+      const ry = 34 - k * 8;
+      const ox = 4 - k * 3;
+      const oy = -2 + k * 3;
+      ctx.fillStyle = '#0c0c0a';
+      ellipse(ctx, ox + 1.5, oy + 2, rx + 1, ry + 1);
+      ctx.fillStyle = metal(
+        ctx,
+        ox - rx,
+        oy - ry,
+        ox + rx,
+        oy + ry,
+        '#a29c80',
+        '#57543f',
+        '#1d1c16',
+      );
+      ellipse(ctx, ox, oy, rx, ry);
+      ctx.strokeStyle = '#c9a45a';
+      ctx.lineWidth = 1.2;
+      ctx.beginPath();
+      ctx.ellipse(ox, oy, rx, ry, 0, -2.2, 1.0);
+      ctx.stroke();
+    }
+    // 바깥으로 솟은 뿔 가시
+    ctx.fillStyle = metal(ctx, 26, -30, 50, -10, '#c8c2a4', '#6a6650', '#1d1c16');
+    poly(ctx, [24, -20, 52, -36, 32, -8]);
+    ctx.fillStyle = 'rgba(0,0,0,0.35)';
+    poly(ctx, [52, -36, 32, -8, 30, -14]);
+    rivets(
+      ctx,
+      [
+        [26, -12],
+        [30, 18],
+        [10, 26],
+      ],
+      1.3,
+    );
+    ctx.restore();
+    // 포탑 — 플레이어를 조준하는 쌍열 중포
+    const px = s * 60;
+    barrel(ctx, px - 4, 16, b.aim, 26, 5.5);
+    barrel(ctx, px + 4, 16, b.aim, 26, 5.5);
+    ctx.fillStyle = metal(ctx, px - 13, 3, px + 13, 29, '#8a909c', '#4a4e58', '#16181d');
+    ellipse(ctx, px, 16, 13, 13);
+    ctx.strokeStyle = '#c9a45a';
+    ctx.lineWidth = 1;
+    ctx.beginPath();
+    ctx.arc(px, 16, 13, 0, TAU);
+    ctx.stroke();
+    ctx.save();
+    ctx.globalCompositeOperation = 'lighter';
+    glowOrb(ctx, px, 16, 8, 'rgba(255,74,154,0.9)', 0.8 * pulse);
+    ctx.restore();
+  }
+
+  // ---------- 8) 투구 머리 ----------
+  goliathHelm(ctx, t, pulse);
+
+  // ---------- 9) 손상 + 튀는 스파크 ----------
+  scorch(ctx, GOLIATH_MECH_SCORCH, Math.max(0, (0.5 - b.hp) * 2.4), t);
   ctx.save();
   ctx.globalCompositeOperation = 'lighter';
-  for (let i = 0; i < 5; i++) {
+  for (let i = 0; i < 6; i++) {
     const k = (t * 3 + i * 0.37) % 1;
     const a = i * 1.7 + Math.floor(t * 3 + i * 0.37) * 2.3;
     const r = 30 + k * 60;
     ctx.fillStyle = `rgba(255,200,240,${1 - k})`;
-    ellipse(ctx, Math.cos(a) * r, Math.sin(a) * r * 0.5, 2, 2);
+    ellipse(ctx, Math.cos(a) * r, cy + Math.sin(a) * r * 0.5, 2, 2);
   }
+  ctx.restore();
+}
+
+const GOLIATH_MECH_SCORCH: [number, number, number][] = [
+  [-30, -30, 10],
+  [44, 14, 9],
+  [-70, 18, 10],
+  [76, -14, 9],
+  [18, 30, 8],
+  [-48, -40, 8],
+];
+
+/** 오른쪽 기준 — 불타며 펄럭이는 기낭 천 조각과 부러진 늑골 */
+function goliathTatters(ctx: CanvasRenderingContext2D, t: number) {
+  const f1 = Math.sin(t * 5) * 4;
+  const f2 = Math.sin(t * 6.3 + 1) * 4;
+  const cloth = [
+    58,
+    -46,
+    96,
+    -58,
+    126,
+    -50 + f1,
+    150,
+    -34,
+    138,
+    -24 + f2,
+    158,
+    -8,
+    136,
+    0 + f1,
+    148,
+    18,
+    124,
+    20 + f2,
+    130,
+    38,
+    104,
+    30,
+    92,
+    44,
+    76,
+    26,
+    60,
+    22,
+  ];
+  // 늑골 — 천보다 먼저 그려서 찢긴 틈 사이로 보이게 하고, 끝은 천 밖으로 삐져나온다
+  const ribs = [
+    [64, -40, 120, -62, 168, -40],
+    [64, -14, 124, -26, 172, -4],
+    [64, 12, 118, 8, 160, 30],
+  ];
+  for (const [ax, ay, cx, cy, bx, by] of ribs) {
+    ctx.strokeStyle = '#1c1a16';
+    ctx.lineWidth = 5;
+    ctx.beginPath();
+    ctx.moveTo(ax!, ay!);
+    ctx.quadraticCurveTo(cx!, cy!, bx!, by!);
+    ctx.stroke();
+    ctx.strokeStyle = 'rgba(200,190,160,0.45)';
+    ctx.lineWidth = 1.2;
+    ctx.stroke();
+  }
+  ctx.fillStyle = metal(ctx, 60, -56, 150, 40, '#b0a274', '#7a6e4c', '#2e2818');
+  poly(ctx, cloth);
+  ctx.save();
+  poly(ctx, cloth);
+  ctx.clip();
+  // 위장 무늬 + 천 주름
+  ctx.fillStyle = 'rgba(60,70,40,0.35)';
+  ellipse(ctx, 96, -30, 22, 10);
+  ellipse(ctx, 120, 12, 18, 8);
+  ctx.strokeStyle = 'rgba(30,24,14,0.4)';
+  ctx.lineWidth = 1;
+  for (let k = 0; k < 5; k++) {
+    ctx.beginPath();
+    ctx.moveTo(62, -40 + k * 14);
+    ctx.quadraticCurveTo(110, -46 + k * 14 + f1, 160, -30 + k * 12);
+    ctx.stroke();
+  }
+  // 불에 탄 구멍 — 가장자리가 달아오른다
+  for (const [hx, hy, hr] of [
+    [112, -32, 9],
+    [136, 4, 7],
+    [92, 16, 6],
+  ] as const) {
+    ctx.fillStyle = '#120c08';
+    ellipse(ctx, hx, hy, hr, hr * 0.8);
+    ctx.strokeStyle = `rgba(255,140,40,${0.6 + 0.3 * Math.sin(t * 9 + hx)})`;
+    ctx.lineWidth = 1.6;
+    ctx.beginPath();
+    ctx.ellipse(hx, hy, hr, hr * 0.8, 0, 0, TAU);
+    ctx.stroke();
+  }
+  ctx.restore();
+  // 찢긴 바깥 가장자리가 타오른다
+  ctx.save();
+  ctx.globalCompositeOperation = 'lighter';
+  ctx.strokeStyle = `rgba(255,120,30,${0.55 + 0.25 * Math.sin(t * 11)})`;
+  ctx.lineWidth = 2;
+  polyline(ctx, cloth.slice(4, 22));
+  ctx.restore();
+  // 바람에 뒤로 날리는 작은 불꽃
+  for (const [fx, fy] of [
+    [150, -34],
+    [158, -8],
+    [148, 18],
+  ] as const) {
+    ctx.save();
+    ctx.translate(fx, fy);
+    ctx.scale(1, -1);
+    drawThrust(ctx, 0, 0, 7, 16, t * 1.3 + fx, '#fff0b0', '#ff5a1a');
+    ctx.restore();
+  }
+}
+
+/** 건틀릿 팔 — 어깨에서 팔꿈치를 거쳐 앞으로 뻗은 주먹, 집게발이 쥐었다 폈다 한다 */
+function goliathArm(ctx: CanvasRenderingContext2D, t: number, s: number, pulse: number) {
+  const sw = Math.sin(t * 1.8 + s * 1.3);
+  const sx = s * 62;
+  const sy = 8;
+  const ex = s * (98 + sw * 3);
+  const ey = 22 + sw * 4;
+  const wx = s * (104 + sw * 2);
+  const wy = 54 + sw * 6;
+  const armMetal = metal(ctx, sx, sy - 10, wx, wy + 10, '#8a8670', '#4a4a3e', '#18181a');
+  tube(ctx, limb(sx, sy, 13, ex, ey, 10), armMetal);
+  // 팔꿈치 유압 피스톤
+  ctx.strokeStyle = '#c0c4cc';
+  ctx.lineWidth = 2.4;
+  polyline(ctx, [sx + s * 8, sy + 12, ex - s * 4, ey + 12]);
+  ctx.strokeStyle = '#2a2b30';
+  ctx.lineWidth = 1;
+  polyline(ctx, [sx + s * 8, sy + 12, ex - s * 4, ey + 12]);
+  // 아래팔 — 건틀릿으로 굵어진다
+  tube(ctx, limb(ex, ey, 11, wx, wy, 15), armMetal);
+  for (const q of [0.35, 0.65]) {
+    const bx = ex + (wx - ex) * q;
+    const by = ey + (wy - ey) * q;
+    ctx.strokeStyle = '#c9a45a';
+    ctx.lineWidth = 1.4;
+    ctx.beginPath();
+    ctx.ellipse(bx, by, 12 + q * 3, 3, Math.atan2(wy - ey, wx - ex) + Math.PI / 2, 0, TAU);
+    ctx.stroke();
+  }
+  // 팔꿈치 관절
+  ctx.fillStyle = metal(ctx, ex - 9, ey - 9, ex + 9, ey + 9, '#b0b4bc', '#5a5f6a', '#1a1b20');
+  ellipse(ctx, ex, ey, 9, 9);
+  rivets(ctx, [[ex, ey]], 2);
+  // 주먹 — 아래팔 방향으로 돌려서 그린다 (+y 가 손끝)
+  const grip = 0.5 + 0.5 * Math.sin(t * 2.4 + s);
+  ctx.save();
+  ctx.translate(wx, wy);
+  ctx.rotate(Math.atan2(wy - ey, wx - ex) - Math.PI / 2);
+  // 집게발 3개 — 벌렸다 오므린다
+  for (const k of [-1, 0, 1]) {
+    ctx.save();
+    ctx.translate(k * 8, 10);
+    ctx.rotate(k * (0.15 + grip * 0.35));
+    ctx.fillStyle = metal(ctx, -4, 0, 4, 22, '#c8ccd4', '#5a5f6a', '#121317');
+    poly(ctx, [-4.5, 0, 4.5, 0, 3, 14, -1, 24, -2.5, 14]);
+    ctx.restore();
+  }
+  ctx.fillStyle = metal(ctx, -15, -10, 15, 14, '#a29c80', '#57543f', '#1d1c16');
+  ctx.beginPath();
+  ctx.roundRect(-15, -10, 30, 22, 6);
+  ctx.fill();
+  ctx.strokeStyle = '#c9a45a';
+  ctx.lineWidth = 1;
+  ctx.stroke();
+  // 주먹 마디 징
+  for (const k of [-1, 0, 1]) {
+    ctx.fillStyle = '#d8d4c0';
+    poly(ctx, [k * 9 - 3, 8, k * 9, 14, k * 9 + 3, 8]);
+  }
+  ctx.save();
+  ctx.globalCompositeOperation = 'lighter';
+  glowOrb(ctx, 0, 0, 9, 'rgba(255,74,154,0.85)', 0.7 * pulse);
+  ctx.restore();
+  ctx.restore();
+}
+
+/** 투구 쓴 머리 — 볏과 뿔, 앞쪽 T자 바이저가 빛난다 */
+function goliathHelm(ctx: CanvasRenderingContext2D, t: number, pulse: number) {
+  const hy = 52;
+  ctx.save();
+  // 머리는 몸에 비해 크게 — (0, hy) 를 중심으로 키운다
+  ctx.translate(0, hy);
+  ctx.scale(1.25, 1.25);
+  ctx.translate(0, -hy);
+  // 목 보호대
+  ctx.fillStyle = metal(ctx, -26, 34, 26, 50, '#6a6650', '#3a3a30', '#121210');
+  poly(ctx, [-28, 36, 28, 36, 22, 50, -22, 50]);
+  // 옆으로 뻗었다 앞으로 휘는 황소 뿔
+  for (const s of [-1, 1]) {
+    ctx.fillStyle = '#0c0c0a';
+    ctx.beginPath();
+    ctx.moveTo(s * 15, hy - 7);
+    ctx.quadraticCurveTo(s * 44, hy - 14, s * 40, hy + 22);
+    ctx.quadraticCurveTo(s * 34, hy - 2, s * 15, hy + 5);
+    ctx.closePath();
+    ctx.fill();
+    ctx.fillStyle = metal(ctx, s * 14, hy - 12, s * 42, hy + 22, '#f4ecd0', '#a49a78', '#3a3626');
+    ctx.beginPath();
+    ctx.moveTo(s * 16, hy - 6);
+    ctx.quadraticCurveTo(s * 42, hy - 12, s * 39, hy + 20);
+    ctx.quadraticCurveTo(s * 33, hy - 1, s * 16, hy + 4);
+    ctx.closePath();
+    ctx.fill();
+    // 뿔 마디 줄무늬
+    ctx.strokeStyle = 'rgba(60,50,30,0.5)';
+    ctx.lineWidth = 1;
+    for (const k of [0.3, 0.5, 0.7]) {
+      polyline(ctx, [s * (16 + k * 26), hy - 9 + k * 4, s * (18 + k * 18), hy + 2 + k * 2]);
+    }
+  }
+  // 투구 돔
+  ctx.fillStyle = '#0c0c0a';
+  ellipse(ctx, 0, hy + 1, 23, 21);
+  const dome = ctx.createRadialGradient(-7, hy - 8, 2, 0, hy, 24);
+  dome.addColorStop(0, '#d0ccb4');
+  dome.addColorStop(0.45, '#6e6a54');
+  dome.addColorStop(1, '#1a1a14');
+  ctx.fillStyle = dome;
+  ellipse(ctx, 0, hy, 21, 19);
+  // 볏 — 정수리를 가로지르는 황동 지느러미
+  ctx.fillStyle = metal(ctx, -4, hy - 20, 4, hy + 14, '#f0d48a', '#c9a45a', '#5a4420');
+  poly(ctx, [-3, hy - 22, 3, hy - 22, 4, hy + 6, 0, hy + 12, -4, hy + 6]);
+  // 바이저 — 앞쪽 테두리에 T 자로 빛나는 틈
+  ctx.fillStyle = '#060608';
+  poly(ctx, [-16, hy + 8, 16, hy + 8, 12, hy + 17, -12, hy + 17]);
+  ctx.save();
+  ctx.globalCompositeOperation = 'lighter';
+  const v = 0.6 + 0.4 * pulse;
+  ctx.fillStyle = `rgba(255,90,170,${v})`;
+  ctx.fillRect(-13, hy + 10, 26, 2.6);
+  ctx.fillRect(-1.6, hy + 10, 3.2, 7);
+  glowOrb(ctx, 0, hy + 12, 14, 'rgba(255,74,154,0.6)', 0.35 * v);
+  ctx.restore();
+  rivets(
+    ctx,
+    [
+      [-15, hy - 2],
+      [15, hy - 2],
+    ],
+    1.2,
+  );
+  // 볏 끝 경고등
+  glowOrb(ctx, 0, hy - 22, Math.floor(t * 2.5) % 2 ? 6 : 3, '#ff2a4a');
   ctx.restore();
 }
 
@@ -512,79 +957,341 @@ const KRAKEN_SCORCH: [number, number, number][] = [
   [50, 48, 11],
 ];
 
+/** 선체 바깥 장갑 / 갑판 / 중앙 성채 윤곽 */
+const KRAKEN_OUTER = [
+  -152, -22, -114, -68, 114, -68, 152, -22, 152, 22, 114, 64, -114, 64, -152, 22,
+];
+const KRAKEN_DECK = [
+  -138, -16, -104, -56, 104, -56, 138, -16, 138, 16, 104, 52, -104, 52, -138, 16,
+];
+const KRAKEN_CITADEL = [-60, -30, -44, -44, 44, -44, 60, -30, 60, 34, 44, 46, -44, 46, -60, 34];
+
+/**
+ * 2단계 — 갑판이 찢겨 벌어진 구멍 윤곽 (중심 0, 8 기준 각도별 반지름 배율).
+ * 매 프레임 같은 모양이어야 해서 미리 정해 둔다.
+ */
+const KRAKEN_TEAR = Array.from({ length: 22 }, (_, i) => 0.82 + hash(i + 3) * 0.3);
+
+/** 촉수 하나의 모양 (오른쪽 기준, 왼쪽은 좌우 반전) */
+interface Tentacle {
+  /** 뿌리 위치 */
+  x: number;
+  y: number;
+  /** 뻗는 방향 (라디안) · 끝으로 갈수록 말리는 정도 · 길이 · 뿌리 굵기 */
+  a: number;
+  curl: number;
+  len: number;
+  r: number;
+  /** 흔들림 위상 */
+  ph: number;
+  /** 끝을 이 자리에 고정 (탄이 나가는 자리) */
+  pin?: [number, number];
+}
+
+/** 1단계 — 선체 아래에서 뻗어 나온 촉수 */
+const KRAKEN_ARMS_CALM: Tentacle[] = [
+  { x: 128, y: -46, a: -0.55, curl: -1.1, len: 118, r: 21, ph: 0 },
+  { x: 146, y: 4, a: 0.05, curl: 0.9, len: 110, r: 20, ph: 1.3 },
+  { x: 118, y: 50, a: 0.85, curl: 1.3, len: 88, r: 17, ph: 2.1 },
+  // 앞 촉수 — 끝의 발광 미끼에서 물결탄이 나간다 (±90, +118)
+  { x: 76, y: 52, a: 1.4, curl: 0.35, len: 80, r: 19, ph: 0.7, pin: [90, 118] },
+];
+
+/** 2단계 — 더 굵고 길게 날뛰는 촉수 (앞 촉수 끝의 아가리에서 바늘탄) */
+const KRAKEN_ARMS_RAGE: Tentacle[] = [
+  { x: 70, y: -62, a: -1.35, curl: -0.9, len: 124, r: 22, ph: 2.6 },
+  { x: 128, y: -46, a: -0.5, curl: -1.3, len: 146, r: 25, ph: 0 },
+  { x: 146, y: 4, a: 0.05, curl: 1.1, len: 138, r: 24, ph: 1.3 },
+  { x: 118, y: 50, a: 0.8, curl: 1.4, len: 108, r: 20, ph: 2.1 },
+  { x: 76, y: 52, a: 1.4, curl: 0.35, len: 82, r: 21, ph: 0.7, pin: [90, 118] },
+];
+
+/** 촉수 중심선 — 끝으로 갈수록 가늘어지고 물결치며 말린다 */
+function tentaclePts(c: Tentacle, t: number, speed: number, wave: number): TubePt[] {
+  let pts = chain(
+    c.x,
+    c.y,
+    c.len,
+    14,
+    (q) => c.a + c.curl * q * q + Math.sin(t * speed + c.ph - q * 3.2) * wave * q,
+    (q) => c.r * (1 - q * 0.78),
+  );
+  if (c.pin) pts = pinTip(pts, c.pin[0] + Math.sin(t * 2 + c.ph) * 3, c.pin[1]);
+  return pts;
+}
+
+/**
+ * 촉수 그리기 — 살갗 + 한쪽 줄의 빨판 + (2단계) 생체 발광 줄무늬.
+ * tip: 'lure' 1단계 발광 미끼 / 'maw' 2단계 이빨 달린 아가리
+ */
+function krakenTentacle(
+  ctx: CanvasRenderingContext2D,
+  pts: TubePt[],
+  rage: boolean,
+  t: number,
+  side: number,
+  tip: 'lure' | 'maw' | null,
+) {
+  const n = pts.length - 1;
+  const [rx, ry] = pts[0]!;
+  const [tx, ty] = pts[n]!;
+  const skin = ctx.createLinearGradient(rx, ry, tx, ty);
+  skin.addColorStop(0, rage ? '#3a0820' : '#1a4450');
+  skin.addColorStop(0.5, rage ? '#7a1a40' : '#2e6e74');
+  skin.addColorStop(1, rage ? '#c0386a' : '#5aa8a0');
+  tube(ctx, pts, skin, rage ? 'rgba(255,180,210,0.22)' : 'rgba(200,255,250,0.2)');
+  // 2단계 — 등줄기를 따라 흐르는 생체 발광
+  if (rage) {
+    ctx.save();
+    ctx.globalCompositeOperation = 'lighter';
+    ctx.lineCap = 'round';
+    for (let i = 1; i < n; i++) {
+      const [x0, y0, r0] = pts[i]!;
+      const [x1, y1] = pts[i + 1]!;
+      const k = 0.5 + 0.5 * Math.sin(t * 6 - i * 0.8);
+      ctx.strokeStyle = `rgba(255,60,140,${0.55 * k})`;
+      ctx.lineWidth = Math.max(1, r0 * 0.22);
+      polyline(ctx, [x0, y0, x1, y1]);
+    }
+    ctx.restore();
+  }
+  // 빨판 — 촉수 한쪽 가장자리를 따라 줄지어 난다
+  for (let i = 1; i < n - 1; i++) {
+    const [x, y, r] = pts[i]!;
+    const [nx, ny] = pts[i + 1]!;
+    const d = Math.atan2(ny - y, nx - x) + (side * Math.PI) / 2;
+    const sx = x + Math.cos(d) * r * 0.55;
+    const sy = y + Math.sin(d) * r * 0.55;
+    const sr = Math.max(1.2, r * 0.3);
+    ctx.fillStyle = rage ? '#ffb8d0' : '#cfe8e0';
+    ellipse(ctx, sx, sy, sr, sr);
+    ctx.fillStyle = rage ? '#3a0618' : '#163a40';
+    ellipse(ctx, sx, sy, sr * 0.5, sr * 0.5);
+    if (rage && i % 2 === 0) {
+      ctx.save();
+      ctx.globalCompositeOperation = 'lighter';
+      glowOrb(ctx, sx, sy, sr * 2.4, 'rgba(255,80,160,0.8)', 0.5 + 0.5 * Math.sin(t * 7 + i));
+      ctx.restore();
+    }
+  }
+  if (tip === 'lure') {
+    // 아귀처럼 빛나는 미끼
+    const p = 0.7 + 0.3 * Math.sin(t * 6);
+    ctx.save();
+    ctx.globalCompositeOperation = 'lighter';
+    glowOrb(ctx, tx, ty, 14 * p, 'rgba(90,208,255,0.9)', 0.9);
+    ctx.restore();
+    ctx.fillStyle = '#e8fbff';
+    ellipse(ctx, tx, ty, 3.5, 3.5);
+  } else if (tip === 'maw') {
+    // 끝이 네 갈래로 벌어진 이빨 아가리
+    const [px, py] = pts[n - 1]!;
+    const d = Math.atan2(ty - py, tx - px);
+    const open = 0.35 + 0.2 * Math.sin(t * 9);
+    ctx.save();
+    ctx.globalCompositeOperation = 'lighter';
+    glowOrb(ctx, tx, ty, 16, 'rgba(255,40,80,0.9)', 0.9);
+    ctx.restore();
+    for (let k = 0; k < 4; k++) {
+      const a = d + (k - 1.5) * (0.5 + open);
+      ctx.fillStyle = '#f0e0d0';
+      poly(ctx, [
+        tx + Math.cos(a + 1.2) * 3,
+        ty + Math.sin(a + 1.2) * 3,
+        tx + Math.cos(a) * 12,
+        ty + Math.sin(a) * 12,
+        tx + Math.cos(a - 1.2) * 3,
+        ty + Math.sin(a - 1.2) * 3,
+      ]);
+    }
+  }
+}
+
+/** 오른쪽 기준 촉수 목록을 좌우 양쪽으로 그린다 */
+function krakenArms(
+  ctx: CanvasRenderingContext2D,
+  arms: Tentacle[],
+  t: number,
+  rage: boolean,
+  speed: number,
+  wave: number,
+) {
+  for (const s of [-1, 1]) {
+    for (const c of arms) {
+      const pts = mirrorX(tentaclePts(c, t + (s < 0 ? 1.1 : 0), speed, wave), s);
+      krakenTentacle(ctx, pts, rage, t, -s, c.pin ? (rage ? 'maw' : 'lure') : null);
+    }
+  }
+}
+
+/**
+ * 크라켄 — 거대 촉수 괴물이 등에 짊어진 해상 요새.
+ * 1단계: 강철 요새가 물 위에 떠 있고, 그 아래 거대한 그림자와 촉수가 선체를 붙잡고 있다.
+ * 2단계(각성): 갑판이 찢겨 벌어지며 괴물의 거대한 눈과 부리가 드러나고, 촉수가 붉게 빛나며 날뛴다.
+ * open: 변신 중 중앙 장갑문이 열리는 정도 (0~1)
+ */
 export function drawKraken(ctx: CanvasRenderingContext2D, b: BossLook) {
   const t = b.t;
   const rage = b.phase === 2;
   ctx.save();
   ctx.translate(b.x, b.y);
 
-  // 물결 링과 물보라
-  ctx.strokeStyle = 'rgba(200,235,255,0.25)';
+  krakenWater(ctx, t, rage);
+  // 선체 밑에서 뻗어 나온 촉수 (선체보다 먼저 그려서 밑에 깔린다)
+  if (rage) krakenArms(ctx, KRAKEN_ARMS_RAGE, t, true, 3.6, 0.75);
+  else krakenArms(ctx, KRAKEN_ARMS_CALM, t, false, 2.2, 0.45);
+
+  krakenHull(ctx, b, rage);
+
+  // 선체 가장자리를 넘어 갑판을 움켜쥔 촉수
+  for (const s of [-1, 1]) {
+    const grip: Tentacle = rage
+      ? { x: 96, y: -26, a: -0.9, curl: 1.6, len: 78, r: 18, ph: 0.4 }
+      : { x: 178, y: -34, a: Math.PI - 0.25, curl: -1.3, len: 70, r: 16, ph: 0.4 };
+    const pts = mirrorX(tentaclePts(grip, t + (s < 0 ? 0.8 : 0), rage ? 3 : 1.6, 0.3), s);
+    krakenTentacle(ctx, pts, rage, t, s, null);
+  }
+
+  scorch(ctx, KRAKEN_SCORCH, Math.max(0, (1 - b.hp) * 1.4), t);
+  hitFlash(ctx, b.flash, 150, 66);
+  morphFlash(ctx, b.morph);
+  ctx.restore();
+}
+
+/** 물 — 물속의 거대한 그림자, 퍼져 나가는 물결, 선체에 부딪히는 물보라 */
+function krakenWater(ctx: CanvasRenderingContext2D, t: number, rage: boolean) {
+  // 물속 괴물의 몸통 그림자
+  const sh = ctx.createRadialGradient(0, -6, 30, 0, -6, 220);
+  sh.addColorStop(0, rage ? 'rgba(40,0,12,0.6)' : 'rgba(0,10,22,0.55)');
+  sh.addColorStop(1, 'rgba(0,0,0,0)');
+  ctx.fillStyle = sh;
+  ctx.save();
+  ctx.scale(1, 0.6);
+  ellipse(ctx, 0, -10, 220, 220);
+  ctx.restore();
+  // 물속에서 천천히 움직이는 커다란 촉수 그림자
+  for (let i = 0; i < 6; i++) {
+    const a = (i / 6) * TAU + 0.3 + Math.sin(t * 0.7 + i) * 0.12;
+    const pts = chain(
+      Math.cos(a) * 110,
+      Math.sin(a) * 50,
+      150,
+      8,
+      (q) => a + Math.sin(t * 1.2 + i * 1.7 - q * 2.5) * 0.6 * q,
+      (q) => 16 * (1 - q * 0.8),
+    );
+    tubePath(ctx, pts);
+    ctx.fillStyle = rage ? 'rgba(50,0,16,0.3)' : 'rgba(0,14,26,0.28)';
+    ctx.fill();
+  }
+  // 퍼져 나가는 물결 고리
+  ctx.strokeStyle = rage ? 'rgba(255,200,210,0.25)' : 'rgba(200,235,255,0.25)';
   ctx.lineWidth = 2;
   for (let i = 0; i < 3; i++) {
-    const k = (t * 0.5 + i / 3) % 1;
+    const k = (t * (rage ? 0.8 : 0.5) + i / 3) % 1;
     ctx.globalAlpha = 1 - k;
     ctx.beginPath();
-    ctx.ellipse(0, 0, 160 + k * 70, 76 + k * 34, 0, 0, TAU);
+    ctx.ellipse(0, 0, 160 + k * 80, 76 + k * 40, 0, 0, TAU);
     ctx.stroke();
   }
   ctx.globalAlpha = 1;
+  // 2단계 — 물이 끓어오르는 거품
+  if (rage) {
+    for (let i = 0; i < 14; i++) {
+      const k = (t * 0.9 + hash(i)) % 1;
+      const a = hash(i + 20) * TAU;
+      const r = 150 + hash(i + 40) * 50;
+      ctx.strokeStyle = `rgba(255,220,230,${0.5 * (1 - k)})`;
+      ctx.lineWidth = 1.2;
+      ctx.beginPath();
+      ctx.arc(Math.cos(a) * r, Math.sin(a) * r * 0.5, 2 + k * 5, 0, TAU);
+      ctx.stroke();
+    }
+  }
+}
+
+function krakenHull(ctx: CanvasRenderingContext2D, b: BossLook, rage: boolean) {
+  const t = b.t;
+  const pulse = 0.6 + 0.4 * Math.sin(t * (rage ? 7 : 3));
+
+  // ---------- 물보라 테두리 ----------
+  ctx.save();
+  ctx.scale(1.04, 1.07);
+  ctx.strokeStyle = 'rgba(235,248,255,0.16)';
+  ctx.lineWidth = 5;
+  ctx.setLineDash([12, 8]);
+  ctx.lineDashOffset = t * 24;
+  polyline(ctx, [...KRAKEN_OUTER, KRAKEN_OUTER[0]!, KRAKEN_OUTER[1]!]);
+  ctx.restore();
   for (let i = 0; i < 16; i++) {
     const a = (i / 16) * TAU + t * 0.5;
     ctx.fillStyle = 'rgba(235,248,255,0.45)';
     ellipse(ctx, Math.cos(a) * 158, Math.sin(a) * 72, 12 + Math.sin(t * 4 + i) * 5, 5);
   }
 
-  // 촉수 — 마디가 있는 살덩이, 끝에 포구
-  for (let i = 0; i < 6; i++) {
-    const s = i < 3 ? -1 : 1;
-    const k = i % 3;
-    const bx = s * (60 + k * 32);
-    const segs = 11;
-    for (let j = segs; j >= 0; j--) {
-      const q = j / segs;
-      const wob = Math.sin(t * 2.4 + i - q * 2.5) * 18 * q;
-      const x = bx + s * Math.sin(q * Math.PI) * 22 + wob * 0.8;
-      const y = 20 + q * (96 + k * 10);
-      const r = 15 - k * 2 - q * 7;
-      ctx.fillStyle = rage ? (j % 2 ? '#6a2440' : '#7c2c4c') : j % 2 ? '#1f4a52' : '#255862';
-      ellipse(ctx, x, y, r, r);
-      if (j % 2 === 0 && j > 0) {
-        ctx.fillStyle = rage ? '#ffb0c8' : '#a8e0e0';
-        ellipse(ctx, x - s * r * 0.4, y, 1.6, 1.6);
-      }
-      if (j === segs) glowOrb(ctx, x, y + 3, 8, rage ? '#ff5a8a' : '#5ad0ff');
-    }
-  }
-
-  // 선체 — 바깥 장갑
-  const outer = [-150, -20, -110, -66, 110, -66, 150, -20, 150, 20, 110, 62, -110, 62, -150, 20];
-  const og = ctx.createLinearGradient(0, -66, 0, 62);
-  og.addColorStop(0, '#3d4a54');
-  og.addColorStop(1, '#1b232a');
-  ctx.fillStyle = og;
-  poly(ctx, outer);
-  ctx.strokeStyle = '#0d1216';
+  // ---------- 바깥 장갑 띠 — 녹물 자국과 따개비 ----------
+  ctx.fillStyle = metal(ctx, -150, -68, 150, 64, '#4e5c66', '#2e3a42', '#141b20');
+  poly(ctx, KRAKEN_OUTER);
+  ctx.strokeStyle = '#080c0f';
   ctx.lineWidth = 3;
   ctx.stroke();
-  // 안쪽 갑판
-  const deck = ctx.createLinearGradient(0, -56, 0, 52);
-  deck.addColorStop(0, '#6a7a86');
-  deck.addColorStop(0.5, '#56646f');
-  deck.addColorStop(1, '#3a4650');
-  ctx.fillStyle = deck;
-  poly(ctx, [-138, -16, -104, -56, 104, -56, 138, -16, 138, 16, 104, 52, -104, 52, -138, 16]);
-  // 갑판 패널선
-  ctx.strokeStyle = 'rgba(15,20,25,0.35)';
+  ctx.save();
+  poly(ctx, KRAKEN_OUTER);
+  ctx.clip();
+  for (let i = 0; i < 18; i++) {
+    const x = -140 + i * 16.5 + hash(i) * 6;
+    const len = 6 + hash(i + 7) * 10;
+    const g = ctx.createLinearGradient(0, -68, 0, -68 + len);
+    g.addColorStop(0, 'rgba(140,70,30,0.55)');
+    g.addColorStop(1, 'rgba(140,70,30,0)');
+    ctx.fillStyle = g;
+    ctx.fillRect(x, -68, 2.2, len);
+  }
+  for (let i = 0; i < 30; i++) {
+    const a = hash(i + 50) * TAU;
+    const x = Math.cos(a) * 146;
+    const y = Math.sin(a) * 62;
+    ctx.fillStyle = 'rgba(210,205,190,0.55)';
+    ellipse(ctx, x, y, 1.6 + hash(i) * 1.4, 1.4 + hash(i) * 1.2);
+  }
+  ctx.restore();
+
+  // ---------- 갑판 ----------
+  ctx.fillStyle = metal(ctx, -138, -56, 138, 52, '#76858f', '#56646f', '#36424c');
+  poly(ctx, KRAKEN_DECK);
+  ctx.save();
+  poly(ctx, KRAKEN_DECK);
+  ctx.clip();
+  // 미끄럼 방지 격자
+  ctx.strokeStyle = 'rgba(0,0,0,0.07)';
   ctx.lineWidth = 1;
   ctx.beginPath();
-  for (let x = -126; x <= 126; x += 18) {
-    ctx.moveTo(x, -52);
-    ctx.lineTo(x, 48);
+  for (let x = -138; x <= 138; x += 5) {
+    ctx.moveTo(x, -56);
+    ctx.lineTo(x + 20, 52);
   }
-  ctx.moveTo(-136, 0);
-  ctx.lineTo(136, 0);
   ctx.stroke();
+  // 패널선
+  for (const [color, dx] of [
+    ['rgba(15,20,25,0.4)', 0],
+    ['rgba(255,255,255,0.1)', 1],
+  ] as const) {
+    ctx.strokeStyle = color;
+    ctx.beginPath();
+    for (let x = -126; x <= 126; x += 18) {
+      ctx.moveTo(x + dx, -56);
+      ctx.lineTo(x + dx, 52);
+    }
+    ctx.stroke();
+  }
+  ctx.restore();
+  // 갑판 난간 기둥
+  ctx.save();
+  ctx.strokeStyle = 'rgba(200,215,225,0.6)';
+  ctx.lineWidth = 1.2;
+  ctx.setLineDash([2, 5]);
+  polyline(ctx, [...KRAKEN_DECK, KRAKEN_DECK[0]!, KRAKEN_DECK[1]!]);
+  ctx.restore();
   // 뱃머리 경고 줄무늬
   ctx.save();
   ctx.beginPath();
@@ -596,129 +1303,349 @@ export function drawKraken(ctx: CanvasRenderingContext2D, b: BossLook) {
   }
   ctx.restore();
   const rv: [number, number][] = [];
-  for (let x = -100; x <= 100; x += 20) rv.push([x, -61], [x, 57]);
+  for (let x = -100; x <= 100; x += 20) rv.push([x, -62], [x, 58]);
   rivets(ctx, rv);
 
-  // 함교 + 회전 레이더
-  ctx.save();
-  ctx.translate(0, -48);
-  const tower = ctx.createLinearGradient(-26, 0, 26, 0);
-  tower.addColorStop(0, '#2a333a');
-  tower.addColorStop(0.5, '#7a8a96');
-  tower.addColorStop(1, '#232b31');
-  ctx.fillStyle = tower;
-  poly(ctx, [-26, -10, 26, -10, 20, 12, -20, 12]);
-  ctx.fillStyle = '#9fe8ff';
-  for (let i = -2; i <= 2; i++) ctx.fillRect(i * 9 - 3, -4, 6, 3);
-  ctx.strokeStyle = '#c8d4dc';
-  ctx.lineWidth = 3;
-  const ra = t * 3;
-  ctx.beginPath();
-  ctx.moveTo(-Math.cos(ra) * 16, -16 - Math.sin(ra) * 4);
-  ctx.lineTo(Math.cos(ra) * 16, -16 + Math.sin(ra) * 4);
-  ctx.stroke();
-  ctx.restore();
-
-  // 미사일 사일로 4개
+  // ---------- 미사일 사일로 4기 (유도 미사일 발사점) ----------
   for (const mx of [-112, -70, 70, 112]) {
-    ctx.fillStyle = '#1a2126';
-    ctx.fillRect(mx - 13, -34, 26, 34);
-    ctx.strokeStyle = '#5a6670';
-    ctx.lineWidth = 1;
-    ctx.strokeRect(mx - 13, -34, 26, 34);
+    if (rage) {
+      // 2단계 — 터져 나간 사일로가 불타고 있다
+      ctx.fillStyle = '#0a0d10';
+      ellipse(ctx, mx, -18, 14, 16);
+      ctx.save();
+      ctx.globalCompositeOperation = 'lighter';
+      glowOrb(ctx, mx, -18, 12 + pulse * 4, 'rgba(255,110,30,0.9)', 0.8);
+      ctx.restore();
+      ctx.save();
+      ctx.translate(mx, -26);
+      ctx.scale(1, -1);
+      drawThrust(ctx, 0, 0, 12, 22, t * 1.4 + mx, '#fff0b0', '#ff4a1a');
+      ctx.restore();
+      continue;
+    }
+    ctx.fillStyle = '#121a20';
+    ctx.fillRect(mx - 14, -36, 28, 38);
+    // 경고 테두리
+    ctx.strokeStyle = '#e8c02a';
+    ctx.lineWidth = 1.4;
+    ctx.setLineDash([3, 3]);
+    ctx.strokeRect(mx - 14, -36, 28, 38);
+    ctx.setLineDash([]);
     for (let r = 0; r < 3; r++) {
       for (let c = 0; c < 2; c++) {
-        ctx.fillStyle = '#3a454e';
-        ctx.fillRect(mx - 10 + c * 11, -31 + r * 11, 9, 9);
-        ctx.fillStyle = '#ff8a2a';
-        ellipse(ctx, mx - 5.5 + c * 11, -26.5 + r * 11, 2, 2);
+        const hx = mx - 11 + c * 12;
+        const hy = -33 + r * 11.5;
+        ctx.fillStyle = metal(ctx, hx, hy, hx + 10, hy + 10, '#7a8892', '#46525c', '#222b32');
+        ctx.fillRect(hx, hy, 10, 10);
+        ctx.strokeStyle = 'rgba(0,0,0,0.6)';
+        ctx.lineWidth = 0.8;
+        polyline(ctx, [hx, hy + 10, hx + 10, hy]);
+        const lit = (r + c + Math.floor(t * 4)) % 4 === 0;
+        ctx.fillStyle = lit ? '#ffb03a' : '#7a3a10';
+        ellipse(ctx, hx + 8, hy + 2, 1.4, 1.4);
       }
     }
-    const lit = Math.floor(t * 3 + mx) % 3 === 0;
-    glowOrb(ctx, mx, -38, lit ? 6 : 3, '#ffae3a');
   }
 
-  // 조준 포탑 (앞쪽 모서리)
+  // ---------- 조준 포탑 (앞쪽 모서리) ----------
   for (const tx of [-112, 112]) {
-    barrel(ctx, tx - 4, 30, b.aim, 24, 4);
-    barrel(ctx, tx + 4, 30, b.aim, 24, 4);
-    const tg = ctx.createRadialGradient(tx - 4, 26, 1, tx, 30, 15);
-    tg.addColorStop(0, '#9aa6b0');
-    tg.addColorStop(1, '#2a333a');
-    ctx.fillStyle = tg;
-    ellipse(ctx, tx, 30, 14, 14);
-    ctx.fillStyle = '#1a2126';
-    ellipse(ctx, tx, 30, 5, 5);
-  }
-
-  // 손상
-  scorch(ctx, KRAKEN_SCORCH, Math.max(0, (1 - b.hp) * 1.4), t);
-
-  // 코어 — 조개껍데기 같은 장갑문이 좌우로 열린다
-  const open = b.open * 36;
-  ctx.fillStyle = '#060a0e';
-  ctx.fillRect(-40, -26, 80, 68);
-  const eyeColor = rage ? '#ff3a5a' : '#3ad0ff';
-  glowOrb(ctx, 0, 8, 30 + open * 0.6 + Math.sin(t * 5) * 3, eyeColor, 0.9);
-  // 홍채 링 + 플레이어를 보는 동공
-  ctx.save();
-  ctx.translate(0, 8);
-  ctx.rotate(t * (rage ? 2 : 0.8));
-  ctx.strokeStyle = rage ? 'rgba(255,200,210,0.8)' : 'rgba(200,245,255,0.8)';
-  ctx.lineWidth = 2;
-  for (let i = 0; i < 12; i++) {
-    ctx.rotate(TAU / 12);
-    ctx.beginPath();
-    ctx.moveTo(10, 0);
-    ctx.lineTo(18, 0);
-    ctx.stroke();
-  }
-  ctx.restore();
-  const px = Math.cos(b.aim) * 5;
-  const py = 8 + Math.sin(b.aim) * 5;
-  ctx.fillStyle = '#0a0004';
-  ctx.save();
-  ctx.translate(px, py);
-  ctx.scale(0.45, 1);
-  ellipse(ctx, 0, 0, 8, 8);
-  ctx.restore();
-  // 장갑문
-  for (const s of [-1, 1]) {
-    const dx = s === -1 ? -40 - open : open;
-    const dg = ctx.createLinearGradient(dx, 0, dx + 40, 0);
-    dg.addColorStop(0, s === -1 ? '#27313a' : '#4e5d69');
-    dg.addColorStop(1, s === -1 ? '#4e5d69' : '#27313a');
-    ctx.fillStyle = dg;
-    ctx.fillRect(dx, -26, 40, 68);
+    ctx.save();
+    ctx.translate(tx, 30);
+    ctx.rotate(b.aim - Math.PI / 2);
+    for (const bx of [-4.5, 4.5]) {
+      ctx.fillStyle = metal(ctx, bx - 2.5, 0, bx + 2.5, 0, '#5a606a', '#2a2d33', '#101114');
+      ctx.fillRect(bx - 2.5, 4, 5, 26);
+      ctx.fillStyle = '#0c0d10';
+      ctx.fillRect(bx - 3.5, 26, 7, 4);
+    }
+    ctx.fillStyle = metal(ctx, -16, -14, 16, 14, '#a8b4be', '#58646e', '#1e262c');
+    poly(ctx, [-15, -12, 15, -12, 17, 4, 11, 14, -11, 14, -17, 4]);
     ctx.strokeStyle = '#0d1216';
+    ctx.lineWidth = 1.5;
+    ctx.stroke();
+    ctx.fillStyle = '#2a333a';
+    ellipse(ctx, -4, -3, 4, 4);
+    ctx.fillStyle = rage ? '#ff4a5a' : '#9fe8ff';
+    ctx.fillRect(4, -6, 6, 2);
+    ctx.restore();
+  }
+
+  // ---------- 중앙 성채 ----------
+  ctx.fillStyle = 'rgba(0,0,0,0.4)';
+  ctx.save();
+  ctx.translate(5, 6);
+  poly(ctx, KRAKEN_CITADEL);
+  ctx.restore();
+  ctx.fillStyle = metal(ctx, -60, -44, 60, 46, '#8c9ca8', '#55636e', '#27313a');
+  poly(ctx, KRAKEN_CITADEL);
+  ctx.strokeStyle = '#0d1216';
+  ctx.lineWidth = 2;
+  ctx.stroke();
+  // 성채 측면 총안
+  for (const s of [-1, 1]) {
+    for (let k = 0; k < 4; k++) {
+      ctx.fillStyle = '#0a0e12';
+      ctx.fillRect(s * 54 - 2, -22 + k * 13, 4, 7);
+      ctx.fillStyle = rage ? 'rgba(255,90,90,0.6)' : 'rgba(160,230,255,0.5)';
+      ctx.fillRect(s * 54 - 1, -20 + k * 13, 2, 3);
+    }
+  }
+
+  // ---------- 함교 탑 + 레이더 + 탐조등 ----------
+  if (!rage) {
+    ctx.save();
+    ctx.translate(0, -52);
+    ctx.fillStyle = metal(ctx, -30, -12, 30, 14, '#9aaab6', '#5e6c78', '#232b31');
+    poly(ctx, [-30, -10, 30, -10, 24, 14, -24, 14]);
+    ctx.fillStyle = metal(ctx, -18, -22, 18, 0, '#b0c0cc', '#6a7a86', '#2a333a');
+    poly(ctx, [-18, -20, 18, -20, 14, -2, -14, -2]);
+    ctx.fillStyle = '#9fe8ff';
+    for (let i = -2; i <= 2; i++) ctx.fillRect(i * 10 - 3, 2, 6, 3);
+    for (let i = -1; i <= 1; i++) ctx.fillRect(i * 9 - 2.5, -14, 5, 2.5);
+    // 안테나 마스트
+    ctx.strokeStyle = '#c8d4dc';
+    ctx.lineWidth = 1.2;
+    polyline(ctx, [-22, -10, -22, -30]);
+    polyline(ctx, [22, -10, 24, -26]);
+    glowOrb(ctx, -22, -30, Math.floor(t * 2) % 2 ? 4 : 2, '#ff3a3a');
+    // 회전 레이더 접시
+    const ra = t * 3;
+    ctx.save();
+    ctx.translate(0, -26);
+    ctx.scale(Math.cos(ra), 1);
+    ctx.fillStyle = metal(ctx, -14, -5, 14, 5, '#e0e8ee', '#8a9aa6', '#3a454e');
+    ctx.beginPath();
+    ctx.ellipse(0, 0, 15, 5, 0, 0, TAU);
+    ctx.fill();
+    ctx.restore();
+    ctx.restore();
+    // 탐조등 — 바다를 훑는 빛줄기
+    ctx.save();
+    ctx.globalCompositeOperation = 'lighter';
+    const sa = Math.PI / 2 + Math.sin(t * 0.9) * 1.1;
+    const beam = ctx.createRadialGradient(0, -40, 4, 0, -40, 260);
+    beam.addColorStop(0, 'rgba(255,250,220,0.22)');
+    beam.addColorStop(1, 'rgba(255,250,220,0)');
+    ctx.fillStyle = beam;
+    ctx.beginPath();
+    ctx.moveTo(0, -40);
+    ctx.arc(0, -40, 260, sa - 0.12, sa + 0.12);
+    ctx.closePath();
+    ctx.fill();
+    ctx.restore();
+  } else {
+    // 2단계 — 함교가 부서져 불타는 잔해만 남았다
+    ctx.fillStyle = '#1a2026';
+    poly(ctx, [-30, -60, -8, -66, 6, -58, 28, -62, 24, -38, -24, -38]);
+    ctx.strokeStyle = 'rgba(255,140,60,0.7)';
+    ctx.lineWidth = 1.4;
+    polyline(ctx, [-30, -60, -8, -66, 6, -58, 28, -62]);
+    ctx.save();
+    ctx.translate(-6, -58);
+    ctx.scale(1, -1);
+    drawThrust(ctx, 0, 0, 18, 30, t * 1.2, '#fff0b0', '#ff4a1a');
+    ctx.restore();
+  }
+
+  // ---------- 중앙 — 1단계는 조개 장갑문, 2단계는 찢겨 드러난 괴물의 눈 ----------
+  if (rage) krakenMaw(ctx, b, pulse);
+  else krakenHatch(ctx, b);
+}
+
+/** 1단계 중앙 — 둥근 조개 장갑문, 변신하면서 좌우로 열려 눈이 드러난다 */
+function krakenHatch(ctx: CanvasRenderingContext2D, b: BossLook) {
+  const t = b.t;
+  const cy = 8;
+  const open = b.open * 34;
+  ctx.fillStyle = '#05080b';
+  ellipse(ctx, 0, cy, 38, 36);
+  if (b.open > 0) krakenEye(ctx, b, 26, '#3ad0ff');
+  for (const s of [-1, 1]) {
+    ctx.save();
+    ctx.translate(s * open, 0);
+    ctx.beginPath();
+    ctx.arc(0, cy, 34, -Math.PI / 2, Math.PI / 2, s < 0);
+    ctx.closePath();
+    ctx.fillStyle = metal(ctx, -34, cy - 34, 34, cy + 34, '#a8b6c0', '#56646f', '#1c252c');
+    ctx.fill();
+    ctx.strokeStyle = '#0a0e12';
     ctx.lineWidth = 2;
-    ctx.strokeRect(dx, -26, 40, 68);
-    // 문 안쪽 가장자리 줄무늬
-    const edge = s === -1 ? dx + 34 : dx;
+    ctx.stroke();
+    // 조개껍데기 같은 방사 홈
+    ctx.save();
+    ctx.clip();
+    for (let k = 0; k < 7; k++) {
+      const a = -Math.PI / 2 + ((k + 0.5) / 7) * Math.PI;
+      ctx.strokeStyle = 'rgba(0,0,0,0.4)';
+      ctx.lineWidth = 1.2;
+      polyline(ctx, [0, cy, s * Math.cos(a) * 36, cy + Math.sin(a) * 36]);
+      ctx.strokeStyle = 'rgba(255,255,255,0.12)';
+      polyline(ctx, [1, cy + 1, s * Math.cos(a) * 36 + 1, cy + Math.sin(a) * 36 + 1]);
+    }
+    for (const r of [14, 24]) {
+      ctx.strokeStyle = 'rgba(0,0,0,0.35)';
+      ctx.beginPath();
+      ctx.arc(0, cy, r, 0, TAU);
+      ctx.stroke();
+    }
+    ctx.restore();
+    // 문 안쪽 가장자리 경고 줄무늬
     for (let y = -24; y < 40; y += 8) {
       ctx.fillStyle = (y / 8) % 2 === 0 ? '#e8c02a' : '#1a1a1a';
-      ctx.fillRect(edge, y, 6, 8);
+      const half = Math.sqrt(Math.max(0, 34 * 34 - (y + 4 - cy) ** 2));
+      if (half > 4) ctx.fillRect(s < 0 ? -5 : 0, y, 5, 8);
     }
-    rivets(ctx, [
-      [dx + 8, -18],
-      [dx + 32, -18],
-      [dx + 8, 34],
-      [dx + 32, 34],
-    ]);
+    rivets(
+      ctx,
+      [
+        [s * 26, cy - 18],
+        [s * 30, cy],
+        [s * 26, cy + 18],
+      ],
+      1.4,
+    );
+    ctx.restore();
   }
   // 닫혀 있어도 틈으로 빛이 샌다
   if (b.open < 0.05) {
     ctx.save();
     ctx.globalCompositeOperation = 'lighter';
-    ctx.fillStyle = eyeColor;
+    ctx.fillStyle = '#3ad0ff';
     ctx.globalAlpha = 0.5 + 0.3 * Math.sin(t * 4);
-    ctx.fillRect(-1.5, -26, 3, 68);
+    ctx.fillRect(-1.5, cy - 34, 3, 68);
+    glowOrb(ctx, 0, cy, 20, 'rgba(58,208,255,0.6)', 0.25 + 0.15 * Math.sin(t * 4));
     ctx.restore();
   }
+}
 
-  hitFlash(ctx, b.flash, 150, 66);
-  morphFlash(ctx, b.morph);
+/** 괴물의 눈 — 플레이어를 따라 움직이는 세로 동공 */
+function krakenEye(ctx: CanvasRenderingContext2D, b: BossLook, r: number, color: string) {
+  const t = b.t;
+  const cy = 8;
+  ctx.save();
+  ctx.globalCompositeOperation = 'lighter';
+  glowOrb(ctx, 0, cy, r * 1.7 + Math.sin(t * 5) * 3, color, 0.8);
   ctx.restore();
+  const sclera = ctx.createRadialGradient(-r * 0.25, cy - r * 0.3, 2, 0, cy, r);
+  sclera.addColorStop(0, '#fff6d8');
+  sclera.addColorStop(0.45, color === '#3ad0ff' ? '#7fe4ff' : '#ff9a5a');
+  sclera.addColorStop(0.85, color === '#3ad0ff' ? '#0a5a8a' : '#a01020');
+  sclera.addColorStop(1, '#1a0008');
+  ctx.fillStyle = sclera;
+  ellipse(ctx, 0, cy, r, r);
+  // 홍채 무늬
+  ctx.save();
+  ctx.translate(0, cy);
+  ctx.rotate(t * 0.6);
+  ctx.strokeStyle = 'rgba(40,0,10,0.45)';
+  ctx.lineWidth = 1;
+  for (let i = 0; i < 18; i++) {
+    ctx.rotate(TAU / 18);
+    polyline(ctx, [r * 0.35, 0, r * 0.82, 0]);
+  }
+  ctx.restore();
+  // 세로 동공
+  const px = Math.cos(b.aim) * r * 0.22;
+  const py = cy + Math.sin(b.aim) * r * 0.22;
+  ctx.fillStyle = '#080002';
+  ctx.save();
+  ctx.translate(px, py);
+  ctx.scale(0.32, 1);
+  ellipse(ctx, 0, 0, r * 0.62, r * 0.62);
+  ctx.restore();
+  // 젖은 눈의 반사광
+  ctx.fillStyle = 'rgba(255,255,255,0.85)';
+  ellipse(ctx, -r * 0.35, cy - r * 0.38, r * 0.16, r * 0.1);
+}
+
+/** 2단계 중앙 — 찢어진 갑판 구멍 속 살덩이, 네 갈래 부리, 이빨 고리, 거대한 눈 */
+function krakenMaw(ctx: CanvasRenderingContext2D, b: BossLook, pulse: number) {
+  const t = b.t;
+  const cy = 8;
+  const n = KRAKEN_TEAR.length;
+  const tear = (scale: number) => {
+    ctx.beginPath();
+    for (let i = 0; i < n; i++) {
+      const a = (i / n) * TAU;
+      const k = KRAKEN_TEAR[i]! * scale;
+      const x = Math.cos(a) * 70 * k;
+      const y = cy + Math.sin(a) * 52 * k;
+      if (i === 0) ctx.moveTo(x, y);
+      else ctx.lineTo(x, y);
+    }
+    ctx.closePath();
+  };
+  // 찢긴 강판 — 바깥으로 말려 올라간 가장자리
+  tear(1.12);
+  ctx.fillStyle = '#9aa8b2';
+  ctx.fill();
+  tear(1);
+  const flesh = ctx.createRadialGradient(0, cy, 6, 0, cy, 70);
+  flesh.addColorStop(0, '#7a1430');
+  flesh.addColorStop(0.6, '#3a0616');
+  flesh.addColorStop(1, '#12020a');
+  ctx.fillStyle = flesh;
+  ctx.fill();
+  ctx.strokeStyle = 'rgba(255,150,80,0.8)';
+  ctx.lineWidth = 1.4;
+  ctx.stroke();
+  // 맥동하는 혈관
+  ctx.save();
+  tear(1);
+  ctx.clip();
+  ctx.globalCompositeOperation = 'lighter';
+  ctx.lineCap = 'round';
+  for (let i = 0; i < 10; i++) {
+    const a = (i / 10) * TAU + 0.2;
+    const k = 0.5 + 0.5 * Math.sin(t * 5 - i);
+    ctx.strokeStyle = `rgba(255,50,90,${0.35 + 0.35 * k})`;
+    ctx.lineWidth = 1.6;
+    ctx.beginPath();
+    ctx.moveTo(Math.cos(a) * 30, cy + Math.sin(a) * 26);
+    ctx.quadraticCurveTo(
+      Math.cos(a + 0.3) * 48,
+      cy + Math.sin(a + 0.3) * 38,
+      Math.cos(a + 0.1) * 70,
+      cy + Math.sin(a + 0.1) * 54,
+    );
+    ctx.stroke();
+  }
+  ctx.restore();
+  // 이빨 고리 — 안쪽을 향한 송곳니
+  for (let i = 0; i < 16; i++) {
+    const a = (i / 16) * TAU + Math.sin(t * 2) * 0.03;
+    const r0 = 42;
+    const r1 = 31 + (i % 2) * 3;
+    ctx.fillStyle = '#efe2cc';
+    poly(ctx, [
+      Math.cos(a - 0.12) * r0,
+      cy + Math.sin(a - 0.12) * r0 * 0.86,
+      Math.cos(a) * r1,
+      cy + Math.sin(a) * r1 * 0.86,
+      Math.cos(a + 0.12) * r0,
+      cy + Math.sin(a + 0.12) * r0 * 0.86,
+    ]);
+  }
+  krakenEye(ctx, b, 26 + pulse * 1.5, '#ff3a5a');
+  // 네 갈래 부리 — 눈을 감싸며 벌렸다 오므린다
+  const bite = 0.18 + 0.14 * Math.sin(t * 3.2);
+  for (let i = 0; i < 4; i++) {
+    const a = (i / 4) * TAU + Math.PI / 4;
+    ctx.save();
+    ctx.translate(Math.cos(a) * 40, cy + Math.sin(a) * 34);
+    ctx.rotate(a + Math.PI / 2 + bite);
+    ctx.fillStyle = metal(ctx, -10, -10, 10, 22, '#4a3040', '#1e0e18', '#08040a');
+    ctx.beginPath();
+    ctx.moveTo(-9, -6);
+    ctx.quadraticCurveTo(4, -14, 12, -2);
+    ctx.quadraticCurveTo(10, 14, -4, 24);
+    ctx.quadraticCurveTo(0, 10, -9, -6);
+    ctx.fill();
+    ctx.strokeStyle = 'rgba(255,190,210,0.45)';
+    ctx.lineWidth = 1;
+    ctx.stroke();
+    ctx.restore();
+  }
 }
 
 /* =========================================================
@@ -1165,19 +2092,103 @@ const IGNIS_SCORCH: [number, number, number][] = [
   [8, -54, 7],
 ];
 
-/** 등껍질 균열 (2단계에서 용암이 새어 나온다) */
+/** 2단계 — 갈라진 갑각을 따라 용암이 흐르는 균열 */
 const IGNIS_CRACKS: number[][] = [
-  [-10, -60, -18, -40, -8, -22, -20, -4],
-  [14, -58, 22, -36, 10, -18, 24, 2],
-  [-40, -20, -28, -6, -40, 14],
-  [42, -18, 30, 0, 44, 18],
-  [-6, 20, 6, 34, -4, 50],
+  [-10, -66, -18, -46, -8, -28, -20, -10],
+  [14, -64, 22, -42, 10, -24, 24, -4],
+  [-40, -24, -28, -8, -42, 12],
+  [42, -22, 30, -2, 44, 18],
 ];
 
+/** 1단계 가슴 방패의 식은 용암 균열 */
+const IGNIS_SHIELD_CRACKS: number[][] = [
+  [0, 4, -4, 14, 2, 24, -2, 36],
+  [-4, 14, -16, 18, -22, 28],
+  [2, 24, 14, 26, 20, 34],
+  [-18, 6, -12, 12],
+  [18, 8, 12, 16, 16, 20],
+];
+
+/** 몸통 등줄기 — 꼬리 쪽(위)부터 목 쪽(아래)까지, 반지름이 곧 몸 너비 */
+const IGNIS_SPINE: TubePt[] = [
+  [0, -74, 24],
+  [0, -58, 36],
+  [0, -40, 38],
+  [0, -24, 35],
+  [0, -6, 46],
+  [0, 12, 52],
+  [0, 28, 46],
+  [0, 44, 32],
+  [0, 56, 22],
+];
+
+/** 몸통 반폭 (y 에서) */
+function ignisHalfWidth(y: number) {
+  for (let i = 0; i < IGNIS_SPINE.length - 1; i++) {
+    const [, y0, r0] = IGNIS_SPINE[i]!;
+    const [, y1, r1] = IGNIS_SPINE[i + 1]!;
+    if (y >= y0 && y <= y1) return r0 + ((r1 - r0) * (y - y0)) / (y1 - y0);
+  }
+  return 0;
+}
+
+/** 현무암 주상절리 판 하나 */
+interface Plate {
+  cx: number;
+  cy: number;
+  pts: number[];
+  /** 0~1 — 판마다 다른 밝기, 2단계에서 떨어져 나갈 판 고르기 */
+  shade: number;
+}
+
+let ignisPlates: Plate[] | null = null;
+
+/** 육각 격자를 조금씩 흔들어 현무암 기둥 단면처럼 만든다 (처음 한 번만 계산) */
+function getIgnisPlates(): Plate[] {
+  if (ignisPlates) return ignisPlates;
+  const out: Plate[] = [];
+  const R = 12;
+  const hw = R * Math.sqrt(3);
+  let id = 0;
+  for (let row = -7; row <= 6; row++) {
+    for (let col = -4; col <= 4; col++) {
+      id++;
+      const cx = col * hw + (row & 1 ? hw / 2 : 0) + (hash(id * 3) - 0.5) * 3;
+      const cy = row * R * 1.5 + 2 + (hash(id * 3 + 1) - 0.5) * 3;
+      if (cy < -80 || cy > 62 || Math.abs(cx) > ignisHalfWidth(cy) + 6) continue;
+      const pts: number[] = [];
+      for (let k = 0; k < 6; k++) {
+        const a = (k / 6) * TAU + Math.PI / 6;
+        const rr = (R - 1.6) * (0.86 + hash(id * 7 + k) * 0.18);
+        pts.push(cx + Math.cos(a) * rr, cy + Math.sin(a) * rr);
+      }
+      out.push({ cx, cy, pts, shade: hash(id * 11) });
+    }
+  }
+  ignisPlates = out;
+  return out;
+}
+
+/** 현무암 바위 질감 그라디언트 */
+const basalt = (ctx: CanvasRenderingContext2D, x0: number, y0: number, x1: number, y1: number) =>
+  metal(ctx, x0, y0, x1, y1, '#5e4a40', '#2a1c16', '#0c0706');
+
+/** 용암이 흐르는 그라디언트 — hot 일수록 하얗게 달아오른다 */
+const molten = (
+  ctx: CanvasRenderingContext2D,
+  x0: number,
+  y0: number,
+  x1: number,
+  y1: number,
+  hot: boolean,
+) =>
+  metal(ctx, x0, y0, x1, y1, hot ? '#fff0b0' : '#ffb03a', hot ? '#ff7a1a' : '#c8400c', '#3a0c04');
+
 /**
- * 이그니스 — 흑요석 갑각을 두른 기계 화룡 (머리 = 플레이어 쪽 +y, 꼬리 = 위).
- * 1단계: 날개를 접고 등에 용암 박격포 두 문을 세운 갑각 형태, 입은 닫혀 틈으로 불빛이 샌다.
- * 2단계(해방): 갑각이 갈라져 가슴 용광로가 드러나고, 날개를 활짝 펴 불꽃 막이 타오르며 턱이 열린다.
+ * 이그니스 — 현무암 갑각을 두른 용암 거신(巨神) 화룡. 머리 = 플레이어 쪽 +y, 꼬리 = 위.
+ * 1단계(휴화산): 주상절리 갑각과 등의 분화구 두 개, 접은 바위 날개, 가슴은 식은 용암 방패로 덮였다.
+ * 2단계(대분화): 갑각이 갈라져 판이 떨어져 나가고 용암이 쏟아진다. 날개는 불꽃 막, 뿔 왕관이 불타고,
+ *   가슴 용광로가 드러나며 턱이 열린다.
  * breathing: 화염 숨결 중이면 입이 열리고 불빛이 강해진다
  */
 export function drawIgnis(ctx: CanvasRenderingContext2D, b: BossLook, breathing: boolean) {
@@ -1189,77 +2200,136 @@ export function drawIgnis(ctx: CanvasRenderingContext2D, b: BossLook, breathing:
 
   ctx.save();
   ctx.translate(b.x, b.y);
-  dropShadow(ctx, 24, 116, 150 + unfurl * 40, 44);
+  dropShadow(ctx, 24, 120, 160 + unfurl * 40, 46);
 
-  // 열기 오라
+  // 열기 오라 + (2단계) 퍼져 나가는 열파
   ctx.save();
   ctx.globalCompositeOperation = 'lighter';
-  glowOrb(ctx, 0, 0, 170 + unfurl * 30, `rgba(255,80,20,${0.16 + unfurl * 0.1})`, 0.15);
+  glowOrb(ctx, 0, 0, 180 + unfurl * 30, `rgba(255,80,20,${0.16 + unfurl * 0.12})`, 0.15);
+  if (rage) {
+    for (let i = 0; i < 2; i++) {
+      const k = (t * 0.6 + i / 2) % 1;
+      ctx.strokeStyle = `rgba(255,140,60,${0.25 * (1 - k)})`;
+      ctx.lineWidth = 3;
+      ctx.beginPath();
+      ctx.ellipse(0, 0, 90 + k * 150, 80 + k * 120, 0, 0, TAU);
+      ctx.stroke();
+    }
+  }
   ctx.restore();
 
-  ignisTail(ctx, t, rage);
+  ignisTail(ctx, t, rage, pulse);
+  ignisHindLegs(ctx, t, rage, pulse);
   ignisWings(ctx, t, unfurl, pulse);
-  ignisBody(ctx, rage, pulse);
+  ignisBody(ctx, t, rage, pulse);
+  for (const s of [-1, 1]) ignisArm(ctx, t, s, rage, pulse);
   ignisHead(ctx, b, rage, pulse, breathing || rage);
+  ignisParticles(ctx, t, rage);
 
   scorch(ctx, IGNIS_SCORCH, Math.max(0, (1 - b.hp) * 1.4), t);
-  hitFlash(ctx, b.flash, 110, 90);
+  hitFlash(ctx, b.flash, 116, 100);
   morphFlash(ctx, b.morph);
   ctx.restore();
 }
 
-/** 꼬리 — 마디마다 등가시가 돋은 흑요석 꼬리가 좌우로 흔들리고, 끝에서 불꽃이 인다 */
-function ignisTail(ctx: CanvasRenderingContext2D, t: number, rage: boolean) {
-  const segs = 9;
-  const pts: [number, number, number][] = [];
-  for (let i = 0; i < segs; i++) {
-    const y = -56 - i * 15;
-    const x = Math.sin(t * (rage ? 2.4 : 1.5) - i * 0.6) * i * 2.6;
-    pts.push([x, y, 17 - i * 1.4]);
-  }
-  // 꼬리 끝 불꽃 (위쪽으로 타오름)
-  const tip = pts[segs - 1]!;
+/** 꼬리 — 등가시가 돋은 현무암 꼬리가 흔들리고, 끝의 용암 칼날에서 불꽃이 인다 */
+function ignisTail(ctx: CanvasRenderingContext2D, t: number, rage: boolean, pulse: number) {
+  const pts = chain(
+    0,
+    -66,
+    150,
+    10,
+    (q) => -Math.PI / 2 + Math.sin(t * (rage ? 2.4 : 1.5) - q * 3) * 0.55 * q,
+    (q) => 22 * (1 - q * 0.72),
+  );
+  const n = pts.length - 1;
+  const [tx, ty] = pts[n]!;
+  const [px, py] = pts[n - 1]!;
+  const d = Math.atan2(ty - py, tx - px);
+  // 꼬리 끝 — 뒤로 뻗은 용암 칼날 + 불꽃
   ctx.save();
-  ctx.translate(tip[0], tip[1] - 6);
-  ctx.scale(1, -1);
-  drawThrust(ctx, 0, 0, 14, rage ? 40 : 26, t, '#fff0b0', '#ff4a1a');
+  ctx.translate(tx, ty);
+  ctx.rotate(d - Math.PI / 2);
+  drawThrust(ctx, 0, 6, 14, rage ? 46 : 28, t, '#fff0b0', '#ff4a1a');
+  ctx.fillStyle = '#0c0706';
+  poly(ctx, [-10, -2, 0, 26, 10, -2, 0, -6]);
+  ctx.fillStyle = molten(ctx, 0, 0, 0, 24, rage);
+  poly(ctx, [-6, 0, 0, 20, 6, 0]);
   ctx.restore();
-  for (let i = segs - 1; i >= 0; i--) {
+  tube(ctx, pts, basalt(ctx, -24, -66, 24, -216), 'rgba(255,210,170,0.12)');
+  // 마디 이음매의 용암 띠와 등가시
+  for (let i = 1; i < n; i++) {
     const [x, y, r] = pts[i]!;
-    // 등가시
-    ctx.fillStyle = '#120b09';
-    poly(ctx, [x - r * 0.35, y - r * 0.2, x, y - r * 1.25, x + r * 0.35, y - r * 0.2]);
-    ctx.fillStyle = 'rgba(255,120,40,0.55)';
-    poly(ctx, [x - r * 0.1, y - r * 0.4, x, y - r * 1.15, x + r * 0.05, y - r * 0.4]);
-    // 마디 껍질
-    ctx.fillStyle = metal(ctx, x - r, y - r, x + r, y + r, '#5a4038', '#2a1c18', '#0e0907');
-    ellipse(ctx, x, y, r, r * 0.72);
-    // 마디 사이 용암 이음매
-    ctx.strokeStyle = rage ? 'rgba(255,170,60,0.9)' : 'rgba(255,110,30,0.6)';
-    ctx.lineWidth = 1.5;
+    const [nx, ny] = pts[i + 1]!;
+    const a = Math.atan2(ny - y, nx - x);
+    ctx.save();
+    ctx.translate(x, y);
+    ctx.rotate(a);
+    ctx.strokeStyle = rage
+      ? `rgba(255,${180 + Math.round(pulse * 60)},90,0.95)`
+      : `rgba(255,110,30,${0.45 + 0.3 * pulse})`;
+    ctx.lineWidth = rage ? 2.2 : 1.6;
     ctx.beginPath();
-    ctx.ellipse(x, y + r * 0.35, r * 0.82, r * 0.25, 0, 0.15, Math.PI - 0.15);
+    ctx.moveTo(-2, -r * 0.92);
+    ctx.quadraticCurveTo(3, 0, -2, r * 0.92);
     ctx.stroke();
+    // 꼬리 끝을 향해 누운 가시
+    ctx.fillStyle = '#0c0706';
+    poly(ctx, [-r * 0.2, -r * 0.3, r * 1.1, 0, -r * 0.2, r * 0.3]);
+    ctx.fillStyle = rage ? 'rgba(255,170,80,0.8)' : 'rgba(255,120,50,0.5)';
+    poly(ctx, [0, -r * 0.08, r * 0.95, 0, 0, r * 0.08]);
+    ctx.restore();
+  }
+}
+
+/** 뒷다리 — 엉덩이에서 뒤로 접혀 발톱이 꼬리 쪽을 향한다 */
+function ignisHindLegs(ctx: CanvasRenderingContext2D, t: number, rage: boolean, pulse: number) {
+  for (const s of [-1, 1]) {
+    const k = Math.sin(t * 1.3 + s) * 2;
+    const knee: [number, number] = [s * 58, -56 + k];
+    const foot: [number, number] = [s * 62, -84 + k];
+    const pts = [
+      ...limb(s * 28, -48, 14, knee[0], knee[1], 10, 3),
+      ...limb(knee[0], knee[1], 10, foot[0], foot[1], 8, 3).slice(1),
+    ];
+    tube(ctx, pts, basalt(ctx, s * 28, -48, foot[0], foot[1]), 'rgba(255,210,170,0.12)');
+    // 무릎 관절의 용암
+    glowOrb(ctx, knee[0], knee[1], 6 + pulse * 2, 'rgba(255,120,30,0.9)', rage ? 0.9 : 0.6);
+    // 발톱 셋
+    for (const c of [-1, 0, 1]) {
+      const a = -Math.PI / 2 + s * 0.2 + c * 0.38;
+      const bx = foot[0] + Math.cos(a) * 4;
+      const by = foot[1] + Math.sin(a) * 4;
+      ctx.fillStyle = '#0a0504';
+      poly(ctx, [
+        bx + Math.cos(a + 1.4) * 3,
+        by + Math.sin(a + 1.4) * 3,
+        bx + Math.cos(a) * 14,
+        by + Math.sin(a) * 14,
+        bx + Math.cos(a - 1.4) * 3,
+        by + Math.sin(a - 1.4) * 3,
+      ]);
+    }
   }
 }
 
 /** 날개 뼈대 끝점 — 접힌 모양(1단계)과 펼친 모양(2단계) 사이를 보간 */
 const IGNIS_WING_FOLD: [number, number][] = [
-  [92, -66],
-  [116, -32],
-  [112, 4],
-  [86, 28],
+  [92, -78],
+  [118, -46],
+  [116, -10],
+  [92, 14],
 ];
 const IGNIS_WING_OPEN: [number, number][] = [
-  [146, -104],
-  [184, -50],
-  [180, 4],
-  [140, 48],
+  [150, -116],
+  [190, -62],
+  [188, -8],
+  [148, 40],
 ];
 
 function ignisWings(ctx: CanvasRenderingContext2D, t: number, unfurl: number, pulse: number) {
-  const shoulderX = 44;
-  const shoulderY = -16;
+  const shoulderX = 38;
+  const shoulderY = -24;
   for (const s of [-1, 1]) {
     ctx.save();
     ctx.scale(s, 1);
@@ -1288,29 +2358,57 @@ function ignisWings(ctx: CanvasRenderingContext2D, t: number, unfurl: number, pu
       ctx.quadraticCurveTo(tips[3]![0] * 0.3, tips[3]![1] * 0.5 + 10, 0, 18);
       ctx.closePath();
     };
-    // 1단계 — 흑요석 비늘 막 (바깥 가장자리는 용암 빛을 받아 붉게 빛난다)
+    // 바탕 — 식은 용암 껍질
     membrane();
-    const dark = ctx.createLinearGradient(0, 0, 150, 0);
-    dark.addColorStop(0, '#4a3029');
-    dark.addColorStop(1, '#1a100c');
-    ctx.fillStyle = dark;
+    const crust = ctx.createLinearGradient(0, 0, 160, 0);
+    crust.addColorStop(0, '#4a3029');
+    crust.addColorStop(1, '#1a100c');
+    ctx.fillStyle = crust;
     ctx.fill();
-    ctx.strokeStyle = 'rgba(255,120,50,0.5)';
+    ctx.strokeStyle = 'rgba(255,120,50,0.55)';
     ctx.lineWidth = 1.4;
     ctx.stroke();
+    // 껍질의 용암 맥 — 뼈대 사이를 갈래지며 흐른다
+    ctx.save();
+    membrane();
+    ctx.clip();
+    ctx.lineCap = 'round';
+    ctx.globalCompositeOperation = 'lighter';
+    for (let i = 0; i < tips.length - 1; i++) {
+      const [ax, ay] = tips[i]!;
+      const [bx, by] = tips[i + 1]!;
+      const mx = (ax + bx) * 0.42;
+      const my = (ay + by) * 0.42;
+      ctx.strokeStyle = `rgba(255,${110 + Math.round(unfurl * 90)},40,${0.35 + 0.35 * pulse})`;
+      ctx.lineWidth = 1.6;
+      polyline(ctx, [mx * 0.25, my * 0.25, mx * 0.6 + 4, my * 0.6, mx, my]);
+      polyline(ctx, [
+        mx * 0.6 + 4,
+        my * 0.6,
+        mx * 0.75 + (bx - ax) * 0.12,
+        my * 0.75 + (by - ay) * 0.12,
+      ]);
+      polyline(ctx, [
+        mx * 0.6 + 4,
+        my * 0.6,
+        mx * 0.8 - (bx - ax) * 0.1,
+        my * 0.8 - (by - ay) * 0.1,
+      ]);
+    }
+    ctx.restore();
     // 2단계 — 불꽃 막이 타오른다
     if (unfurl > 0) {
       ctx.save();
       ctx.globalCompositeOperation = 'lighter';
-      ctx.globalAlpha = unfurl * (0.75 + 0.25 * Math.sin(t * 9));
+      ctx.globalAlpha = unfurl * (0.7 + 0.3 * Math.sin(t * 9));
       membrane();
-      const fire = ctx.createRadialGradient(0, 0, 10, 0, 0, 200);
+      const fire = ctx.createRadialGradient(0, 0, 10, 0, 0, 210);
       fire.addColorStop(0, 'rgba(255,230,140,0.85)');
       fire.addColorStop(0.35, 'rgba(255,120,30,0.6)');
       fire.addColorStop(1, 'rgba(200,20,10,0.05)');
       ctx.fillStyle = fire;
       ctx.fill();
-      // 막을 타고 흐르는 불길 줄무늬
+      // 막을 타고 바깥으로 번지는 불길 물결
       ctx.clip();
       ctx.strokeStyle = 'rgba(255,240,180,0.35)';
       ctx.lineWidth = 2;
@@ -1321,17 +2419,19 @@ function ignisWings(ctx: CanvasRenderingContext2D, t: number, unfurl: number, pu
         ctx.stroke();
       }
       ctx.restore();
-    } else {
-      // 접힌 날개 비늘의 용암 결
+      // 날개 가장자리에서 흩날리는 불티
       ctx.save();
-      membrane();
-      ctx.clip();
-      ctx.strokeStyle = `rgba(255,100,30,${0.25 * pulse})`;
-      ctx.lineWidth = 1;
-      for (let k = 1; k < 6; k++) {
-        ctx.beginPath();
-        ctx.arc(0, 0, k * 22, -1.8, 1.4);
-        ctx.stroke();
+      ctx.globalCompositeOperation = 'lighter';
+      for (let i = 0; i < 10; i++) {
+        const k = (t * 1.2 + hash(i + s * 9)) % 1;
+        const j = Math.floor(hash(i + 30) * 3);
+        const [ax, ay] = tips[j]!;
+        const [bx, by] = tips[j + 1]!;
+        const q = hash(i + 60);
+        const ex = ax + (bx - ax) * q + k * 16;
+        const ey = ay + (by - ay) * q - k * 30;
+        ctx.fillStyle = `rgba(255,${180 + Math.round(60 * (1 - k))},90,${unfurl * (1 - k)})`;
+        ellipse(ctx, ex, ey, 1.8, 1.8);
       }
       ctx.restore();
     }
@@ -1341,30 +2441,31 @@ function ignisWings(ctx: CanvasRenderingContext2D, t: number, unfurl: number, pu
       const jx = tx * 0.45 + (i - 1.5) * 4;
       const jy = ty * 0.45 - 8;
       const g = ctx.createLinearGradient(0, 0, tx, ty);
-      g.addColorStop(0, '#4a3830');
+      g.addColorStop(0, '#5a4038');
       g.addColorStop(1, '#16100d');
       ctx.strokeStyle = g;
       ctx.lineCap = 'round';
-      ctx.lineWidth = 7 - i;
+      ctx.lineWidth = 8 - i * 1.2;
       ctx.beginPath();
       ctx.moveTo(0, 0);
       ctx.lineTo(jx, jy);
       ctx.lineTo(tx, ty);
       ctx.stroke();
-      ctx.strokeStyle = 'rgba(255,160,90,0.25)';
+      ctx.strokeStyle = `rgba(255,160,90,${0.25 + unfurl * 0.35})`;
       ctx.lineWidth = 1.2;
       ctx.stroke();
       // 관절 마디
       ctx.fillStyle = '#5a4038';
-      ellipse(ctx, jx, jy, 4, 4);
+      ellipse(ctx, jx, jy, 4.5, 4.5);
+      glowOrb(ctx, jx, jy, 4, 'rgba(255,140,40,0.9)', 0.5 * pulse);
       // 발톱 — 끝이 달아오른다
       const a = Math.atan2(ty - jy, tx - jx);
       ctx.fillStyle = '#0e0907';
       poly(ctx, [
         tx + Math.cos(a + 1.4) * 4,
         ty + Math.sin(a + 1.4) * 4,
-        tx + Math.cos(a) * 14,
-        ty + Math.sin(a) * 14,
+        tx + Math.cos(a) * 15,
+        ty + Math.sin(a) * 15,
         tx + Math.cos(a - 1.4) * 4,
         ty + Math.sin(a - 1.4) * 4,
       ]);
@@ -1378,114 +2479,112 @@ function ignisWings(ctx: CanvasRenderingContext2D, t: number, unfurl: number, pu
       );
     }
     // 어깨 관절 장갑
-    ctx.fillStyle = metal(ctx, -14, -14, 14, 14, '#6a4c42', '#2e201b', '#120b09');
+    ctx.fillStyle = basalt(ctx, -14, -14, 14, 14);
     ellipse(ctx, 0, 0, 15, 13);
-    rivets(ctx, [
-      [-6, -6],
-      [6, -6],
-      [0, 7],
-    ]);
+    rivets(
+      ctx,
+      [
+        [-6, -6],
+        [6, -6],
+        [0, 7],
+      ],
+      1.1,
+    );
     ctx.restore();
   }
 }
 
-function ignisBody(ctx: CanvasRenderingContext2D, rage: boolean, pulse: number) {
-  const rx = 64;
-  const ry = 74;
-  const cy = -6;
-  // 갑각 본체
-  ctx.fillStyle = '#0b0706';
-  ellipse(ctx, 0, cy, rx + 3, ry + 3);
+function ignisBody(ctx: CanvasRenderingContext2D, t: number, rage: boolean, pulse: number) {
+  const plates = getIgnisPlates();
+  // 외곽 그림자
+  tubePath(
+    ctx,
+    IGNIS_SPINE.map(([x, y, r]) => [x, y, r + 3] as const),
+  );
+  ctx.fillStyle = '#070403';
+  ctx.fill();
   ctx.save();
-  ctx.beginPath();
-  ctx.ellipse(0, cy, rx, ry, 0, 0, TAU);
+  tubePath(ctx, IGNIS_SPINE);
   ctx.clip();
-  // 판 사이 틈으로 보이는 용암 — 먼저 깔고 그 위에 육각 판을 얹는다
-  const lava = ctx.createRadialGradient(0, cy + 10, 4, 0, cy, ry);
-  lava.addColorStop(0, rage ? '#fff0b0' : '#ffb03a');
-  lava.addColorStop(0.5, rage ? '#ff7a1a' : '#c8400c');
-  lava.addColorStop(1, '#3a0e04');
+  // 판 아래 용암 — 판 사이 틈으로 빛난다
+  const lava = ctx.createRadialGradient(0, 12, 4, 0, -6, 90);
+  lava.addColorStop(0, rage ? '#fff4c0' : '#ffb03a');
+  lava.addColorStop(0.5, rage ? '#ff8a1a' : '#c8400c');
+  lava.addColorStop(1, rage ? '#7a1804' : '#2a0a04');
   ctx.fillStyle = lava;
-  ctx.fillRect(-rx, cy - ry, rx * 2, ry * 2);
-  ctx.fillStyle = `rgba(0,0,0,${0.45 - pulse * 0.3})`;
-  ctx.fillRect(-rx, cy - ry, rx * 2, ry * 2);
-  // 육각 갑판 — 판 사이 틈에서 용암 빛이 샌다
-  const hexR = 15;
-  const hw = hexR * Math.sqrt(3);
-  for (let row = -6; row <= 6; row++) {
-    for (let col = -4; col <= 4; col++) {
-      const hx = col * hw + (row % 2 ? hw / 2 : 0);
-      const hy = cy + row * hexR * 1.5;
-      if ((hx / rx) ** 2 + ((hy - cy) / ry) ** 2 > 1.1) continue;
-      ctx.beginPath();
-      for (let k = 0; k < 6; k++) {
-        const a = (k / 6) * TAU + Math.PI / 6;
-        const px = hx + Math.cos(a) * (hexR - 1.5);
-        const py = hy + Math.sin(a) * (hexR - 1.5);
-        if (k === 0) ctx.moveTo(px, py);
-        else ctx.lineTo(px, py);
-      }
-      ctx.closePath();
-      // 판마다 왼쪽 위가 밝다
-      const g = ctx.createLinearGradient(hx - hexR, hy - hexR, hx + hexR, hy + hexR);
-      g.addColorStop(0, '#5a4038');
-      g.addColorStop(1, '#1a110e');
-      ctx.fillStyle = g;
-      ctx.fill();
+  ctx.fillRect(-70, -90, 140, 160);
+  ctx.fillStyle = `rgba(0,0,0,${rage ? 0.12 - pulse * 0.1 : 0.5 - pulse * 0.3})`;
+  ctx.fillRect(-70, -90, 140, 160);
+  // 현무암 주상절리 판
+  for (const p of plates) {
+    // 2단계 — 몇 장은 떨어져 나가 용암이 그대로 드러난다
+    if (rage && p.shade > 0.74) continue;
+    ctx.save();
+    // 2단계 — 판이 바깥으로 밀려나 틈이 벌어진다
+    if (rage) ctx.translate(p.cx * 0.07, (p.cy - 10) * 0.06);
+    ctx.beginPath();
+    for (let k = 0; k < 12; k += 2) {
+      if (k === 0) ctx.moveTo(p.pts[k]!, p.pts[k + 1]!);
+      else ctx.lineTo(p.pts[k]!, p.pts[k + 1]!);
     }
+    ctx.closePath();
+    const light = ['#4a3a32', '#5a463c', '#3e302a', '#64504a'][Math.floor(p.shade * 4)]!;
+    const g = ctx.createLinearGradient(p.cx - 10, p.cy - 10, p.cx + 10, p.cy + 10);
+    g.addColorStop(0, light);
+    g.addColorStop(1, '#120c0a');
+    ctx.fillStyle = g;
+    ctx.fill();
+    // 판 윗면의 각진 모서리 빛
+    ctx.strokeStyle = rage ? 'rgba(255,150,60,0.55)' : 'rgba(255,220,190,0.09)';
+    ctx.lineWidth = 1;
+    ctx.stroke();
+    ctx.restore();
   }
-  // 갑각 가장자리의 그림자 (둥근 입체감)
-  const rim = ctx.createRadialGradient(-18, cy - 24, ry * 0.3, 0, cy, ry);
+  // 갑각 가장자리 그림자 (둥근 입체감)
+  const rim = ctx.createRadialGradient(-16, -18, 30, 0, -6, 84);
   rim.addColorStop(0, 'rgba(0,0,0,0)');
-  rim.addColorStop(1, 'rgba(0,0,0,0.55)');
+  rim.addColorStop(1, 'rgba(0,0,0,0.6)');
   ctx.fillStyle = rim;
-  ctx.fillRect(-rx, cy - ry, rx * 2, ry * 2);
+  ctx.fillRect(-70, -90, 140, 160);
   ctx.restore();
 
-  // 등줄기 가시
-  for (let i = 0; i < 6; i++) {
-    const y = cy - ry + 18 + i * 20;
-    const s = 9 - Math.abs(i - 2.5) * 1.2;
-    ctx.fillStyle = '#120b09';
-    poly(ctx, [-s * 0.6, y + s * 0.4, 0, y - s * 1.2, s * 0.6, y + s * 0.4]);
-    ctx.fillStyle = 'rgba(255,140,60,0.5)';
-    poly(ctx, [-s * 0.15, y, 0, y - s * 1.05, s * 0.1, y]);
+  // 등줄기 화산암 가시
+  for (let i = 0; i < 7; i++) {
+    const y = -66 + i * 17;
+    const s = 10 - Math.abs(i - 3) * 1.4;
+    ctx.fillStyle = '#0c0706';
+    poly(ctx, [-s * 0.6, y + s * 0.5, 0, y - s * 1.3, s * 0.6, y + s * 0.5]);
+    ctx.fillStyle = rage ? 'rgba(255,200,110,0.85)' : 'rgba(255,140,60,0.5)';
+    poly(ctx, [-s * 0.15, y, 0, y - s * 1.1, s * 0.1, y]);
   }
 
   if (!rage) {
-    // 등의 용암 박격포 두 문 — 꼬리 쪽(뒤)으로 비스듬히 솟은 포신
-    for (const s of [-1, 1]) {
-      ctx.save();
-      ctx.translate(s * 30, -50);
-      ctx.rotate(s * 0.35);
-      // 포가
-      ctx.fillStyle = metal(ctx, -14, -8, 14, 10, '#7a5a4e', '#3a2822', '#120b09');
-      poly(ctx, [-14, 10, 14, 10, 10, -4, -10, -4]);
-      rivets(
-        ctx,
-        [
-          [-9, 5],
-          [9, 5],
-        ],
-        1.1,
-      );
-      // 포신
-      ctx.fillStyle = metal(ctx, -6, -26, 6, -2, '#6a4c42', '#2e201b', '#0e0907');
-      ctx.fillRect(-6, -26, 12, 24);
-      ctx.fillStyle = '#0b0706';
-      ctx.fillRect(-7.5, -28, 15, 4);
-      ctx.fillRect(-6.5, -16, 13, 2);
-      // 포구 — 용암이 끓는다
-      glowOrb(ctx, 0, -27, 8 + pulse * 2, 'rgba(255,120,30,0.95)', 0.9 * pulse);
-      ctx.restore();
+    // 등의 분화구 두 개 — 용암탄이 솟구치는 자리 (꼬리 쪽 바깥으로 기울었다)
+    for (const s of [-1, 1]) ignisVent(ctx, t, s, pulse);
+    // 가슴 방패 — 식은 용암이 굳은 판, 균열로 불빛이 샌다
+    const shield = [-30, 0, 30, 0, 26, 30, 0, 46, -26, 30];
+    ctx.fillStyle = '#0a0605';
+    ctx.save();
+    ctx.translate(0, 1.5);
+    poly(
+      ctx,
+      shield.map((v, i) => (i % 2 ? v : v * 1.06)),
+    );
+    ctx.restore();
+    ctx.fillStyle = basalt(ctx, -26, 0, 26, 46);
+    poly(ctx, shield);
+    ctx.save();
+    ctx.globalCompositeOperation = 'lighter';
+    ctx.lineJoin = 'round';
+    for (const c of IGNIS_SHIELD_CRACKS) {
+      ctx.strokeStyle = `rgba(255,90,20,${0.35 * pulse})`;
+      ctx.lineWidth = 4;
+      polyline(ctx, c);
+      ctx.strokeStyle = `rgba(255,170,60,${0.55 + 0.35 * pulse})`;
+      ctx.lineWidth = 1.4;
+      polyline(ctx, c);
     }
-    // 가슴 장갑판 — 닫혀 있다
-    ctx.fillStyle = metal(ctx, -22, 4, 22, 44, '#6a4c42', '#2e201b', '#120b09');
-    poly(ctx, [-26, 6, 26, 6, 18, 40, 0, 50, -18, 40]);
-    ctx.strokeStyle = `rgba(255,120,30,${0.5 * pulse})`;
-    ctx.lineWidth = 1.5;
-    polyline(ctx, [-26, 6, 26, 6, 18, 40, 0, 50, -18, 40, -26, 6]);
-    polyline(ctx, [0, 6, 0, 50]);
+    ctx.restore();
   } else {
     // 갈라진 갑각의 균열
     ctx.save();
@@ -1500,44 +2599,231 @@ function ignisBody(ctx: CanvasRenderingContext2D, rage: boolean, pulse: number) 
       polyline(ctx, c);
     }
     ctx.restore();
-    // 떨어져 나간 박격포 자리 — 부러진 포가만 남았다
+    // 분화구가 터져 용암이 뿜어져 나온다
     for (const s of [-1, 1]) {
+      const vx = s * 36;
+      const vy = -66;
+      ctx.fillStyle = '#0a0504';
+      ellipse(ctx, vx, vy, 11, 8);
       ctx.save();
-      ctx.translate(s * 30, -50);
-      ctx.rotate(s * 0.35);
-      ctx.fillStyle = '#1a110e';
-      poly(ctx, [-14, 10, 14, 10, 9, 0, 3, 4, -2, -2, -10, 1]);
+      ctx.globalCompositeOperation = 'lighter';
+      glowOrb(ctx, vx, vy, 16 + pulse * 4, 'rgba(255,140,40,0.95)', 1);
+      ctx.restore();
+      ctx.save();
+      ctx.translate(vx, vy);
+      ctx.rotate(Math.PI + s * 0.4);
+      drawThrust(ctx, 0, 0, 14, 34, t * 1.3 + s, '#fff4c0', '#ff4a1a');
       ctx.restore();
     }
-    // 드러난 가슴 용광로
+    // 드러난 가슴 용광로 (고리탄 발사점 0, +10)
     ctx.save();
     ctx.globalCompositeOperation = 'lighter';
-    glowOrb(ctx, 0, 22, 54 + pulse * 8, 'rgba(255,120,30,0.6)', 0.6);
+    glowOrb(ctx, 0, 14, 58 + pulse * 8, 'rgba(255,120,30,0.6)', 0.6);
     ctx.restore();
-    const core = ctx.createRadialGradient(-3, 18, 2, 0, 22, 22);
+    const core = ctx.createRadialGradient(-3, 10, 2, 0, 14, 24);
     core.addColorStop(0, '#ffffff');
     core.addColorStop(0.3, '#fff0a0');
     core.addColorStop(0.7, '#ff7a1a');
     core.addColorStop(1, '#5a1004');
     ctx.fillStyle = core;
-    ellipse(ctx, 0, 22, 19 + pulse * 1.5, 22 + pulse * 1.5);
-    // 용광로를 감싼 부서진 갈비 장갑
+    ellipse(ctx, 0, 14, 21 + pulse * 1.5, 25 + pulse * 1.5);
+    // 소용돌이치는 용광로 표면
+    ctx.save();
+    ctx.translate(0, 14);
+    ctx.rotate(t * 1.5);
+    ctx.strokeStyle = 'rgba(255,255,220,0.5)';
+    ctx.lineWidth = 1.2;
+    for (let k = 0; k < 3; k++) {
+      ctx.rotate(TAU / 3);
+      ctx.beginPath();
+      ctx.arc(6, 0, 10, -1.2, 1.2);
+      ctx.stroke();
+    }
+    ctx.restore();
+    // 용광로를 감싼 흑요석 갈비뼈
     for (const s of [-1, 1]) {
-      for (let k = 0; k < 3; k++) {
-        ctx.fillStyle = '#1a110e';
-        poly(ctx, [
-          s * 18,
-          4 + k * 13,
-          s * 34,
-          8 + k * 13,
-          s * 30,
-          14 + k * 13,
-          s * 16,
-          11 + k * 13,
-        ]);
+      for (let k = 0; k < 4; k++) {
+        const y = -6 + k * 11;
+        ctx.fillStyle = '#0c0706';
+        ctx.beginPath();
+        ctx.moveTo(s * 6, y - 3);
+        ctx.quadraticCurveTo(s * 28, y - 4 + k, s * 38, y + 6);
+        ctx.quadraticCurveTo(s * 26, y + 3 + k, s * 8, y + 3);
+        ctx.closePath();
+        ctx.fill();
+        ctx.strokeStyle = 'rgba(255,170,80,0.6)';
+        ctx.lineWidth = 0.8;
+        ctx.stroke();
       }
     }
+    // 가슴뼈 한가운데
+    ctx.fillStyle = '#0c0706';
+    poly(ctx, [-4, -10, 4, -10, 3, 40, 0, 44, -3, 40]);
   }
+}
+
+/** 1단계 등의 분화구 — 오른쪽 기준 좌표를 s 로 뒤집는다 (포구 ≈ ±39, -74) */
+function ignisVent(ctx: CanvasRenderingContext2D, t: number, s: number, pulse: number) {
+  ctx.save();
+  ctx.translate(s * 30, -50);
+  ctx.rotate(s * 0.4);
+  // 원뿔 몸체
+  ctx.fillStyle = '#0a0605';
+  ellipse(ctx, 1, 2, 17, 11);
+  ctx.fillStyle = basalt(ctx, -16, -26, 16, 6);
+  ctx.beginPath();
+  ctx.moveTo(-16, 0);
+  ctx.quadraticCurveTo(-12, -12, -8, -24);
+  ctx.lineTo(8, -24);
+  ctx.quadraticCurveTo(12, -12, 16, 0);
+  ctx.ellipse(0, 0, 16, 9, 0, 0, Math.PI);
+  ctx.fill();
+  // 원뿔을 타고 흘러내린 용암 줄기
+  ctx.strokeStyle = `rgba(255,110,30,${0.45 + 0.35 * pulse})`;
+  ctx.lineWidth = 1.6;
+  polyline(ctx, [-5, -22, -8, -12, -6, -2, -10, 6]);
+  polyline(ctx, [5, -22, 7, -10, 10, 0]);
+  // 분화구
+  ctx.fillStyle = '#0a0504';
+  ellipse(ctx, 0, -24, 9, 5);
+  ctx.save();
+  ctx.globalCompositeOperation = 'lighter';
+  glowOrb(ctx, 0, -24, 10 + pulse * 3, 'rgba(255,130,40,0.95)', 0.9 * pulse);
+  ctx.restore();
+  ctx.fillStyle = `rgba(255,${190 + Math.round(pulse * 60)},120,0.9)`;
+  ellipse(ctx, 0, -24, 5, 2.6);
+  ctx.restore();
+  // 분화구에서 피어오르는 연기 (화면 위쪽으로 흩어진다)
+  for (let i = 0; i < 4; i++) {
+    const k = (t * 0.5 + i / 4) % 1;
+    const r = 5 + k * 16;
+    ctx.fillStyle = `rgba(60,50,48,${0.38 * (1 - k)})`;
+    ellipse(ctx, s * (39 + k * 10) + Math.sin(t * 2 + i) * 3, -76 - k * 50, r, r * 0.85);
+  }
+}
+
+/** 앞발 — 어깨에서 뒤로 접힌 팔꿈치를 거쳐 앞으로 뻗은 손, 발톱 사이 손바닥에서 바늘탄 (±104, +18) */
+function ignisArm(
+  ctx: CanvasRenderingContext2D,
+  t: number,
+  s: number,
+  rage: boolean,
+  pulse: number,
+) {
+  const sw = Math.sin(t * 1.6 + s * 0.9);
+  const sx = s * 42;
+  const sy = 10;
+  const ex = s * (84 + sw * 2);
+  const ey = -6 + sw * 3;
+  const wx = s * 102;
+  const wy = 14 + sw * 2;
+  const rock = metal(ctx, sx, sy - 14, wx, wy + 14, '#3e2e28', '#1e1410', '#0a0504');
+  const upper = limb(sx, sy, 16, ex, ey, 11, 4);
+  const fore = limb(ex, ey, 12, wx, wy, 13, 4);
+  tube(ctx, upper, rock, 'rgba(255,170,120,0.12)');
+  tube(ctx, fore, rage ? molten(ctx, ex, ey, wx, wy, false) : rock, 'rgba(255,170,120,0.12)');
+  // 바위 비늘 — 마디마다 겹쳐 얹힌 현무암 판
+  for (const pts of [upper, fore]) {
+    for (let i = 1; i < pts.length - 1; i++) {
+      const [x, y, r] = pts[i]!;
+      const [nx, ny] = pts[i + 1]!;
+      const a = Math.atan2(ny - y, nx - x);
+      ctx.save();
+      ctx.translate(x, y);
+      ctx.rotate(a);
+      ctx.fillStyle = metal(ctx, -r, -r, r, r, '#6a564a', '#2a1c16', '#0a0504');
+      poly(ctx, [
+        -r * 0.5,
+        -r * 0.75,
+        r * 0.45,
+        -r * 0.6,
+        r * 0.6,
+        0,
+        r * 0.45,
+        r * 0.6,
+        -r * 0.5,
+        r * 0.75,
+        -r * 0.2,
+        0,
+      ]);
+      ctx.restore();
+    }
+  }
+  // 비늘 틈을 따라 흐르는 용암 균열
+  ctx.save();
+  ctx.globalCompositeOperation = 'lighter';
+  ctx.strokeStyle = rage ? 'rgba(255,230,150,0.9)' : `rgba(255,110,30,${0.45 + 0.3 * pulse})`;
+  ctx.lineWidth = 1.2;
+  polyline(ctx, [
+    sx,
+    sy + 4,
+    (sx + ex) / 2 + s * 2,
+    (sy + ey) / 2 + 6,
+    ex,
+    ey + 4,
+    (ex + wx) / 2 - s * 3,
+    (ey + wy) / 2,
+    wx,
+    wy - 2,
+  ]);
+  ctx.restore();
+  // 아래팔 용암 띠
+  const fa = Math.atan2(wy - ey, wx - ex);
+  for (const q of [0.3, 0.6]) {
+    ctx.save();
+    ctx.translate(ex + (wx - ex) * q, ey + (wy - ey) * q);
+    ctx.rotate(fa);
+    ctx.strokeStyle = rage ? 'rgba(255,240,180,0.9)' : `rgba(255,110,30,${0.5 + 0.3 * pulse})`;
+    ctx.lineWidth = 1.8;
+    ctx.beginPath();
+    ctx.moveTo(-2, -11);
+    ctx.quadraticCurveTo(3, 0, -2, 11);
+    ctx.stroke();
+    ctx.restore();
+  }
+  // 팔꿈치 가시 — 뒤쪽 바깥으로 솟았다
+  ctx.fillStyle = '#0c0706';
+  poly(ctx, [ex - s * 6, ey - 6, ex + s * 10, ey - 24, ex + s * 8, ey + 4]);
+  ctx.fillStyle = 'rgba(255,130,50,0.55)';
+  poly(ctx, [ex + s * 2, ey - 6, ex + s * 9, ey - 20, ex + s * 6, ey]);
+  // 손 — 아래팔 방향으로 돌려서 그린다 (+y 가 손끝)
+  ctx.save();
+  ctx.translate(wx, wy);
+  ctx.rotate(fa - Math.PI / 2);
+  const grip = 0.5 + 0.5 * Math.sin(t * 2.6 + s);
+  for (const k of [-1, 0, 1]) {
+    ctx.save();
+    ctx.translate(k * 8, 6);
+    ctx.rotate(k * (0.22 + grip * 0.22));
+    // 흑요석 발톱 — 끝으로 갈수록 달아오른다
+    const g = ctx.createLinearGradient(0, 0, 0, 30);
+    g.addColorStop(0, '#2a1c16');
+    g.addColorStop(0.55, '#120a08');
+    g.addColorStop(1, rage ? '#fff0b0' : '#ff8a3a');
+    ctx.fillStyle = g;
+    ctx.beginPath();
+    ctx.moveTo(-5, 0);
+    ctx.quadraticCurveTo(-4, 18, 2, 30);
+    ctx.quadraticCurveTo(3, 14, 5, 0);
+    ctx.closePath();
+    ctx.fill();
+    ctx.strokeStyle = 'rgba(255,150,80,0.5)';
+    ctx.lineWidth = 0.9;
+    ctx.stroke();
+    ctx.restore();
+  }
+  ctx.fillStyle = basalt(ctx, -13, -10, 13, 12);
+  ellipse(ctx, 0, 0, 13, 11);
+  // 손등 마디 가시
+  for (const k of [-1, 0, 1]) {
+    ctx.fillStyle = '#0c0706';
+    poly(ctx, [k * 7 - 2.5, -2, k * 7, -12, k * 7 + 2.5, -2]);
+  }
+  ctx.save();
+  ctx.globalCompositeOperation = 'lighter';
+  glowOrb(ctx, 0, 5, 7, 'rgba(255,150,50,0.9)', 0.5 + 0.4 * pulse);
+  ctx.restore();
+  ctx.restore();
 }
 
 function ignisHead(
@@ -1552,41 +2838,83 @@ function ignisHead(
   const turn = clamp(b.aim - Math.PI / 2, -0.4, 0.4);
   // 목 — 겹친 비늘 마디 4개
   for (let i = 3; i >= 0; i--) {
-    const y = 52 + i * 11;
+    const y = 50 + i * 11;
     const x = -Math.sin(turn) * i * 4;
-    ctx.fillStyle = metal(ctx, x - 17, y - 10, x + 17, y + 10, '#5a4038', '#2a1c18', '#0e0907');
-    ellipse(ctx, x, y, 18 - i * 1.4, 10);
-    ctx.strokeStyle = 'rgba(255,110,30,0.55)';
+    ctx.fillStyle = basalt(ctx, x - 17, y - 10, x + 17, y + 10);
+    ellipse(ctx, x, y, 20 - i * 1.6, 10);
+    ctx.strokeStyle = rage ? 'rgba(255,200,110,0.85)' : 'rgba(255,110,30,0.55)';
     ctx.lineWidth = 1.2;
     ctx.beginPath();
-    ctx.ellipse(x, y + 4, 14 - i, 4, 0, 0.2, Math.PI - 0.2);
+    ctx.ellipse(x, y + 4, 15 - i, 4, 0, 0.2, Math.PI - 0.2);
     ctx.stroke();
     // 목덜미 가시
-    ctx.fillStyle = '#120b09';
+    ctx.fillStyle = '#0c0706';
     poly(ctx, [x - 4, y - 6, x, y - 15, x + 4, y - 6]);
   }
 
   ctx.save();
-  ctx.translate(-Math.sin(turn) * 16, 92);
+  ctx.translate(-Math.sin(turn) * 16, 88);
   ctx.rotate(turn);
-  ctx.scale(1.3, 1.3);
+  ctx.scale(1.42, 1.42);
   const jaw = open ? 0.28 + Math.sin(t * 14) * 0.04 : 0;
 
-  // 뿔 — 뒤로 휘어진 한 쌍
-  for (const s of [-1, 1]) {
-    ctx.fillStyle = '#120b09';
+  // 2단계 — 뿔 왕관 뒤로 타오르는 불꽃 후광
+  if (rage) {
+    ctx.save();
+    ctx.globalCompositeOperation = 'lighter';
+    glowOrb(ctx, 0, -18, 46 + pulse * 6, 'rgba(255,120,30,0.55)', 0.45);
+    ctx.restore();
+  }
+
+  // 용암 거신의 뿔 왕관 — 뒤로 휜 큰 뿔 한 쌍, 옆 뿔 한 쌍, 가운데 볏 뿔
+  const horn = (
+    x0: number,
+    y0: number,
+    cx: number,
+    cy: number,
+    x1: number,
+    y1: number,
+    w: number,
+  ) => {
+    // 뿌리 방향에 수직으로 w 만큼 벌려 굵기를 준다
+    const d = Math.atan2(cy - y0, cx - x0) + Math.PI / 2;
+    const nx = Math.cos(d) * w;
+    const ny = Math.sin(d) * w;
+    // 뿌리는 검은 바위, 끝으로 갈수록 용암처럼 달아오른다
+    const g = ctx.createLinearGradient(x0, y0, x1, y1);
+    g.addColorStop(0, '#3a2a24');
+    g.addColorStop(0.5, '#1a100c');
+    g.addColorStop(0.8, rage ? '#ff9a3a' : '#8a2e10');
+    g.addColorStop(1, rage ? '#fff0b0' : '#ff8a3a');
+    ctx.fillStyle = g;
     ctx.beginPath();
-    ctx.moveTo(s * 10, -2);
-    ctx.quadraticCurveTo(s * 34, -6, s * 40, -40);
-    ctx.quadraticCurveTo(s * 28, -14, s * 16, 6);
+    ctx.moveTo(x0 + nx, y0 + ny);
+    ctx.quadraticCurveTo(cx + nx * 0.6, cy + ny * 0.6, x1, y1);
+    ctx.quadraticCurveTo(cx - nx * 0.6, cy - ny * 0.6, x0 - nx, y0 - ny);
     ctx.closePath();
     ctx.fill();
-    ctx.strokeStyle = `rgba(255,140,60,${rage ? 0.85 : 0.45})`;
-    ctx.lineWidth = 1.2;
-    ctx.beginPath();
-    ctx.moveTo(s * 12, -2);
-    ctx.quadraticCurveTo(s * 33, -6, s * 40, -40);
+    ctx.strokeStyle = rage ? 'rgba(255,220,140,0.8)' : `rgba(255,150,80,${0.45 + 0.2 * pulse})`;
+    ctx.lineWidth = 0.9;
     ctx.stroke();
+    if (rage) {
+      ctx.save();
+      ctx.translate(x1, y1);
+      ctx.rotate(Math.atan2(y1 - cy, x1 - cx) - Math.PI / 2);
+      drawThrust(ctx, 0, 0, 7, 16, t * 1.5 + x1, '#fff4c0', '#ff4a1a');
+      ctx.restore();
+    }
+  };
+  for (const s of [-1, 1]) {
+    horn(s * 12, -4, s * 42, -6, s * 52, -26, 8);
+    horn(s * 18, 6, s * 38, 14, s * 48, 4, 5.5);
+    horn(s * 6, -6, s * 14, -16, s * 22, -28, 4.5);
+  }
+  horn(0, -6, 0, -18, 0, -30, 4.5);
+
+  // 볼 가시 — 옆으로 뻗은 바위 턱뼈
+  for (const s of [-1, 1]) {
+    ctx.fillStyle = '#0c0706';
+    poly(ctx, [s * 18, 10, s * 34, 18, s * 18, 20]);
   }
 
   // 아래턱 — 숨결을 뿜을 때 벌어진다
@@ -1610,23 +2938,42 @@ function ignisHead(
     for (const x of [-9, -4, 4, 9]) {
       poly(ctx, [x - 1.6, 12, x, 18 + jaw * 6, x + 1.6, 12]);
     }
+    // 입가로 흘러내리는 용암
+    if (rage) {
+      for (const s of [-1, 1]) {
+        const k = (t * 1.4 + (s > 0 ? 0.5 : 0)) % 1;
+        ctx.fillStyle = `rgba(255,${170 + Math.round(60 * (1 - k))},60,${1 - k})`;
+        ellipse(ctx, s * 13, 24 + k * 16, 2.2 - k, 3 - k);
+      }
+    }
   }
 
   // 위턱·두개골 — 쐐기 모양
   const skull = [-22, -8, 22, -8, 19, 12, 10, 32, 0, 38, -10, 32, -19, 12];
-  ctx.fillStyle = '#0b0706';
+  ctx.fillStyle = '#070403';
   poly(
     ctx,
     skull.map((v, i) => (i % 2 ? v + 1.5 : v * 1.06)),
   );
-  ctx.fillStyle = metal(ctx, -22, -8, 22, 38, '#6a4c42', '#2e201b', '#0e0907');
+  ctx.fillStyle = basalt(ctx, -22, -8, 22, 38);
   poly(ctx, skull);
-  // 콧등 능선과 눈썹뼈
-  ctx.strokeStyle = 'rgba(255,255,255,0.12)';
+  // 주둥이 비늘판 두 줄
+  ctx.strokeStyle = 'rgba(0,0,0,0.5)';
   ctx.lineWidth = 1;
+  polyline(ctx, [-16, 14, -8, 18, 0, 16, 8, 18, 16, 14]);
+  polyline(ctx, [-11, 24, -4, 27, 4, 27, 11, 24]);
+  ctx.strokeStyle = 'rgba(255,220,190,0.12)';
   polyline(ctx, [0, -6, 0, 34]);
-  ctx.fillStyle = '#120b09';
-  for (const s of [-1, 1]) poly(ctx, [s * 4, 2, s * 20, -2, s * 18, 6, s * 6, 8]);
+  // 이마의 용암 문양
+  ctx.save();
+  ctx.globalCompositeOperation = 'lighter';
+  ctx.strokeStyle = rage ? 'rgba(255,230,160,0.95)' : `rgba(255,120,40,${0.5 + 0.3 * pulse})`;
+  ctx.lineWidth = 1.4;
+  polyline(ctx, [0, -6, -5, 0, 0, 6, 5, 0, 0, -6]);
+  ctx.restore();
+  // 무거운 눈썹뼈
+  ctx.fillStyle = '#0c0706';
+  for (const s of [-1, 1]) poly(ctx, [s * 3, 3, s * 22, -4, s * 20, 6, s * 6, 8]);
   // 눈 — 1단계는 주황 틈, 2단계는 하얗게 이글거린다
   for (const s of [-1, 1]) {
     ctx.save();
@@ -1635,7 +2982,7 @@ function ignisHead(
       ctx,
       s * 11,
       9,
-      rage ? 10 : 7,
+      rage ? 11 : 7,
       rage ? 'rgba(255,240,180,0.95)' : 'rgba(255,140,40,0.9)',
       1,
     );
@@ -1643,15 +2990,41 @@ function ignisHead(
     ctx.fillStyle = rage ? '#ffffff' : '#ffc060';
     poly(ctx, [s * 5, 9, s * 16, 6, s * 14, 11]);
   }
-  // 콧구멍 불빛
+  // 콧구멍 — 1단계는 연기, 2단계는 불꽃
   for (const s of [-1, 1]) {
     glowOrb(ctx, s * 5, 33, 4 + pulse * 2, 'rgba(255,120,30,0.9)', 0.6);
+    if (!rage) {
+      const k = (t * 0.8 + (s > 0 ? 0.5 : 0)) % 1;
+      ctx.fillStyle = `rgba(70,60,56,${0.4 * (1 - k)})`;
+      ellipse(ctx, s * (6 + k * 10), 36 + k * 8, 3 + k * 6, 3 + k * 6);
+    }
   }
   if (!open) {
     // 닫힌 입 틈으로 새는 불빛
     ctx.strokeStyle = `rgba(255,150,50,${0.55 + 0.35 * pulse})`;
     ctx.lineWidth = 1.6;
     polyline(ctx, [-14, 20, -6, 25, 0, 26, 6, 25, 14, 20]);
+  }
+  ctx.restore();
+}
+
+/** 1단계는 재가 날리고, 2단계는 불티가 솟구친다 */
+function ignisParticles(ctx: CanvasRenderingContext2D, t: number, rage: boolean) {
+  ctx.save();
+  if (rage) ctx.globalCompositeOperation = 'lighter';
+  const n = rage ? 26 : 12;
+  for (let i = 0; i < n; i++) {
+    const k = (t * (rage ? 0.7 : 0.35) + hash(i)) % 1;
+    const x = (hash(i + 100) - 0.5) * 300 + Math.sin(t * 1.5 + i) * 10;
+    const y = 110 - k * 280;
+    const a = Math.sin(k * Math.PI);
+    if (rage) {
+      ctx.fillStyle = `rgba(255,${150 + Math.round(hash(i + 7) * 100)},60,${a})`;
+      ellipse(ctx, x, y, 1.8, 1.8);
+    } else {
+      ctx.fillStyle = `rgba(90,80,76,${0.5 * a})`;
+      ellipse(ctx, x, y, 1.4, 1.4);
+    }
   }
   ctx.restore();
 }
