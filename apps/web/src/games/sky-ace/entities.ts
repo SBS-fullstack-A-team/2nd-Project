@@ -869,8 +869,8 @@ const BOSS_HITBOX: Record<BossId, [[number, number], [number, number]]> = {
     [145, 62],
   ],
   ignis: [
-    [96, 100],
-    [116, 100],
+    [104, 116],
+    [118, 116],
   ],
   seraph: [
     [84, 74],
