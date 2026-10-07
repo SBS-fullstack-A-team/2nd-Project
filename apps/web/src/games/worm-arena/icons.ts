@@ -1,11 +1,14 @@
 /**
  * 지렁이 아레나 아이콘 — 이모지 대신 직접 그린 24×24 벡터 아이콘.
  * 같은 경로를 캔버스(Path2D)와 메뉴(SVG, Icon.tsx)에서 함께 쓴다. OS 마다 모양이 바뀌지 않는다.
+ * 칠한 면은 위가 밝고 아래가 진한 그라데이션 + 윗부분 광택 (XP 시절 광택 아이콘 느낌).
  */
 
 /** 색 칠한 면 아래에 깔리는 외곽선 — 어두운 경기장 · 밝은 메뉴 모두에서 또렷하게 */
 export const OUTLINE = '#1d2030';
-export const OUTLINE_WIDTH = 2.2;
+export const OUTLINE_WIDTH = 1.5;
+/** 광택 세기 — 윗부분 흰 빛의 진하기 */
+export const GLOSS_ALPHA = 0.55;
 /** 버튼 글자색을 따라가는 색 (캔버스에서는 흰색) */
 export const CURRENT = 'currentColor';
 
@@ -143,7 +146,7 @@ export const ICONS = {
 
   /* 지렁이 성격 · 지렁이 */
   worm: icon([
-    { d: 'M4 16.5c2-5.5 5.2-5.5 7.2-2.2s5.2 3.3 7.3-2.6', stroke: OUTLINE, sw: 7.4 },
+    { d: 'M4 16.5c2-5.5 5.2-5.5 7.2-2.2s5.2 3.3 7.3-2.6', stroke: OUTLINE, sw: 6.5 },
     { d: 'M4 16.5c2-5.5 5.2-5.5 7.2-2.2s5.2 3.3 7.3-2.6', stroke: '#ff7aa8', sw: 5 },
     { d: 'M5.6 14.6c1.4-2.6 3-3 4.2-2', stroke: '#ffc0d6', sw: 1.4 },
     { d: circle(18.4, 11.6, 1.1), fill: OUTLINE },
@@ -204,7 +207,7 @@ export const ICONS = {
     },
   ]),
   lock: icon([
-    { d: 'M8.2 10.5V8a3.8 3.8 0 0 1 7.6 0v2.5', stroke: OUTLINE, sw: 3.6 },
+    { d: 'M8.2 10.5V8a3.8 3.8 0 0 1 7.6 0v2.5', stroke: OUTLINE, sw: 3.1 },
     { d: 'M8.2 10.5V8a3.8 3.8 0 0 1 7.6 0v2.5', stroke: '#b8c0d0', sw: 1.6 },
     { d: rect(5.2, 10, 13.6, 11, 2.2), fill: '#ffc93c' },
     { d: circle(12, 14.6, 1.6) + rect(11.2, 15, 1.6, 3.2), fill: OUTLINE },
@@ -312,7 +315,7 @@ export const ICONS = {
     {
       d: 'M7 5H4.4v1.6A3.6 3.6 0 0 0 8 10.2M17 5h2.6v1.6A3.6 3.6 0 0 1 16 10.2',
       stroke: OUTLINE,
-      sw: 3.6,
+      sw: 3.1,
     },
     {
       d: 'M7 5H4.4v1.6A3.6 3.6 0 0 0 8 10.2M17 5h2.6v1.6A3.6 3.6 0 0 1 16 10.2',
@@ -440,7 +443,7 @@ export const ICONS = {
     { d: 'M9.4 17.2v1.8M12 17.4v1.8M14.6 17.2v1.8', stroke: '#6a7890', sw: 1.2 },
   ]),
   halo: icon([
-    { d: ellipse(12, 12, 9, 4), stroke: OUTLINE, sw: 5.2 },
+    { d: ellipse(12, 12, 9, 4), stroke: OUTLINE, sw: 4.5 },
     { d: ellipse(12, 12, 9, 4), stroke: '#ffd84a', sw: 3 },
     { d: 'M5.4 10.6c1.6-1 3.8-1.6 6.6-1.6', stroke: '#fff3b0', sw: 1.2 },
   ]),
@@ -492,6 +495,25 @@ export function isIconId(id: string): id is IconId {
   return Object.prototype.hasOwnProperty.call(ICONS, id);
 }
 
+/* ---------- 광택 색 ---------- */
+
+/** 그라데이션 · 광택을 입힐 면인지 — 외곽선색 · 글자색 면은 그대로 칠한다 */
+export function isShaded(fill: string): boolean {
+  return fill.startsWith('#') && fill !== OUTLINE;
+}
+
+function mixHex(hex: string, to: readonly [number, number, number], k: number): string {
+  let h = hex.slice(1);
+  if (h.length === 3) h = [...h].map((c) => c + c).join('');
+  const rgb = [0, 2, 4].map((i) => parseInt(h.slice(i, i + 2), 16));
+  return `rgb(${rgb.map((v, i) => Math.round(v + (to[i]! - v) * k)).join(' ')})`;
+}
+
+/** 면 그라데이션 — 위 · 가운데 · 아래 색 */
+export function shadeStops(fill: string): [string, string, string] {
+  return [mixHex(fill, [255, 255, 255], 0.38), fill, mixHex(fill, [20, 22, 36], 0.28)];
+}
+
 /* ---------- 캔버스에 그리기 ---------- */
 
 const pathCache = new Map<string, Path2D>();
@@ -503,6 +525,78 @@ function path2d(d: string): Path2D {
     pathCache.set(d, p);
   }
   return p;
+}
+
+interface Box {
+  x: number;
+  y: number;
+  w: number;
+  h: number;
+}
+
+const boxCache = new Map<string, Box>();
+let measureSvg: SVGSVGElement | null = null;
+
+/** 경로가 차지하는 사각형 — 그라데이션을 면마다 맞추려고 브라우저에 한 번 재 본다 */
+function layerBox(d: string): Box {
+  let b = boxCache.get(d);
+  if (b) return b;
+  b = { x: 0, y: 0, w: 24, h: 24 };
+  try {
+    if (!measureSvg) {
+      measureSvg = document.createElementNS('http://www.w3.org/2000/svg', 'svg');
+      measureSvg.setAttribute('width', '24');
+      measureSvg.setAttribute('height', '24');
+      measureSvg.style.cssText = 'position:absolute;left:-9999px;top:-9999px;visibility:hidden';
+      document.body.appendChild(measureSvg);
+    }
+    const p = document.createElementNS('http://www.w3.org/2000/svg', 'path');
+    p.setAttribute('d', d);
+    measureSvg.appendChild(p);
+    const r = p.getBBox();
+    p.remove();
+    if (r.width > 0 && r.height > 0) b = { x: r.x, y: r.y, w: r.width, h: r.height };
+  } catch {
+    // 잴 수 없으면 아이콘 전체 기준
+  }
+  boxCache.set(d, b);
+  return b;
+}
+
+/** 면마다 그라데이션 · 광택 — 아이콘 좌표(24 단위)에서 만들어 두고 다시 쓴다 */
+interface Paint {
+  body: CanvasGradient;
+  gloss: CanvasGradient | null;
+  box: Box;
+}
+
+const paintCache = new WeakMap<CanvasRenderingContext2D, Map<string, Paint>>();
+
+function paintOf(ctx: CanvasRenderingContext2D, d: string, fill: string): Paint {
+  let map = paintCache.get(ctx);
+  if (!map) {
+    map = new Map();
+    paintCache.set(ctx, map);
+  }
+  const key = `${fill}|${d}`;
+  let paint = map.get(key);
+  if (!paint) {
+    const box = layerBox(d);
+    const [top, mid, bottom] = shadeStops(fill);
+    const body = ctx.createLinearGradient(0, box.y, 0, box.y + box.h);
+    body.addColorStop(0, top);
+    body.addColorStop(0.55, mid);
+    body.addColorStop(1, bottom);
+    let gloss: CanvasGradient | null = null;
+    if (box.w > 3 && box.h > 3) {
+      gloss = ctx.createLinearGradient(0, box.y, 0, box.y + box.h * 0.5);
+      gloss.addColorStop(0, `rgb(255 255 255 / ${GLOSS_ALPHA})`);
+      gloss.addColorStop(1, 'rgb(255 255 255 / 0)');
+    }
+    paint = { body, gloss, box };
+    map.set(key, paint);
+  }
+  return paint;
 }
 
 /** (cx, cy) 를 가운데로 size 크기의 아이콘을 그린다 */
@@ -527,8 +621,25 @@ export function drawIcon(
         ctx.lineWidth = OUTLINE_WIDTH;
         ctx.stroke(p);
       }
-      ctx.fillStyle = l.fill === CURRENT ? '#fff' : l.fill;
-      ctx.fill(p);
+      if (!isShaded(l.fill)) {
+        ctx.fillStyle = l.fill === CURRENT ? '#fff' : l.fill;
+        ctx.fill(p);
+      } else {
+        const paint = paintOf(ctx, l.d, l.fill);
+        ctx.fillStyle = paint.body;
+        ctx.fill(p);
+        // 윗부분 광택 — 면 안쪽에만
+        if (paint.gloss) {
+          const b = paint.box;
+          ctx.save();
+          ctx.clip(p);
+          ctx.fillStyle = paint.gloss;
+          ctx.beginPath();
+          ctx.ellipse(b.x + b.w / 2, b.y + b.h * 0.18, b.w * 0.48, b.h * 0.32, 0, 0, Math.PI * 2);
+          ctx.fill();
+          ctx.restore();
+        }
+      }
     }
     if (l.stroke) {
       ctx.strokeStyle = l.stroke === CURRENT ? '#fff' : l.stroke;
