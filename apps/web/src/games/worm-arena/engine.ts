@@ -132,11 +132,16 @@ export class WormEngine {
   private hatGlow: string | null = null;
   /** 모자 기울기(라디안) — 방향이 바뀌면 천천히 따라간다 */
   private hatTilt = 0;
+  /** 모자 효과 시간 계산 — 지난 프레임 시각 · 파티클을 뿌릴 때까지 쌓인 시간 */
+  private hatLastT = -1;
+  private hatEmit = 0;
 
   start(colors: readonly string[], hat: IconId | '' = '', hatGlow: string | null = null) {
     this.hat = hat;
     this.hatGlow = hatGlow;
     this.hatTilt = 0;
+    this.hatLastT = -1;
+    this.hatEmit = 0;
     this.world = new World(colors);
     this.running = true;
     this.paused = false;
@@ -744,35 +749,114 @@ export class WormEngine {
     t: number,
   ) {
     const ctx = this.ctx;
+    const dt = this.hatLastT < 0 ? 0 : Math.min(0.1, Math.max(0, t - this.hatLastT));
+    this.hatLastT = t;
     const size = r * 2.4;
     // 오른쪽으로 가면 모자 끝이 왼쪽(뒤)으로 — 바람을 받는 느낌
     const targetTilt = -Math.cos(angle) * (boosting ? 0.42 : 0.28);
     this.hatTilt += (targetTilt - this.hatTilt) * 0.12;
-    // 천사 고리는 머리 위에 떠서 둥실둥실, 나머지는 머리에 얹혀 통통
-    const floating = hat === 'halo';
-    const hop = floating
-      ? r * 0.9 + Math.sin(t * 2.5) * r * 0.12
-      : Math.abs(Math.sin(t * (boosting ? 18 : 10))) * r * 0.14;
+    let hop = Math.abs(Math.sin(t * (boosting ? 18 : 10))) * r * 0.14;
+    let spin = 0;
+    let sx = 1;
+    let sy = 1;
+    let glow = this.hatGlow;
+    let glowPower = 0.55 + Math.sin(t * 3) * 0.15;
+
+    // 모자마다 다른 움직임
+    switch (hat) {
+      case 'ribbon':
+        spin = Math.sin(t * 9) * 0.22;
+        sx = 1 + Math.sin(t * 9) * 0.08;
+        break;
+      case 'cap': {
+        // 통통 튈 때 바닥에서 살짝 눌린다
+        const squash = 1 - Math.abs(Math.sin(t * (boosting ? 18 : 10)));
+        sx = 1 + squash * 0.12;
+        sy = 1 - squash * 0.12;
+        break;
+      }
+      case 'flower':
+        spin = t * 1.4;
+        sx = sy = 1 + Math.sin(t * 4) * 0.08;
+        break;
+      case 'tophat': {
+        // 4초마다 모자를 들어 인사
+        const c = t % 4;
+        if (c < 0.8) {
+          const k = Math.sin((c / 0.8) * Math.PI);
+          hop += k * r * 1.1;
+          spin = -k * 0.55;
+        }
+        break;
+      }
+      case 'partyHat':
+        spin = Math.sin(t * 7) * 0.16;
+        break;
+      case 'crown':
+        sx = sy = 1 + Math.max(0, Math.sin(t * 3)) * 0.1;
+        glowPower = 0.6 + Math.max(0, Math.sin(t * 3)) * 0.35;
+        break;
+      case 'dragon':
+        sx = sy = 1 + Math.max(0, Math.sin(t * 2.2)) * 0.07;
+        break;
+      case 'helmet':
+        // 경광등처럼 빨강 · 파랑이 번갈아
+        glow = Math.floor(t * 4) % 2 === 0 ? '#ff4f5e' : '#4fa8ff';
+        glowPower = 0.75;
+        break;
+      case 'halo':
+        hop = r * 0.9 + Math.sin(t * 2.5) * r * 0.12;
+        break;
+      case 'cowboy': {
+        // 5초마다 한 바퀴 빙글
+        const c = t % 5;
+        if (c < 0.7) spin = (c / 0.7) * Math.PI * 2;
+        break;
+      }
+    }
+
     const x = head.x - Math.cos(angle) * r * 0.15;
     const y = head.y - r * 1.25 - hop;
 
     ctx.save();
     ctx.globalAlpha = alpha;
-    // 업적 모자 — 뒤에 은은한 빛 + 주위를 도는 반짝이
-    if (this.hatGlow) {
-      const g = ctx.createRadialGradient(x, y, 0, x, y, size * 1.1);
-      g.addColorStop(0, this.hatGlow);
-      g.addColorStop(1, `${this.hatGlow}00`);
-      ctx.globalAlpha = alpha * (0.55 + Math.sin(t * 3) * 0.15);
+    // 업적 모자 — 뒤에서 빛난다
+    if (glow) {
+      const g = ctx.createRadialGradient(x, y, 0, x, y, size * 1.2);
+      g.addColorStop(0, glow);
+      g.addColorStop(1, `${glow}00`);
+      ctx.globalAlpha = alpha * glowPower;
       ctx.fillStyle = g;
       ctx.beginPath();
-      ctx.arc(x, y, size * 1.1, 0, Math.PI * 2);
+      ctx.arc(x, y, size * 1.2, 0, Math.PI * 2);
       ctx.fill();
       ctx.globalAlpha = alpha;
     }
+    // 천사 고리 — 뒤에서 도는 빛줄기
+    if (hat === 'halo') {
+      ctx.save();
+      ctx.translate(x, y);
+      ctx.rotate(t * 0.8);
+      ctx.globalAlpha = alpha * (0.35 + Math.sin(t * 3) * 0.1);
+      ctx.fillStyle = '#fff3b0';
+      for (let i = 0; i < 8; i++) {
+        ctx.rotate(Math.PI / 4);
+        ctx.beginPath();
+        ctx.moveTo(-size * 0.06, 0);
+        ctx.lineTo(size * 0.06, 0);
+        ctx.lineTo(0, -size * 1.05);
+        ctx.closePath();
+        ctx.fill();
+      }
+      ctx.restore();
+    }
     ctx.translate(x, y + size * 0.4);
     ctx.rotate(this.hatTilt);
-    drawIcon(ctx, hat, 0, -size * 0.4, size);
+    // 빙글 도는 모자는 모자 가운데를 기준으로
+    ctx.translate(0, -size * 0.4);
+    ctx.rotate(spin);
+    ctx.scale(sx, sy);
+    drawIcon(ctx, hat, 0, 0, size);
     ctx.restore();
 
     if (this.hatGlow) {
@@ -785,11 +869,140 @@ export class WormEngine {
         drawIcon(
           ctx,
           'sparkle',
-          x + Math.cos(a) * size * 0.7,
-          y + Math.sin(a) * size * 0.5,
+          x + Math.cos(a) * size * 0.75,
+          y + Math.sin(a) * size * 0.55,
           size * 0.45 * (0.7 + twinkle * 0.3),
         );
         ctx.restore();
+      }
+    }
+
+    this.emitHatParticles(hat, x, y, size, angle, boosting, t, dt);
+  }
+
+  /** 모자에서 나오는 파티클 — 꽃잎 · 색종이 · 금가루 · 불꽃 · 흙먼지 */
+  private emitHatParticles(
+    hat: IconId,
+    x: number,
+    y: number,
+    size: number,
+    angle: number,
+    boosting: boolean,
+    t: number,
+    dt: number,
+  ) {
+    const rand = (a: number, b: number) => a + Math.random() * (b - a);
+    const pick = (list: readonly string[]) => list[Math.floor(Math.random() * list.length)]!;
+    const push = (
+      px: number,
+      py: number,
+      vx: number,
+      vy: number,
+      life: number,
+      s: number,
+      color: string,
+    ) => this.particles.push({ x: px, y: py, vx, vy, life, max: life, size: s, color });
+
+    let every: number;
+    switch (hat) {
+      case 'flower':
+        every = 0.45;
+        break;
+      case 'partyHat':
+        every = 0.12;
+        break;
+      case 'crown':
+        every = 0.18;
+        break;
+      case 'dragon':
+        // 3초마다 0.6초 동안 불을 뿜는다
+        every = t % 3 < 0.6 ? 0.03 : 0;
+        break;
+      case 'cowboy':
+        every = boosting ? 0.05 : 0;
+        break;
+      default:
+        every = this.hatGlow ? 0.3 : 0;
+    }
+    if (every <= 0) {
+      this.hatEmit = 0;
+      return;
+    }
+    this.hatEmit += dt;
+    while (this.hatEmit >= every) {
+      this.hatEmit -= every;
+      switch (hat) {
+        case 'flower':
+          push(
+            x + rand(-size, size) * 0.3,
+            y,
+            rand(-15, 15),
+            rand(20, 40),
+            1.4,
+            size * 0.12,
+            pick(['#ffb3d1', '#ff8ab0', '#fff']),
+          );
+          break;
+        case 'partyHat':
+          push(
+            x,
+            y - size * 0.45,
+            rand(-70, 70),
+            rand(-90, -40),
+            1,
+            size * 0.1,
+            pick(['#ff5f6d', '#ffd84a', '#4fc3f7', '#7ee081', '#b07cff']),
+          );
+          break;
+        case 'crown':
+          push(
+            x + rand(-size, size) * 0.4,
+            y,
+            rand(-8, 8),
+            rand(-45, -25),
+            1.1,
+            size * 0.08,
+            pick(['#ffd84a', '#fff3b0']),
+          );
+          break;
+        case 'dragon': {
+          const a = angle + rand(-0.25, 0.25);
+          const sp = rand(140, 220);
+          push(
+            x + Math.cos(angle) * size * 0.5,
+            y + Math.sin(angle) * size * 0.3,
+            Math.cos(a) * sp,
+            Math.sin(a) * sp,
+            0.45,
+            size * 0.16,
+            pick(['#ff7a45', '#ffd84a', '#ff4f2e']),
+          );
+          break;
+        }
+        case 'cowboy': {
+          const back = angle + Math.PI + rand(-0.5, 0.5);
+          push(
+            x - Math.cos(angle) * size * 0.4,
+            y + size * 0.9,
+            Math.cos(back) * 40,
+            Math.sin(back) * 40 - 10,
+            0.7,
+            size * 0.14,
+            pick(['#c8a070', '#a87a4a']),
+          );
+          break;
+        }
+        default:
+          // 다른 업적 모자 — 빛 색 알갱이가 위로 피어오른다
+          push(
+            x + rand(-size, size) * 0.4,
+            y,
+            rand(-6, 6),
+            rand(-35, -20),
+            1,
+            size * 0.07,
+            this.hatGlow ?? '#fff',
+          );
       }
     }
   }
