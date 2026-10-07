@@ -1,0 +1,43 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 320 180">
+  <defs>
+    <pattern id="hex" width="42" height="48.5" patternUnits="userSpaceOnUse">
+      <rect width="42" height="48.5" fill="#161c26"/>
+      <path d="M0 12 L7 0 L21 0 L28 12 L21 24 L7 24 Z M21 36.5 L28 24.5 L42 24.5 L49 36.5 L42 48.5 L28 48.5 Z M-21 36.5 L-14 24.5 L0 24.5 L7 36.5 L0 48.5 L-14 48.5 Z" fill="#1f2733" stroke="#0e131a" stroke-width="2"/>
+    </pattern>
+    <radialGradient id="glow">
+      <stop offset="0" stop-color="#fff" stop-opacity="0.9"/>
+      <stop offset="1" stop-color="#fff" stop-opacity="0"/>
+    </radialGradient>
+  </defs>
+  <rect width="320" height="180" fill="url(#hex)"/>
+  <!-- 먹이 -->
+  <g>
+    <circle cx="40" cy="40" r="5" fill="#ff5f7e"/>
+    <circle cx="96" cy="150" r="4" fill="#ffe95f"/>
+    <circle cx="150" cy="28" r="5" fill="#5fd4ff"/>
+    <circle cx="250" cy="150" r="6" fill="#6bdc6b"/>
+    <circle cx="290" cy="34" r="4" fill="#d17bff"/>
+    <circle cx="206" cy="108" r="5" fill="#ffb35f"/>
+    <circle cx="60" cy="100" r="4" fill="#7b8bff"/>
+  </g>
+  <!-- 파란 지렁이 -->
+  <g fill="none" stroke-linecap="round" stroke-linejoin="round">
+    <path d="M300 92 C270 70 240 60 220 72 C200 84 196 60 176 52" stroke="#2f7cc7" stroke-width="22"/>
+    <path d="M300 92 C270 70 240 60 220 72 C200 84 196 60 176 52" stroke="#5ec8ff" stroke-width="18" stroke-dasharray="10 10"/>
+  </g>
+  <g>
+    <circle cx="179" cy="46" r="4.5" fill="#fff"/><circle cx="177" cy="45" r="2.3" fill="#111"/>
+    <circle cx="172" cy="58" r="4.5" fill="#fff"/><circle cx="170" cy="57" r="2.3" fill="#111"/>
+  </g>
+  <!-- 분홍 지렁이 (주인공) -->
+  <g fill="none" stroke-linecap="round" stroke-linejoin="round">
+    <path d="M24 156 C50 120 80 136 104 120 C130 102 120 76 150 70" stroke="#d9507e" stroke-width="28"/>
+    <path d="M24 156 C50 120 80 136 104 120 C130 102 120 76 150 70" stroke="#ff7aa8" stroke-width="24"/>
+    <path d="M24 156 C50 120 80 136 104 120 C130 102 120 76 150 70" stroke="#ff9ec0" stroke-width="24" stroke-dasharray="12 12"/>
+  </g>
+  <g>
+    <circle cx="153" cy="62" r="6" fill="#fff"/><circle cx="156" cy="62" r="3" fill="#111"/>
+    <circle cx="156" cy="78" r="6" fill="#fff"/><circle cx="159" cy="77" r="3" fill="#111"/>
+  </g>
+  <circle cx="168" cy="70" r="16" fill="url(#glow)" opacity="0.25"/>
+</svg>

@@ -9,6 +9,7 @@ import hintQuizThumbnail from './hint-quiz/thumbnail.svg';
 import imjin50Thumbnail from './imjin-50/thumbnail.svg';
 import ruinsDashThumbnail from './ruins-dash/thumbnail.webp';
 import skyAceThumbnail from './sky-ace/thumbnail.webp';
+import wormArenaThumbnail from './worm-arena/thumbnail.svg';
 
 /**
  * 카드 담당 순서 — CLAUDE.md 의 "게임 카드 담당" 표와 같게 유지한다.
@@ -136,6 +137,15 @@ const GAME_ENTRIES: readonly GameEntry[] = [
     category: 'arcade',
     owner: '신영',
     component: lazy(() => import('./cat-blade')),
+  },
+  {
+    id: 'worm-arena',
+    name: '지렁이 아레나',
+    description: '먹이를 먹고 길어져라! AI 지렁이 앞을 가로막아 먹이로 만드는 슬리더리오 스타일',
+    thumbnail: wormArenaThumbnail,
+    category: 'arcade',
+    owner: '경수',
+    component: lazy(() => import('./worm-arena')),
   },
 ];
 
