@@ -205,6 +205,12 @@
   display: block;
   height: 100%;
 }
+.bounty {
+  margin-top: 4px;
+  color: #ffb02e;
+  font-size: 0.72rem;
+  font-weight: 800;
+}
 .feast {
   margin-top: 4px;
   color: #ffd84a;
@@ -456,7 +462,7 @@
 
 .tabs {
   display: grid;
-  grid-template-columns: repeat(4, 1fr);
+  grid-template-columns: repeat(5, 1fr);
   gap: 4px;
   margin: 0 0 12px;
 }
@@ -468,7 +474,8 @@
   background: var(--bg);
   color: var(--text);
   font: inherit;
-  font-size: 0.75rem;
+  font-size: 0.72rem;
+  line-height: 1.25;
   font-weight: 700;
   cursor: pointer;
 }
@@ -493,7 +500,7 @@
 
 .hats {
   display: grid;
-  grid-template-columns: repeat(10, 1fr);
+  grid-template-columns: repeat(11, 1fr);
   gap: 4px;
 }
 .hat {
@@ -534,6 +541,7 @@
   box-shadow: inset 3px 0 0 var(--success, #1f9d6b);
 }
 .listIcon {
+  display: inline-flex;
   font-size: 1.2rem;
 }
 .listBody {
@@ -657,4 +665,12 @@
     bottom: 56px;
     max-width: calc(100% - 20px);
   }
+}
+
+/* 직접 그린 아이콘 (Icon.tsx) — 글자 줄에 맞춰 세운다 */
+.icon {
+  display: inline-block;
+  flex: none;
+  vertical-align: -0.28em;
+  overflow: visible;
 }

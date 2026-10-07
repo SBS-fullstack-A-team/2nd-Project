@@ -5,6 +5,7 @@
 import {
   ARENA_RADIUS,
   BOOST_STAMINA,
+  BOUNTY_COLOR,
   FEAST_COLOR,
   LEADERBOARD_SIZE,
   MAGNET_RANGE,
@@ -15,10 +16,13 @@ import {
   TICK,
   ZOOM_MAX,
   ZOOM_MIN,
+  bountyReward,
   findPower,
+  findTrait,
   type PowerKind,
 } from './config';
-import { World, radiusOf, type RunStats, type Worm, type WorldEvents } from './world';
+import { drawIcon, type IconId } from './icons';
+import { World, displayName, radiusOf, type RunStats, type Worm, type WorldEvents } from './world';
 
 export interface Hud {
   length: number;
@@ -26,7 +30,9 @@ export interface Hud {
   kills: number;
   rank: number;
   total: number;
-  leaders: { name: string; length: number; me: boolean }[];
+  leaders: { name: string; length: number; me: boolean; bounty: boolean }[];
+  /** 지금 현상금이 걸린 지렁이와 보상 (없으면 null) */
+  bounty: { name: string; reward: number } | null;
   boosting: boolean;
   canBoost: boolean;
   /** 지금 걸려 있는 파워업 (남은 시간 · 전체 시간) */
@@ -38,7 +44,8 @@ export interface Hud {
   exhausted: boolean;
 }
 
-export type EngineEvent = 'eat' | 'kill' | 'die' | 'power' | 'streak' | 'shield' | 'feast';
+export type EngineEvent =
+  'eat' | 'kill' | 'die' | 'power' | 'streak' | 'shield' | 'feast' | 'bounty' | 'bountyClaim';
 
 export interface Summary {
   score: number;
@@ -120,11 +127,21 @@ export class WormEngine {
     this.raf = requestAnimationFrame(this.loop);
   }
 
-  /** 플레이어 머리 위에 그릴 모자 이모지 (없으면 빈 문자열) */
-  private hat = '';
+  /** 플레이어 머리 위에 그릴 모자 아이콘 (없으면 빈 문자열) · 업적 모자의 빛 색 */
+  private hat: IconId | '' = '';
+  private hatGlow: string | null = null;
+  /** 모자 기울기(라디안) — 방향이 바뀌면 천천히 따라간다 */
+  private hatTilt = 0;
+  /** 모자 효과 시간 계산 — 지난 프레임 시각 · 파티클을 뿌릴 때까지 쌓인 시간 */
+  private hatLastT = -1;
+  private hatEmit = 0;
 
-  start(colors: readonly string[], hat = '') {
+  start(colors: readonly string[], hat: IconId | '' = '', hatGlow: string | null = null) {
     this.hat = hat;
+    this.hatGlow = hatGlow;
+    this.hatTilt = 0;
+    this.hatLastT = -1;
+    this.hatEmit = 0;
     this.world = new World(colors);
     this.running = true;
     this.paused = false;
@@ -228,6 +245,11 @@ export class WormEngine {
         this.shake = Math.max(this.shake, 0.3);
       }
       if (ev.feast) this.cb.onEvent('feast');
+      if (ev.bounty && player.alive) this.cb.onEvent('bounty', ev.bounty);
+      if (ev.bountyClaimed) {
+        this.cb.onEvent('bountyClaim', `${ev.bountyClaimed.name} +${ev.bountyClaimed.bonus}`);
+        this.shake = Math.max(this.shake, 0.6);
+      }
       if (ev.died) {
         this.deathBy = ev.died.by;
         this.killerId = ev.died.byId;
@@ -257,6 +279,7 @@ export class WormEngine {
       this.hudTimer = 0.2;
       const ranking = world.ranking();
       const rank = ranking.indexOf(player) + 1;
+      const bounty = world.bounty();
       if (rank > 0) this.bestRank = Math.min(this.bestRank, rank);
       this.cb.onHud({
         length: Math.floor(player.mass),
@@ -265,10 +288,12 @@ export class WormEngine {
         rank,
         total: ranking.length,
         leaders: ranking.slice(0, LEADERBOARD_SIZE).map((w) => ({
-          name: w.name,
+          name: displayName(w),
           length: Math.floor(w.mass),
           me: w.isPlayer,
+          bounty: w === bounty,
         })),
+        bounty: bounty ? { name: displayName(bounty), reward: bountyReward(bounty.mass) } : null,
         boosting: player.dashing,
         canBoost: player.effects.turbo > 0 || (player.mass > MIN_BOOST_MASS && !player.exhausted),
         stamina: player.effects.turbo > 0 ? 1 : player.stamina / BOOST_STAMINA,
@@ -484,22 +509,40 @@ export class WormEngine {
       ctx.arc(pu.x, pu.y + bob, 30 + Math.sin(t * 5 + pu.phase) * 4, 0, Math.PI * 2);
       ctx.fill();
       ctx.globalAlpha = blink;
+      ctx.fillStyle = '#141822';
       ctx.beginPath();
-      ctx.arc(pu.x, pu.y + bob, 17, 0, Math.PI * 2);
+      ctx.arc(pu.x, pu.y + bob, 18, 0, Math.PI * 2);
       ctx.fill();
       ctx.lineWidth = 3;
-      ctx.strokeStyle = '#fff';
+      ctx.strokeStyle = def.color;
       ctx.stroke();
-      ctx.font = '18px sans-serif';
-      ctx.textAlign = 'center';
-      ctx.textBaseline = 'middle';
-      ctx.fillText(def.icon, pu.x, pu.y + bob + 1);
+      drawIcon(ctx, def.icon, pu.x, pu.y + bob, 26);
     }
     ctx.globalAlpha = 1;
 
     // 지렁이 — 작은 것부터 그려서 큰 지렁이가 위에 오게
     const worms = world.worms.filter((w) => w.alive).sort((a, b) => a.mass - b.mass);
     for (const w of worms) this.drawWorm(w, visible, t);
+
+    // 현상금 지렁이 — 금빛 고리와 머리 위 왕관
+    const bounty = world.bounty();
+    if (bounty && bounty !== killer) {
+      const h = bounty.segments[0]!;
+      const r = radiusOf(bounty.mass);
+      if (visible(h.x, h.y, r * 4)) {
+        ctx.strokeStyle = BOUNTY_COLOR;
+        ctx.globalAlpha = 0.55 + Math.sin(t * 5) * 0.25;
+        ctx.lineWidth = 3;
+        ctx.setLineDash([10, 8]);
+        ctx.beginPath();
+        ctx.arc(h.x, h.y, r * 2.2, -t, -t + Math.PI * 2);
+        ctx.stroke();
+        ctx.setLineDash([]);
+        ctx.globalAlpha = 1;
+        const size = Math.max(24, r * 1.9);
+        drawIcon(ctx, 'crown', h.x, h.y - r * 1.15 + Math.sin(t * 4) * 2, size);
+      }
+    }
 
     // 나를 잡은 지렁이 표시
     if (killer) {
@@ -534,18 +577,27 @@ export class WormEngine {
     });
     ctx.globalAlpha = 1;
 
-    // 이름
-    ctx.textAlign = 'center';
+    // 이름 — 성격이 있으면 이름 앞에 아이콘 배지
+    ctx.textAlign = 'left';
     ctx.textBaseline = 'bottom';
     for (const w of worms) {
       const head = w.segments[0]!;
       const r = radiusOf(w.mass);
       if (!visible(head.x, head.y, 200)) continue;
-      ctx.font = `700 ${Math.max(12, 13 / this.cam.zoom)}px sans-serif`;
-      ctx.fillStyle = w.isPlayer ? '#fff' : 'rgb(255 255 255 / 0.75)';
-      // 모자를 쓴 내 지렁이는 이름을 모자 위로
-      const lift = w.isPlayer && this.hat ? r * 1.9 : 0;
-      ctx.fillText(w.name, head.x, head.y - r - 8 - lift);
+      const fontSize = Math.max(12, 13 / this.cam.zoom);
+      ctx.font = `700 ${fontSize}px sans-serif`;
+      const isBounty = w === bounty;
+      // 모자 · 왕관을 쓴 지렁이는 이름을 그 위로
+      const lift =
+        w.isPlayer && this.hat ? r * (this.hat === 'halo' ? 3.4 : 2.5) : isBounty ? r * 1.9 : 0;
+      const y = head.y - r - 8 - lift;
+      const icon = findTrait(w.trait).icon;
+      const iconSize = icon ? fontSize * 1.5 : 0;
+      const gap = icon ? fontSize * 0.25 : 0;
+      const left = head.x - (iconSize + gap + ctx.measureText(w.name).width) / 2;
+      if (icon) drawIcon(ctx, icon, left + iconSize / 2, y - fontSize * 0.55, iconSize);
+      ctx.fillStyle = w.isPlayer ? '#fff' : isBounty ? BOUNTY_COLOR : 'rgb(255 255 255 / 0.75)';
+      ctx.fillText(w.name, left + iconSize + gap, y);
     }
 
     ctx.setTransform(1, 0, 0, 1, 0, 0);
@@ -573,7 +625,15 @@ export class WormEngine {
     if (this.running && world.feast && player.alive) {
       const fx = (world.feast.x - this.cam.x) * scale + W / 2;
       const fy = (world.feast.y - this.cam.y) * scale + H / 2;
-      if (fx < 0 || fx > W || fy < 0 || fy > H) this.drawFeastArrow(fx, fy, W, H, t);
+      if (fx < 0 || fx > W || fy < 0 || fy > H)
+        this.drawEdgeArrow(fx, fy, W, H, t, 'star', FEAST_COLOR);
+    }
+    if (this.running && bounty && player.alive) {
+      const h = bounty.segments[0]!;
+      const bx = (h.x - this.cam.x) * scale + W / 2;
+      const by = (h.y - this.cam.y) * scale + H / 2;
+      if (bx < 0 || bx > W || by < 0 || by > H)
+        this.drawEdgeArrow(bx, by, W, H, t, 'crown', BOUNTY_COLOR);
     }
     this.drawMinimap(world, W, H);
   }
@@ -663,16 +723,8 @@ export class WormEngine {
     }
     ctx.globalAlpha = 1;
 
-    // 모자 — 머리 위에 (화면 위쪽 방향으로 세워서)
-    if (w.isPlayer && this.hat) {
-      ctx.save();
-      ctx.globalAlpha = bodyAlpha;
-      ctx.font = `${Math.round(r * 1.7)}px sans-serif`;
-      ctx.textAlign = 'center';
-      ctx.textBaseline = 'middle';
-      ctx.fillText(this.hat, head.x, head.y - r * 1.05);
-      ctx.restore();
-    }
+    // 모자 — 머리 위에 세우고, 가는 방향 반대로 살짝 기울이고, 움직이면 통통 튄다
+    if (w.isPlayer && this.hat) this.drawHat(this.hat, head, r, w.angle, boosting, bodyAlpha, t);
 
     // 방패 — 머리를 감싼 비눗방울
     if (fx.shield > 0) {
@@ -687,8 +739,299 @@ export class WormEngine {
     }
   }
 
-  /** 화면 밖 황금 먹이 잔치 쪽을 가리키는 화살표 */
-  private drawFeastArrow(fx: number, fy: number, W: number, H: number, t: number) {
+  private drawHat(
+    hat: IconId,
+    head: { x: number; y: number },
+    r: number,
+    angle: number,
+    boosting: boolean,
+    alpha: number,
+    t: number,
+  ) {
+    const ctx = this.ctx;
+    const dt = this.hatLastT < 0 ? 0 : Math.min(0.1, Math.max(0, t - this.hatLastT));
+    this.hatLastT = t;
+    const size = r * 2.4;
+    // 오른쪽으로 가면 모자 끝이 왼쪽(뒤)으로 — 바람을 받는 느낌
+    const targetTilt = -Math.cos(angle) * (boosting ? 0.42 : 0.28);
+    this.hatTilt += (targetTilt - this.hatTilt) * 0.12;
+    let hop = Math.abs(Math.sin(t * (boosting ? 18 : 10))) * r * 0.14;
+    let spin = 0;
+    let sx = 1;
+    let sy = 1;
+    const glow = this.hatGlow;
+    let glowPower = 0.55 + Math.sin(t * 3) * 0.15;
+
+    // 모자마다 다른 움직임
+    switch (hat) {
+      case 'ribbon':
+        spin = Math.sin(t * 9) * 0.22;
+        sx = 1 + Math.sin(t * 9) * 0.08;
+        break;
+      case 'cap': {
+        // 통통 튈 때 바닥에서 살짝 눌린다
+        const squash = 1 - Math.abs(Math.sin(t * (boosting ? 18 : 10)));
+        sx = 1 + squash * 0.12;
+        sy = 1 - squash * 0.12;
+        break;
+      }
+      case 'flower':
+        spin = t * 1.4;
+        sx = sy = 1 + Math.sin(t * 4) * 0.08;
+        break;
+      case 'tophat': {
+        // 4초마다 모자를 들어 인사
+        const c = t % 4;
+        if (c < 0.8) {
+          const k = Math.sin((c / 0.8) * Math.PI);
+          hop += k * r * 1.1;
+          spin = -k * 0.55;
+        }
+        break;
+      }
+      case 'partyHat':
+        spin = Math.sin(t * 7) * 0.16;
+        break;
+      case 'crown':
+        sx = sy = 1 + Math.max(0, Math.sin(t * 3)) * 0.1;
+        glowPower = 0.6 + Math.max(0, Math.sin(t * 3)) * 0.35;
+        break;
+      case 'dragonHorns':
+        // 불을 뿜을 때 고개를 살짝 든다
+        sx = sy = 1 + Math.max(0, Math.sin(t * 2.2)) * 0.07;
+        if (t % 3 < 0.6) spin = -0.12;
+        break;
+      case 'knightHelmet': {
+        // 2.5초마다 강철이 번쩍
+        const c = t % 2.5;
+        glowPower = 0.45 + (c < 0.35 ? Math.sin((c / 0.35) * Math.PI) * 0.5 : 0);
+        break;
+      }
+      case 'halo':
+        hop = r * 0.9 + Math.sin(t * 2.5) * r * 0.12;
+        break;
+      case 'cowboy': {
+        // 5초마다 한 바퀴 빙글
+        const c = t % 5;
+        if (c < 0.7) spin = (c / 0.7) * Math.PI * 2;
+        break;
+      }
+    }
+
+    const x = head.x - Math.cos(angle) * r * 0.15;
+    const y = head.y - r * 1.25 - hop;
+
+    ctx.save();
+    ctx.globalAlpha = alpha;
+    // 업적 모자 — 뒤에서 빛난다
+    if (glow) {
+      const g = ctx.createRadialGradient(x, y, 0, x, y, size * 1.2);
+      g.addColorStop(0, glow);
+      g.addColorStop(1, `${glow}00`);
+      ctx.globalAlpha = alpha * glowPower;
+      ctx.fillStyle = g;
+      ctx.beginPath();
+      ctx.arc(x, y, size * 1.2, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.globalAlpha = alpha;
+    }
+    // 천사 고리 — 뒤에서 도는 빛줄기
+    if (hat === 'halo') {
+      ctx.save();
+      ctx.translate(x, y);
+      ctx.rotate(t * 0.8);
+      ctx.globalAlpha = alpha * (0.35 + Math.sin(t * 3) * 0.1);
+      ctx.fillStyle = '#fff3b0';
+      for (let i = 0; i < 8; i++) {
+        ctx.rotate(Math.PI / 4);
+        ctx.beginPath();
+        ctx.moveTo(-size * 0.06, 0);
+        ctx.lineTo(size * 0.06, 0);
+        ctx.lineTo(0, -size * 1.05);
+        ctx.closePath();
+        ctx.fill();
+      }
+      ctx.restore();
+    }
+    ctx.translate(x, y + size * 0.4);
+    ctx.rotate(this.hatTilt);
+    // 빙글 도는 모자는 모자 가운데를 기준으로
+    ctx.translate(0, -size * 0.4);
+    ctx.rotate(spin);
+    ctx.scale(sx, sy);
+    drawIcon(ctx, hat, 0, 0, size);
+    ctx.restore();
+
+    // 기사 투구 — 번쩍일 때 투구 위에 큰 빛 반짝
+    if (hat === 'knightHelmet') {
+      const c = t % 2.5;
+      if (c < 0.35) {
+        const k = Math.sin((c / 0.35) * Math.PI);
+        ctx.save();
+        ctx.globalAlpha = alpha * k;
+        drawIcon(ctx, 'sparkle', x - size * 0.22, y - size * 0.18, size * 0.6 * (0.6 + k * 0.4));
+        ctx.restore();
+      }
+    }
+
+    if (this.hatGlow) {
+      for (let i = 0; i < 3; i++) {
+        const twinkle = Math.sin(t * 3.2 + i * 2.1);
+        if (twinkle <= 0) continue;
+        const a = t * 1.6 + (i * Math.PI * 2) / 3;
+        ctx.save();
+        ctx.globalAlpha = alpha * twinkle;
+        drawIcon(
+          ctx,
+          'sparkle',
+          x + Math.cos(a) * size * 0.75,
+          y + Math.sin(a) * size * 0.55,
+          size * 0.45 * (0.7 + twinkle * 0.3),
+        );
+        ctx.restore();
+      }
+    }
+
+    this.emitHatParticles(hat, x, y, size, angle, boosting, t, dt);
+  }
+
+  /** 모자에서 나오는 파티클 — 꽃잎 · 색종이 · 금가루 · 불꽃 · 흙먼지 */
+  private emitHatParticles(
+    hat: IconId,
+    x: number,
+    y: number,
+    size: number,
+    angle: number,
+    boosting: boolean,
+    t: number,
+    dt: number,
+  ) {
+    const rand = (a: number, b: number) => a + Math.random() * (b - a);
+    const pick = (list: readonly string[]) => list[Math.floor(Math.random() * list.length)]!;
+    const push = (
+      px: number,
+      py: number,
+      vx: number,
+      vy: number,
+      life: number,
+      s: number,
+      color: string,
+    ) => this.particles.push({ x: px, y: py, vx, vy, life, max: life, size: s, color });
+
+    let every: number;
+    switch (hat) {
+      case 'flower':
+        every = 0.45;
+        break;
+      case 'partyHat':
+        every = 0.12;
+        break;
+      case 'crown':
+        every = 0.18;
+        break;
+      case 'dragonHorns':
+        // 3초마다 0.6초 동안 불을 뿜는다
+        every = t % 3 < 0.6 ? 0.03 : 0;
+        break;
+      case 'cowboy':
+        every = boosting ? 0.05 : 0;
+        break;
+      default:
+        every = this.hatGlow ? 0.3 : 0;
+    }
+    if (every <= 0) {
+      this.hatEmit = 0;
+      return;
+    }
+    this.hatEmit += dt;
+    while (this.hatEmit >= every) {
+      this.hatEmit -= every;
+      switch (hat) {
+        case 'flower':
+          push(
+            x + rand(-size, size) * 0.3,
+            y,
+            rand(-15, 15),
+            rand(20, 40),
+            1.4,
+            size * 0.12,
+            pick(['#ffb3d1', '#ff8ab0', '#fff']),
+          );
+          break;
+        case 'partyHat':
+          push(
+            x,
+            y - size * 0.45,
+            rand(-70, 70),
+            rand(-90, -40),
+            1,
+            size * 0.1,
+            pick(['#ff5f6d', '#ffd84a', '#4fc3f7', '#7ee081', '#b07cff']),
+          );
+          break;
+        case 'crown':
+          push(
+            x + rand(-size, size) * 0.4,
+            y,
+            rand(-8, 8),
+            rand(-45, -25),
+            1.1,
+            size * 0.08,
+            pick(['#ffd84a', '#fff3b0']),
+          );
+          break;
+        case 'dragonHorns': {
+          const a = angle + rand(-0.25, 0.25);
+          const sp = rand(140, 220);
+          push(
+            x + Math.cos(angle) * size * 0.5,
+            y + Math.sin(angle) * size * 0.3,
+            Math.cos(a) * sp,
+            Math.sin(a) * sp,
+            0.45,
+            size * 0.16,
+            pick(['#ff7a45', '#ffd84a', '#ff4f2e']),
+          );
+          break;
+        }
+        case 'cowboy': {
+          const back = angle + Math.PI + rand(-0.5, 0.5);
+          push(
+            x - Math.cos(angle) * size * 0.4,
+            y + size * 0.9,
+            Math.cos(back) * 40,
+            Math.sin(back) * 40 - 10,
+            0.7,
+            size * 0.14,
+            pick(['#c8a070', '#a87a4a']),
+          );
+          break;
+        }
+        default:
+          // 다른 업적 모자 — 빛 색 알갱이가 위로 피어오른다
+          push(
+            x + rand(-size, size) * 0.4,
+            y,
+            rand(-6, 6),
+            rand(-35, -20),
+            1,
+            size * 0.07,
+            this.hatGlow ?? '#fff',
+          );
+      }
+    }
+  }
+
+  /** 화면 밖 목표(황금 먹이 잔치 · 현상금 지렁이) 쪽을 가리키는 화살표 */
+  private drawEdgeArrow(
+    fx: number,
+    fy: number,
+    W: number,
+    H: number,
+    t: number,
+    icon: IconId,
+    color: string,
+  ) {
     const ctx = this.ctx;
     const a = Math.atan2(fy - H / 2, fx - W / 2);
     const m = 34 * this.dpr;
@@ -707,11 +1050,8 @@ export class WormEngine {
     ctx.beginPath();
     ctx.arc(0, 0, 18, 0, Math.PI * 2);
     ctx.fill();
-    ctx.fillStyle = FEAST_COLOR;
-    ctx.font = '700 18px sans-serif';
-    ctx.textAlign = 'center';
-    ctx.textBaseline = 'middle';
-    ctx.fillText('★', 0, 1);
+    drawIcon(ctx, icon, 0, 0, 24);
+    ctx.fillStyle = color;
     ctx.rotate(a);
     ctx.beginPath();
     ctx.moveTo(30, 0);
@@ -746,11 +1086,7 @@ export class WormEngine {
       );
     }
     if (world.feast) {
-      ctx.fillStyle = FEAST_COLOR;
-      ctx.font = `700 ${12 * this.dpr}px sans-serif`;
-      ctx.textAlign = 'center';
-      ctx.textBaseline = 'middle';
-      ctx.fillText('★', cx + world.feast.x * s, cy + world.feast.y * s);
+      drawIcon(ctx, 'star', cx + world.feast.x * s, cy + world.feast.y * s, 13 * this.dpr);
     }
     for (const w of world.worms) {
       if (!w.alive) continue;
@@ -760,6 +1096,13 @@ export class WormEngine {
       ctx.beginPath();
       ctx.arc(cx + h.x * s, cy + h.y * s, w.isPlayer ? 3.5 * this.dpr : big, 0, Math.PI * 2);
       ctx.fill();
+      if (w.id === world.bountyId) {
+        ctx.strokeStyle = BOUNTY_COLOR;
+        ctx.lineWidth = 2 * this.dpr;
+        ctx.beginPath();
+        ctx.arc(cx + h.x * s, cy + h.y * s, big + 3 * this.dpr, 0, Math.PI * 2);
+        ctx.stroke();
+      }
     }
     ctx.globalAlpha = 1;
   }

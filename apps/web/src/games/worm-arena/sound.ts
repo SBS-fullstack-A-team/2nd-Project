@@ -2,7 +2,8 @@
  * 효과음 — 파일 없이 Web Audio 로 짧은 소리를 만든다.
  * 브라우저가 소리를 막거나 지원하지 않으면 조용히 넘어간다.
  */
-type Kind = 'eat' | 'kill' | 'die' | 'power' | 'streak' | 'shield' | 'feast';
+type Kind =
+  'eat' | 'kill' | 'die' | 'power' | 'streak' | 'shield' | 'feast' | 'bounty' | 'bountyClaim';
 
 type Note = { freq: number; at: number; len: number; type?: OscillatorType; gain?: number };
 
@@ -33,6 +34,17 @@ const NOTES: Record<Kind, Note[]> = {
     { freq: 1319, at: 0.1, len: 0.1 },
     { freq: 1568, at: 0.2, len: 0.1 },
     { freq: 2093, at: 0.3, len: 0.3 },
+  ],
+  bounty: [
+    { freq: 392, at: 0, len: 0.12, type: 'square', gain: 0.04 },
+    { freq: 523, at: 0.12, len: 0.22, type: 'square', gain: 0.04 },
+  ],
+  bountyClaim: [
+    { freq: 784, at: 0, len: 0.08, type: 'square', gain: 0.05 },
+    { freq: 1047, at: 0.08, len: 0.08, type: 'square', gain: 0.05 },
+    { freq: 1319, at: 0.16, len: 0.08, type: 'square', gain: 0.05 },
+    { freq: 1568, at: 0.24, len: 0.08, type: 'square', gain: 0.05 },
+    { freq: 2093, at: 0.32, len: 0.4, type: 'triangle', gain: 0.07 },
   ],
   die: [
     { freq: 330, at: 0, len: 0.15, type: 'sawtooth', gain: 0.06 },

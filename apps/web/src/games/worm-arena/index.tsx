@@ -1,7 +1,19 @@
 import { useEffect, useRef, useState } from 'react';
 import type { GameProps } from '@simsim/shared';
-import { CONTROLS, HOW_TO_PLAY, SKINS, findPower, type PowerKind } from './config';
+import {
+  BOUNTY_MIN_MASS,
+  CONTROLS,
+  FEAST_INTERVAL,
+  HOW_TO_PLAY,
+  POWERS,
+  SKINS,
+  TRAITS,
+  findPower,
+  type PowerKind,
+} from './config';
 import { WormEngine, type Hud, type Summary } from './engine';
+import { Icon, IconText } from './Icon';
+import type { IconId } from './icons';
 import {
   ACHIEVEMENTS,
   HATS,
@@ -17,6 +29,7 @@ import {
   skinLabel,
   unlockedHats,
   unlockedSkins,
+  type Achievement,
   type Profile,
   type RunReport,
 } from './progress';
@@ -26,15 +39,17 @@ import styles from './WormArena.module.css';
 type Screen =
   { name: 'menu' } | { name: 'playing' } | { name: 'result'; summary: Summary; report: RunReport };
 
-type MenuTab = 'play' | 'missions' | 'collection' | 'stats';
+type MenuTab = 'play' | 'guide' | 'missions' | 'collection' | 'stats';
 
-const MENU_TABS: readonly { id: MenuTab; label: string }[] = [
-  { id: 'play', label: '🎮 플레이' },
-  { id: 'missions', label: '🎯 오늘의 미션' },
-  { id: 'collection', label: '📖 도감' },
-  { id: 'stats', label: '📊 기록' },
+const MENU_TABS: readonly { id: MenuTab; icon: IconId; label: string }[] = [
+  { id: 'play', icon: 'gamepad', label: '플레이' },
+  { id: 'guide', icon: 'bulb', label: '알아두기' },
+  { id: 'missions', icon: 'target', label: '오늘의 미션' },
+  { id: 'collection', icon: 'book', label: '도감' },
+  { id: 'stats', icon: 'chart', label: '기록' },
 ];
 
+/** text 속 `:아이콘id:` 는 아이콘으로 보인다 */
 interface Notice {
   id: number;
   text: string;
@@ -55,32 +70,32 @@ interface TutorialStep {
 
 const TUTORIAL: readonly TutorialStep[] = [
   {
-    mouse: '🖱️ 마우스를 움직여 방향을 바꿔 보세요',
-    touch: '👆 화면을 끌어서 방향을 바꿔 보세요',
+    mouse: ':mouse: 마우스를 움직여 방향을 바꿔 보세요',
+    touch: ':touch: 화면을 끌어서 방향을 바꿔 보세요',
     seconds: 8,
     done: (t) => t.moved,
   },
   {
-    mouse: '🍬 빛나는 먹이를 먹고 길어져요',
-    touch: '🍬 빛나는 먹이를 먹고 길어져요',
+    mouse: ':food: 빛나는 먹이를 먹고 길어져요',
+    touch: ':food: 빛나는 먹이를 먹고 길어져요',
     seconds: 12,
     done: (t) => t.ate >= 8,
   },
   {
-    mouse: '⚡ 클릭을 꾹 (또는 스페이스) — 대시! 왼쪽 위 게이지만큼 쓸 수 있어요',
-    touch: '⚡ 오른쪽 아래 버튼을 꾹 — 대시! 왼쪽 위 게이지만큼 쓸 수 있어요',
+    mouse: ':bolt: 클릭을 꾹 (또는 스페이스) — 대시! 왼쪽 위 게이지만큼 쓸 수 있어요',
+    touch: ':bolt: 오른쪽 아래 버튼을 꾹 — 대시! 왼쪽 위 게이지만큼 쓸 수 있어요',
     seconds: 10,
     done: (t) => t.dashed,
   },
   {
-    mouse: '💥 다른 지렁이 머리 앞을 내 몸으로 막으면 쓰러뜨릴 수 있어요',
-    touch: '💥 다른 지렁이 머리 앞을 내 몸으로 막으면 쓰러뜨릴 수 있어요',
+    mouse: ':burst: 다른 지렁이 머리 앞을 내 몸으로 막으면 쓰러뜨릴 수 있어요',
+    touch: ':burst: 다른 지렁이 머리 앞을 내 몸으로 막으면 쓰러뜨릴 수 있어요',
     seconds: 6,
     done: () => false,
   },
   {
-    mouse: '🧲 파워업 구슬과 ★ 황금 먹이 잔치도 노려 보세요!',
-    touch: '🧲 파워업 구슬과 ★ 황금 먹이 잔치도 노려 보세요!',
+    mouse: ':magnet: 파워업 구슬과 :star: 황금 먹이 잔치도 노려 보세요!',
+    touch: ':magnet: 파워업 구슬과 :star: 황금 먹이 잔치도 노려 보세요!',
     seconds: 5,
     done: () => false,
   },
@@ -182,14 +197,16 @@ export default function WormArena({ onFinish }: GameProps) {
         onEvent: (kind, text) => {
           playSound(kind, mutedRef.current);
           if (kind === 'eat') tutorialRef.current.ate += 1;
-          if (kind === 'kill') notify(`💥 「${text}」을(를) 쓰러뜨렸어요!`);
+          if (kind === 'kill') notify(`:burst: 「${text}」을(를) 쓰러뜨렸어요!`);
           if (kind === 'die') notify(text ? `「${text}」에게 부딪혔어요…` : '벽에 부딪혔어요…');
           if (kind === 'streak' && text) showBanner(text);
-          if (kind === 'shield') notify('🛡️ 방패가 막아 줬어요! 얼른 빠져나가요');
-          if (kind === 'feast') notify('✨ 황금 먹이 잔치! ★ 쪽으로 가 보세요');
+          if (kind === 'shield') notify(':shield: 방패가 막아 줬어요! 얼른 빠져나가요');
+          if (kind === 'feast') notify(':sparkle: 황금 먹이 잔치! :star: 쪽으로 가 보세요');
+          if (kind === 'bounty' && text) notify(`:crown: 「${text}」에게 현상금이 걸렸어요!`);
+          if (kind === 'bountyClaim' && text) showBanner(`:crown: 현상금 획득! ${text}`);
           if (kind === 'power' && text) {
             const def = findPower(text as PowerKind);
-            notify(`${def.icon} ${def.label} ${def.seconds}초!`);
+            notify(`:${def.icon}: ${def.label} ${def.seconds}초! ${def.tip}`);
           }
         },
       });
@@ -227,7 +244,7 @@ export default function WormArena({ onFinish }: GameProps) {
   const missionsLeft = profile.daily.missions.filter((m) => !m.done).length;
 
   function start() {
-    engineRef.current?.start(skin.colors, hat.icon);
+    engineRef.current?.start(skin.colors, hat.icon, hat.glow ?? null);
     // 단계 시작 시각은 첫 확인 때 잰다
     tutorialRef.current = { moved: false, ate: 0, dashed: false, since: -1 };
     setTutorialStep(loadPref(TUTORIAL_KEY) === '1' ? null : 0);
@@ -398,13 +415,14 @@ export default function WormArena({ onFinish }: GameProps) {
                 <small>길이</small>
               </span>
               <span className={styles.sub}>
-                최고 {hud.best.toLocaleString()} · 💥 {hud.kills} · {hud.rank}위/{hud.total}
+                최고 {hud.best.toLocaleString()} · <Icon id="burst" /> {hud.kills} · {hud.rank}위/
+                {hud.total}
               </span>
               <span
                 className={`${styles.stamina} ${hud.exhausted ? styles.staminaOut : ''}`}
                 title="대시 게이지"
               >
-                ⚡
+                <Icon id="bolt" />
                 <span className={styles.staminaBar}>
                   <span style={{ width: `${hud.stamina * 100}%` }} />
                 </span>
@@ -415,7 +433,7 @@ export default function WormArena({ onFinish }: GameProps) {
                     const def = findPower(e.kind);
                     return (
                       <span key={e.kind} className={styles.effect} title={def.label}>
-                        {def.icon}
+                        <Icon id={def.icon} size="1.4em" />
                         <span className={styles.effectBar}>
                           <span
                             style={{
@@ -429,13 +447,24 @@ export default function WormArena({ onFinish }: GameProps) {
                   })}
                 </span>
               )}
-              {hud.feast && <span className={styles.feast}>★ 황금 먹이 잔치 중</span>}
+              {hud.feast && (
+                <span className={styles.feast}>
+                  <Icon id="star" /> 황금 먹이 잔치 중
+                </span>
+              )}
+              {hud.bounty && (
+                <span className={styles.bounty}>
+                  <Icon id="crown" /> 현상금 <IconText text={hud.bounty.name} /> · +
+                  {hud.bounty.reward}
+                </span>
+              )}
             </div>
             <ol className={styles.leaders} aria-label="길이 순위">
               {hud.leaders.map((l, i) => (
                 <li key={`${l.name}-${i}`} className={l.me ? styles.me : ''}>
                   <span>
-                    {i + 1}. {l.name}
+                    {i + 1}. {l.bounty && <Icon id="crown" />}
+                    <IconText text={l.name} />
                   </span>
                   <b>{l.length.toLocaleString()}</b>
                 </li>
@@ -459,7 +488,7 @@ export default function WormArena({ onFinish }: GameProps) {
             aria-label={fullscreen ? '전체 화면 끄기' : '전체 화면'}
             title={fullscreen ? '전체 화면 끄기 (Esc · F)' : '전체 화면 (F)'}
           >
-            {fullscreen ? '🗗' : '⛶'}
+            <Icon id={fullscreen ? 'fullscreenExit' : 'fullscreen'} size="1.1em" />
           </button>
           {screen.name === 'playing' && (
             <>
@@ -470,7 +499,7 @@ export default function WormArena({ onFinish }: GameProps) {
                 aria-label={muted ? '소리 켜기' : '소리 끄기'}
                 title={muted ? '소리 켜기' : '소리 끄기'}
               >
-                {muted ? '🔇' : '🔊'}
+                <Icon id={muted ? 'soundOff' : 'soundOn'} size="1.1em" />
               </button>
               {!paused && (
                 <button
@@ -480,7 +509,7 @@ export default function WormArena({ onFinish }: GameProps) {
                   aria-label="일시정지"
                   title="일시정지 (Esc · P)"
                 >
-                  ❚❚
+                  <Icon id="pause" size="1.1em" />
                 </button>
               )}
             </>
@@ -501,7 +530,7 @@ export default function WormArena({ onFinish }: GameProps) {
             onPointerCancel={() => engineRef.current?.setBoost(false)}
             onContextMenu={(e) => e.preventDefault()}
           >
-            ⚡ 가속
+            <Icon id="bolt" /> 가속
           </button>
         )}
 
@@ -510,7 +539,11 @@ export default function WormArena({ onFinish }: GameProps) {
             <span className={styles.tutorialStep}>
               안내 {tutorialStep + 1}/{TUTORIAL.length}
             </span>
-            <p>{touchDevice ? TUTORIAL[tutorialStep].touch : TUTORIAL[tutorialStep].mouse}</p>
+            <p>
+              <IconText
+                text={touchDevice ? TUTORIAL[tutorialStep].touch : TUTORIAL[tutorialStep].mouse}
+              />
+            </p>
             <button
               type="button"
               className={styles.tutorialSkip}
@@ -526,14 +559,14 @@ export default function WormArena({ onFinish }: GameProps) {
 
         {banner && (
           <p key={banner.id} className={styles.banner} aria-live="polite">
-            {banner.text}
+            <IconText text={banner.text} />
           </p>
         )}
 
         <div className={styles.notices} aria-live="polite">
           {notices.map((n) => (
             <p key={n.id} className={styles.notice}>
-              {n.text}
+              <IconText text={n.text} />
             </p>
           ))}
         </div>
@@ -549,7 +582,9 @@ export default function WormArena({ onFinish }: GameProps) {
         {!engineError && screen.name === 'menu' && (
           <div className={styles.overlay}>
             <div className={`${styles.panel} ${styles.menuPanel}`}>
-              <h2 className={styles.title}>🪱 지렁이 아레나</h2>
+              <h2 className={styles.title}>
+                <Icon id="worm" size="1.3em" /> 지렁이 아레나
+              </h2>
               <LevelBar xp={profile.xp} />
               <div className={styles.tabs} role="tablist">
                 {MENU_TABS.map((t) => (
@@ -561,7 +596,7 @@ export default function WormArena({ onFinish }: GameProps) {
                     className={`${styles.tab} ${tab === t.id ? styles.tabOn : ''}`}
                     onClick={() => setTab(t.id)}
                   >
-                    {t.label}
+                    <Icon id={t.icon} /> {t.label}
                     {t.id === 'missions' && missionsLeft > 0 && (
                       <span className={styles.dot}>{missionsLeft}</span>
                     )}
@@ -573,7 +608,9 @@ export default function WormArena({ onFinish }: GameProps) {
                 <>
                   <ul className={styles.rules}>
                     {HOW_TO_PLAY.map((line) => (
-                      <li key={line}>{line}</li>
+                      <li key={line}>
+                        <IconText text={line} />
+                      </li>
                     ))}
                   </ul>
                   <p className={styles.pickLabel}>내 지렁이 색</p>
@@ -587,13 +624,13 @@ export default function WormArena({ onFinish }: GameProps) {
                           role="radio"
                           aria-checked={s.id === skin.id}
                           aria-label={open ? s.label : `${s.label} (잠김: ${skinGoal(s.id)})`}
-                          title={open ? s.label : `🔒 ${skinGoal(s.id)}`}
+                          title={open ? s.label : `잠김 · ${skinGoal(s.id)}`}
                           className={`${styles.skin} ${s.id === skin.id ? styles.skinOn : ''} ${open ? '' : styles.locked}`}
                           style={{ background: swatch(s.colors) }}
                           onClick={() =>
                             open
                               ? updateProfile({ ...profile, skin: s.id })
-                              : setLockedHint(`🔒 ${s.label} — ${skinGoal(s.id)}`)
+                              : setLockedHint(`:lock: ${s.label} — ${skinGoal(s.id)}`)
                           }
                         />
                       );
@@ -610,32 +647,36 @@ export default function WormArena({ onFinish }: GameProps) {
                           role="radio"
                           aria-checked={h.id === hat.id}
                           aria-label={open ? h.label : `${h.label} (잠김: ${hatGoal(h)})`}
-                          title={open ? h.label : `🔒 ${hatGoal(h)}`}
+                          title={open ? h.label : `잠김 · ${hatGoal(h)}`}
                           className={`${styles.hat} ${h.id === hat.id ? styles.skinOn : ''} ${open ? '' : styles.locked}`}
                           onClick={() =>
                             open
                               ? updateProfile({ ...profile, hat: h.id })
-                              : setLockedHint(`🔒 ${h.label} — ${hatGoal(h)}`)
+                              : setLockedHint(`:lock: ${h.label} — ${hatGoal(h)}`)
                           }
                         >
-                          {h.icon || '✕'}
+                          {h.icon ? <Icon id={h.icon} size="1.6em" /> : <Icon id="close" />}
                         </button>
                       );
                     })}
                   </div>
                   <p className={styles.hint}>
-                    {lockedHint ?? `${skin.label}${hat.icon ? ` + ${hat.label}` : ''}`}
+                    <IconText
+                      text={lockedHint ?? `${skin.label}${hat.icon ? ` + ${hat.label}` : ''}`}
+                    />
                   </p>
                   <dl className={styles.controls}>
                     {CONTROLS.map((c) => (
                       <div key={c.action}>
-                        <dt>{c.keys}</dt>
+                        <dt>
+                          <IconText text={c.keys} />
+                        </dt>
                         <dd>{c.action}</dd>
                       </div>
                     ))}
                   </dl>
                   <p className={`${styles.hint} ${styles.touchHint}`}>
-                    화면을 끌어서 방향을 정하고, ⚡ 버튼으로 가속해요
+                    화면을 끌어서 방향을 정하고, <Icon id="bolt" /> 버튼으로 가속해요
                   </p>
                   <button
                     type="button"
@@ -658,7 +699,9 @@ export default function WormArena({ onFinish }: GameProps) {
                   <ul className={styles.list}>
                     {profile.daily.missions.map((m) => (
                       <li key={m.id} className={m.done ? styles.done : ''}>
-                        <span className={styles.listIcon}>{m.done ? '✅' : '🎯'}</span>
+                        <span className={styles.listIcon}>
+                          <Icon id={m.done ? 'check' : 'target'} />
+                        </span>
                         <span className={styles.listBody}>
                           <strong>{m.text}</strong>
                           <Progress cur={m.progress} max={m.target} />
@@ -667,8 +710,83 @@ export default function WormArena({ onFinish }: GameProps) {
                     ))}
                   </ul>
                   {profile.daily.allDone && (
-                    <p className={styles.good}>🎉 오늘의 미션 완료! 내일 또 만나요</p>
+                    <p className={styles.good}>
+                      <Icon id="party" /> 오늘의 미션 완료! 내일 또 만나요
+                    </p>
                   )}
+                </>
+              )}
+
+              {tab === 'guide' && (
+                <>
+                  <p className={styles.pickLabel}>
+                    파워업 — 경기장에 떠 있는 아이콘을 머리로 먹어요
+                  </p>
+                  <ul className={styles.list}>
+                    {POWERS.map((p) => (
+                      <li key={p.kind}>
+                        <span className={styles.listIcon}>
+                          <Icon id={p.icon} />
+                        </span>
+                        <span className={styles.listBody}>
+                          <strong>
+                            {p.label} <small>· {p.seconds}초</small>
+                          </strong>
+                          <small>{p.desc}</small>
+                        </span>
+                      </li>
+                    ))}
+                    <li>
+                      <span className={styles.listIcon}>
+                        <Icon id="star" />
+                      </span>
+                      <span className={styles.listBody}>
+                        <strong>
+                          황금 먹이 잔치 <small>· {FEAST_INTERVAL}초마다</small>
+                        </strong>
+                        <small>
+                          경기장 한 곳에 큰 황금 먹이가 쏟아져요. 미니맵의 <Icon id="star" /> 를
+                          보고 먼저 가세요. AI 도 몰려와요!
+                        </small>
+                      </span>
+                    </li>
+                  </ul>
+                  <p className={styles.pickLabel}>현상금 지렁이</p>
+                  <ul className={styles.list}>
+                    <li>
+                      <span className={styles.listIcon}>
+                        <Icon id="crown" />
+                      </span>
+                      <span className={styles.listBody}>
+                        <strong>
+                          가장 긴 AI 에게 현상금 <small>· 길이 {BOUNTY_MIN_MASS} 이상</small>
+                        </strong>
+                        <small>
+                          머리 위 왕관과 금빛 고리, 화면 끝 <Icon id="crown" /> 화살표로 찾아요.
+                          내가 쓰러뜨리면 떨어지는 먹이와 따로 보너스 길이를 받고, 클수록 현상금이
+                          커져요. 다른 지렁이가 확실히 더 길어지면 현상금이 옮겨 가요.
+                        </small>
+                      </span>
+                    </li>
+                  </ul>
+                  <p className={styles.pickLabel}>지렁이 성격 — 이름 앞 아이콘으로 알 수 있어요</p>
+                  <ul className={styles.list}>
+                    {TRAITS.map((t) => (
+                      <li key={t.kind}>
+                        <span className={styles.listIcon}>
+                          <Icon id={t.icon || 'worm'} />
+                        </span>
+                        <span className={styles.listBody}>
+                          <strong>{t.label}</strong>
+                          <small>{t.desc}</small>
+                        </span>
+                      </li>
+                    ))}
+                  </ul>
+                  <p className={styles.hint}>
+                    파워업은 AI 지렁이도 먹어요. <Icon id="ghost" /> 유령 · <Icon id="shield" />{' '}
+                    방패를 먹은 지렁이는 부딪혀도 안 쓰러져요.
+                  </p>
                 </>
               )}
 
@@ -682,22 +800,26 @@ export default function WormArena({ onFinish }: GameProps) {
                     {ACHIEVEMENTS.map((a) => {
                       const done = profile.achievements.includes(a.id);
                       const [cur, max] = a.progress(profile.life);
-                      const reward = a.reward.skin
-                        ? `🎨 ${skinLabel(a.reward.skin)}`
-                        : `${hatOf(a.reward.hat ?? 'none').icon} ${hatOf(a.reward.hat ?? 'none').label}`;
+                      const reward = rewardText(a);
                       return (
                         <li key={a.id} className={done ? styles.done : ''}>
-                          <span className={styles.listIcon}>{done ? a.icon : '🔒'}</span>
+                          <span className={styles.listIcon}>
+                            <Icon id={done ? a.icon : 'lock'} />
+                          </span>
                           <span className={styles.listBody}>
                             <strong>
                               {a.title} <small>· {a.goal}</small>
                             </strong>
                             {done ? (
-                              <small className={styles.good}>달성! 보상: {reward}</small>
+                              <small className={styles.good}>
+                                달성! 보상: <IconText text={reward} />
+                              </small>
                             ) : (
                               <>
                                 <Progress cur={cur} max={max} />
-                                <small>보상: {reward}</small>
+                                <small>
+                                  보상: <IconText text={reward} />
+                                </small>
                               </>
                             )}
                           </span>
@@ -753,12 +875,15 @@ export default function WormArena({ onFinish }: GameProps) {
         {screen.name === 'result' && (
           <div className={styles.overlay}>
             <div className={`${styles.panel} ${styles.menuPanel}`}>
-              <h2 className={styles.title}>💫 꿈틀 끝!</h2>
+              <h2 className={styles.title}>
+                <Icon id="sparkle" /> 꿈틀 끝!
+              </h2>
               <p className={styles.bigScore}>{screen.summary.score.toLocaleString()}</p>
               <p className={styles.summary}>
                 {screen.report.newBestLength ? (
                   <span className={styles.record}>
-                    🎉 개인 신기록! (이전 {screen.report.prevBestLength.toLocaleString()})
+                    <Icon id="party" /> 개인 신기록! (이전{' '}
+                    {screen.report.prevBestLength.toLocaleString()})
                   </span>
                 ) : screen.report.prevBestLength > 0 ? (
                   `가장 길었을 때 길이 · 내 최고 ${screen.report.prevBestLength.toLocaleString()}까지 ${Math.max(0, screen.report.prevBestLength - screen.summary.score).toLocaleString()} 남음`
@@ -771,7 +896,10 @@ export default function WormArena({ onFinish }: GameProps) {
                 <span>
                   +{screen.report.xpGained} XP
                   {screen.report.levelAfter > screen.report.levelBefore && (
-                    <b className={styles.levelUp}> 🆙 레벨 {screen.report.levelAfter}!</b>
+                    <b className={styles.levelUp}>
+                      {' '}
+                      <Icon id="levelUp" /> 레벨 {screen.report.levelAfter}!
+                    </b>
                   )}
                 </span>
                 <LevelBar xp={profile.xp} />
@@ -782,20 +910,24 @@ export default function WormArena({ onFinish }: GameProps) {
                 <ul className={styles.list}>
                   {screen.report.newAchievements.map((a) => (
                     <li key={a.id} className={styles.done}>
-                      <span className={styles.listIcon}>{a.icon}</span>
+                      <span className={styles.listIcon}>
+                        <Icon id={a.icon} />
+                      </span>
                       <span className={styles.listBody}>
                         <strong>업적 달성 · {a.title}</strong>
                         <small className={styles.good}>
-                          {a.reward.skin
-                            ? `🎨 「${skinLabel(a.reward.skin)}」 스킨이 열렸어요!`
-                            : `${hatOf(a.reward.hat ?? 'none').icon} 「${hatOf(a.reward.hat ?? 'none').label}」 모자가 열렸어요!`}
+                          <IconText
+                            text={`${rewardText(a)} ${a.reward.skin ? '스킨' : '모자'}이 열렸어요!`}
+                          />
                         </small>
                       </span>
                     </li>
                   ))}
                   {screen.report.missionsDone.map((m) => (
                     <li key={m.id} className={styles.done}>
-                      <span className={styles.listIcon}>✅</span>
+                      <span className={styles.listIcon}>
+                        <Icon id="check" />
+                      </span>
                       <span className={styles.listBody}>
                         <strong>미션 완료 · {m.text}</strong>
                         <small className={styles.good}>+{MISSION_XP} XP</small>
@@ -804,7 +936,9 @@ export default function WormArena({ onFinish }: GameProps) {
                   ))}
                   {screen.report.allMissionsDone && (
                     <li className={styles.done}>
-                      <span className={styles.listIcon}>🎉</span>
+                      <span className={styles.listIcon}>
+                        <Icon id="party" />
+                      </span>
                       <span className={styles.listBody}>
                         <strong>오늘의 미션 모두 완료!</strong>
                         <small className={styles.good}>+{MISSION_ALL_XP} XP</small>
@@ -817,7 +951,7 @@ export default function WormArena({ onFinish }: GameProps) {
               {screen.report.nextGoal && (
                 <div className={styles.nextGoal}>
                   <small>
-                    다음 해금 · {screen.report.nextGoal.achievement.icon}{' '}
+                    다음 해금 · <Icon id={screen.report.nextGoal.achievement.icon} />{' '}
                     {screen.report.nextGoal.achievement.goal}
                   </small>
                   <Progress
@@ -843,7 +977,11 @@ export default function WormArena({ onFinish }: GameProps) {
                 <div>
                   <dt>마지막</dt>
                   <dd>
-                    {screen.summary.by ? `「${screen.summary.by}」에게 부딪힘` : '벽에 부딪힘'}
+                    <IconText
+                      text={
+                        screen.summary.by ? `「${screen.summary.by}」에게 부딪힘` : '벽에 부딪힘'
+                      }
+                    />
                   </dd>
                 </div>
               </dl>
@@ -854,6 +992,13 @@ export default function WormArena({ onFinish }: GameProps) {
       </div>
     </div>
   );
+}
+
+/** 업적 보상 이름 — `:아이콘id:` 토큰 포함 */
+function rewardText(a: Achievement): string {
+  if (a.reward.skin) return `:palette: 「${skinLabel(a.reward.skin)}」`;
+  const hat = hatOf(a.reward.hat ?? 'none');
+  return `${hat.icon ? `:${hat.icon}: ` : ''}「${hat.label}」`;
 }
 
 function formatSeconds(sec: number): string {

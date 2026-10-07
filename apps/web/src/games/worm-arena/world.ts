@@ -8,6 +8,8 @@ import {
   BOOST_COST_RATIO,
   BOOST_SPEED,
   BOOST_STAMINA,
+  BOUNTY_MIN_MASS,
+  BOUNTY_SWITCH_RATIO,
   BOT_COLORS,
   BOT_COUNT,
   BOT_LOOKAHEAD,
@@ -15,6 +17,7 @@ import {
   BOT_MASS_MIN,
   BOT_NAMES,
   BOT_RESPAWN_DELAY,
+  COWARD_SIGHT,
   DEATH_DROP_RATIO,
   EAT_RANGE,
   FEAST_COLOR,
@@ -28,6 +31,8 @@ import {
   FOOD_COUNT,
   FOOD_VALUE_MAX,
   FOOD_VALUE_MIN,
+  GLUTTON_SIGHT,
+  HUNTER_SIGHT,
   MAGNET_RANGE,
   MAX_SCORE,
   MIN_BOOST_MASS,
@@ -51,9 +56,13 @@ import {
   STREAK_WINDOW,
   START_MASS,
   TURN_RATE,
+  TRAITS,
   TURN_RATE_MIN,
+  bountyReward,
   findPower,
+  findTrait,
   type PowerKind,
+  type TraitKind,
 } from './config';
 
 export interface Point {
@@ -93,6 +102,8 @@ export interface RunStats {
   maxStreak: number;
   /** 방패가 막아 준 횟수 */
   shieldSaves: number;
+  /** 잡은 현상금 지렁이 수 */
+  bounties: number;
 }
 
 export interface PowerUp {
@@ -109,6 +120,8 @@ export interface Worm {
   id: number;
   name: string;
   isPlayer: boolean;
+  /** AI 성격 — 플레이어는 'normal' */
+  trait: TraitKind;
   colors: readonly string[];
   /** segments[0] 이 머리 */
   segments: Point[];
@@ -153,6 +166,16 @@ export interface WorldEvents {
   shieldSaved?: boolean;
   /** 황금 먹이 잔치가 열렸다 */
   feast?: Point;
+  /** 새 현상금 지렁이 (표시 이름) */
+  bounty?: string;
+  /** 플레이어가 현상금 지렁이를 잡았다 */
+  bountyClaimed?: { name: string; bonus: number };
+}
+
+/** 알림 · 순위표에 보여 줄 이름 — 성격 아이콘 토큰(`:sword:`)을 앞에 붙인다 */
+export function displayName(w: Worm): string {
+  const icon = findTrait(w.trait).icon;
+  return icon ? `:${icon}: ${w.name}` : w.name;
 }
 
 export function radiusOf(mass: number): number {
@@ -171,6 +194,16 @@ const rand = (min: number, max: number) => min + Math.random() * (max - min);
 
 function pick<T>(list: readonly T[]): T {
   return list[Math.floor(Math.random() * list.length)]!;
+}
+
+function pickTrait(): TraitKind {
+  const total = TRAITS.reduce((sum, t) => sum + t.weight, 0);
+  let roll = Math.random() * total;
+  for (const t of TRAITS) {
+    roll -= t.weight;
+    if (roll < 0) return t.kind;
+  }
+  return 'normal';
 }
 
 /** -π ~ π 로 맞춘 각도 차이 */
@@ -255,6 +288,8 @@ export class World {
   /** 황금 먹이 잔치 자리 — 잔치 먹이가 남아 있는 동안만 */
   feast: Point | null = null;
   private feastTimer = FEAST_FIRST;
+  /** 현상금이 걸린 AI 지렁이 id */
+  bountyId: number | null = null;
   /** 플레이어 연속 킬 */
   streak = 0;
   private lastKillAt = -99;
@@ -265,6 +300,7 @@ export class World {
     dashKills: 0,
     maxStreak: 0,
     shieldSaves: 0,
+    bounties: 0,
   };
 
   constructor(playerColors: readonly string[]) {
@@ -280,6 +316,7 @@ export class World {
     colors: readonly string[],
     at: Point,
     mass: number,
+    trait: TraitKind = 'normal',
   ): Worm {
     const angle = Math.atan2(-at.y, -at.x) + rand(-0.8, 0.8);
     const r = radiusOf(mass);
@@ -295,6 +332,7 @@ export class World {
       id: this.nextId++,
       name,
       isPlayer,
+      trait,
       colors,
       segments,
       angle,
@@ -326,7 +364,9 @@ export class World {
     const used = new Set(this.worms.filter((w) => w.alive).map((w) => w.name));
     const free = BOT_NAMES.filter((n) => !used.has(n));
     const name = pick(free.length > 0 ? free : BOT_NAMES);
-    this.worms.push(this.makeWorm(name, false, pick(BOT_COLORS), at, Math.round(mass)));
+    this.worms.push(
+      this.makeWorm(name, false, pick(BOT_COLORS), at, Math.round(mass), pickTrait()),
+    );
   }
 
   private addFood(
@@ -470,11 +510,21 @@ export class World {
         color: worm.colors[0]!,
         byPlayer: !!by?.isPlayer,
       });
+      // 현상금 지렁이 — 플레이어가 잡으면 보너스 길이, 누가 잡든 현상금은 다음 지렁이로
+      if (worm.id === this.bountyId) {
+        if (by?.isPlayer) {
+          const bonus = bountyReward(worm.mass);
+          by.mass += bonus;
+          this.runStats.bounties += 1;
+          ev.bountyClaimed = { name: displayName(worm), bonus };
+        }
+        this.bountyId = null;
+      }
       this.kill(worm);
       if (by) by.kills += 1;
-      if (worm.isPlayer) ev.died = { by: by ? by.name : null, byId: by ? by.id : null };
+      if (worm.isPlayer) ev.died = { by: by ? displayName(by) : null, byId: by ? by.id : null };
       else if (by?.isPlayer) {
-        (ev.killed ??= []).push(worm.name);
+        (ev.killed ??= []).push(displayName(worm));
         // 연속 킬 — 짧은 시간 안에 또 쓰러뜨리면 보너스 길이
         this.streak = this.time - this.lastKillAt <= STREAK_WINDOW ? this.streak + 1 : 1;
         this.lastKillAt = this.time;
@@ -577,10 +627,33 @@ export class World {
         return false;
       });
 
+    this.updateBounty(ev);
+
     if (this.player.alive) {
       this.bestMass = Math.min(MAX_SCORE, Math.max(this.bestMass, this.player.mass));
     }
     return ev;
+  }
+
+  /** 가장 긴 AI 에게 현상금 — 지금 대상보다 꽤 길어져야 옮겨 간다 */
+  private updateBounty(ev: WorldEvents) {
+    let top: Worm | null = null;
+    for (const w of this.worms) {
+      if (w.isPlayer || !w.alive) continue;
+      if (!top || w.mass > top.mass) top = w;
+    }
+    const cur = this.bounty();
+    if (cur && (!top || top === cur || top.mass < cur.mass * BOUNTY_SWITCH_RATIO)) return;
+    const next = top && top.mass >= BOUNTY_MIN_MASS ? top : null;
+    if (next?.id === this.bountyId) return;
+    this.bountyId = next ? next.id : null;
+    if (next) ev.bounty = displayName(next);
+  }
+
+  /** 현상금이 걸린 지렁이 (없으면 null) */
+  bounty(): Worm | null {
+    if (this.bountyId === null) return null;
+    return this.worms.find((w) => w.id === this.bountyId && w.alive) ?? null;
   }
 
   /** 방패가 있으면 한 번 막아 주고 잠깐 무적 — 막았으면 true */
@@ -702,7 +775,8 @@ export class World {
     if (w.think > 0) return;
     w.think = rand(0.08, 0.16);
     const head = w.segments[0]!;
-    const look = BOT_LOOKAHEAD + radiusOf(w.mass) * 2;
+    // 겁쟁이는 더 멀리 내다보고 피한다
+    const look = (BOT_LOOKAHEAD + radiusOf(w.mass) * 2) * (w.trait === 'coward' ? 1.3 : 1);
 
     // 1) 위험하면 가장 트인 쪽으로 피한다
     if (this.blocked(w, w.angle, look)) {
@@ -718,42 +792,75 @@ export class World {
       return;
     }
 
-    // 2) 플레이어가 가까이 있고 내가 충분히 크면 앞을 막으러 간다
+    // 2) 겁쟁이 — 나보다 큰 지렁이 머리가 가까우면 반대쪽으로 도망
+    if (w.trait === 'coward') {
+      let threat: Point | null = null;
+      let best = COWARD_SIGHT;
+      for (const o of this.worms) {
+        if (o === w || !o.alive || o.mass < w.mass * 1.2) continue;
+        const oh = o.segments[0]!;
+        const d = Math.hypot(oh.x - head.x, oh.y - head.y);
+        if (d < best) {
+          best = d;
+          threat = oh;
+        }
+      }
+      if (threat) {
+        const away = Math.atan2(head.y - threat.y, head.x - threat.x);
+        // 벽으로 도망치다 죽지 않게 중심 쪽으로 조금 튼다
+        const toCenter = Math.atan2(-head.y, -head.x);
+        const far = Math.hypot(head.x, head.y) / ARENA_RADIUS;
+        w.targetAngle = away + angleDiff(away, toCenter) * far * 0.5;
+        w.boosting = best < COWARD_SIGHT * 0.7;
+        return;
+      }
+    }
+
+    // 3) 플레이어가 가까이 있고 내가 충분히 크면 앞을 막으러 간다 — 사냥꾼은 멀리서도, 작아도 덤빈다
     const p = this.player;
-    if (p.alive && w.mass > 50 && w.mass > p.mass * 0.7) {
+    const hunter = w.trait === 'hunter';
+    const chases = hunter || w.trait === 'normal';
+    const bigEnough = hunter
+      ? w.mass > 30 && w.mass > p.mass * 0.4
+      : w.mass > 50 && w.mass > p.mass * 0.7;
+    if (chases && p.alive && bigEnough) {
       const ph = p.segments[0]!;
       const d = Math.hypot(ph.x - head.x, ph.y - head.y);
-      if (d < 360 && Math.random() < 0.6) {
+      if (d < (hunter ? HUNTER_SIGHT : 360) && Math.random() < (hunter ? 0.9 : 0.6)) {
         const ahead = 120 + radiusOf(p.mass) * 3;
         const tx = ph.x + Math.cos(p.angle) * ahead;
         const ty = ph.y + Math.sin(p.angle) * ahead;
         w.targetAngle = Math.atan2(ty - head.y, tx - head.x);
-        w.boosting = d < 260 && w.mass > 80;
+        w.boosting = hunter ? d < 380 && w.mass > 40 : d < 260 && w.mass > 80;
         return;
       }
     }
     w.boosting = false;
 
-    // 3) 가까운 파워업은 꼭 챙긴다
+    // 4) 가까운 파워업은 꼭 챙긴다 — 먹보는 멀리 있어도 달려간다
+    const glutton = w.trait === 'glutton';
+    const sight = glutton ? GLUTTON_SIGHT : 260;
     const near = this.powerups.find(
-      (pu) => (pu.x - head.x) ** 2 + (pu.y - head.y) ** 2 < 260 * 260,
+      (pu) => (pu.x - head.x) ** 2 + (pu.y - head.y) ** 2 < sight * sight,
     );
     if (near) {
       w.targetAngle = Math.atan2(near.y - head.y, near.x - head.x);
+      w.boosting = glutton && w.mass > 40 && Math.random() < 0.3;
       return;
     }
 
-    // 4) 황금 먹이 잔치가 열리면 멀리서도 몰려간다 (셋 중 둘)
-    if (this.feast && w.id % 3 !== 0) {
+    // 5) 황금 먹이 잔치가 열리면 멀리서도 몰려간다 (셋 중 둘, 먹보는 전부 · 경기장 끝에서도)
+    if (this.feast && (glutton || w.id % 3 !== 0)) {
       const d = Math.hypot(this.feast.x - head.x, this.feast.y - head.y);
-      if (d > FEAST_RADIUS * 0.6 && d < 1500) {
+      if (d > FEAST_RADIUS * 0.6 && d < (glutton ? ARENA_RADIUS * 2 : 1500)) {
         w.targetAngle = Math.atan2(this.feast.y - head.y, this.feast.x - head.x);
-        w.boosting = d > 400 && w.mass > 70 && Math.random() < 0.4;
+        w.boosting =
+          d > 400 && w.mass > (glutton ? 40 : 70) && Math.random() < (glutton ? 0.7 : 0.4);
         return;
       }
     }
 
-    // 5) 근처에서 먹을 게 가장 많은 쪽으로
+    // 6) 근처에서 먹을 게 가장 많은 쪽으로
     const found: { food: Food | null; score: number } = { food: null, score: 0 };
     this.foodGrid.query(head.x, head.y, 320, (f) => {
       if (f.eaten) return;
@@ -769,11 +876,12 @@ export class World {
     if (f) {
       w.targetAngle = Math.atan2(f.y - head.y, f.x - head.x);
       // 큰 먹이(죽은 지렁이)를 보면 가끔 서둘러 간다
-      w.boosting = f.value >= 3 && w.mass > 60 && Math.random() < 0.3;
+      w.boosting =
+        f.value >= 3 && w.mass > (glutton ? 40 : 60) && Math.random() < (glutton ? 0.6 : 0.3);
       return;
     }
 
-    // 6) 할 게 없으면 어슬렁 — 중심 쪽으로 조금씩
+    // 7) 할 게 없으면 어슬렁 — 중심 쪽으로 조금씩
     w.wander += rand(-0.5, 0.5);
     const toCenter = Math.atan2(-head.y, -head.x);
     const far = Math.hypot(head.x, head.y) / ARENA_RADIUS;

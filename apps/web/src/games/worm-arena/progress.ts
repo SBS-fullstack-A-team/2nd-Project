@@ -4,6 +4,7 @@
  */
 import { SKINS } from './config';
 import type { Summary } from './engine';
+import type { IconId } from './icons';
 
 const STORE_KEY = 'worm-arena:profile:v1';
 
@@ -23,6 +24,8 @@ export interface Lifetime {
   missionDays: number;
   /** 1위를 찍어 본 판 수 */
   firstPlaces: number;
+  /** 잡은 현상금 지렁이 수 */
+  bounties: number;
 }
 
 /** 한 판 기록 — 업적·미션 조건이 보는 값 */
@@ -36,6 +39,7 @@ interface Run {
   dashKills: number;
   maxStreak: number;
   rank1: boolean;
+  bounties: number;
 }
 
 function toRun(s: Summary): Run {
@@ -49,6 +53,7 @@ function toRun(s: Summary): Run {
     dashKills: s.run.dashKills,
     maxStreak: s.run.maxStreak,
     rank1: s.bestRank === 1,
+    bounties: s.run.bounties,
   };
 }
 
@@ -56,7 +61,7 @@ function toRun(s: Summary): Run {
 
 export interface Achievement {
   id: string;
-  icon: string;
+  icon: IconId;
   title: string;
   /** 해금 조건 설명 */
   goal: string;
@@ -69,7 +74,7 @@ export interface Achievement {
 export const ACHIEVEMENTS: readonly Achievement[] = [
   {
     id: 'len300',
-    icon: '📏',
+    icon: 'ruler',
     title: '쑥쑥 자람',
     goal: '한 판에 길이 300',
     reward: { skin: 'sky' },
@@ -77,7 +82,7 @@ export const ACHIEVEMENTS: readonly Achievement[] = [
   },
   {
     id: 'kill3',
-    icon: '💥',
+    icon: 'burst',
     title: '사냥꾼',
     goal: '한 판에 3마리 쓰러뜨리기',
     reward: { skin: 'sunset' },
@@ -85,7 +90,7 @@ export const ACHIEVEMENTS: readonly Achievement[] = [
   },
   {
     id: 'power20',
-    icon: '🧲',
+    icon: 'magnet',
     title: '아이템 수집가',
     goal: '파워업 누적 20개',
     reward: { skin: 'grape' },
@@ -93,7 +98,7 @@ export const ACHIEVEMENTS: readonly Achievement[] = [
   },
   {
     id: 'survive120',
-    icon: '⏱️',
+    icon: 'stopwatch',
     title: '끈질긴 지렁이',
     goal: '한 판에 2분 버티기',
     reward: { skin: 'zebra' },
@@ -101,7 +106,7 @@ export const ACHIEVEMENTS: readonly Achievement[] = [
   },
   {
     id: 'triple',
-    icon: '🔥',
+    icon: 'flame',
     title: '트리플 킬',
     goal: '연속 킬 3번',
     reward: { skin: 'rainbow' },
@@ -109,7 +114,7 @@ export const ACHIEVEMENTS: readonly Achievement[] = [
   },
   {
     id: 'golden100',
-    icon: '✨',
+    icon: 'sparkle',
     title: '황금 미식가',
     goal: '황금 먹이 누적 100개',
     reward: { skin: 'gold' },
@@ -117,7 +122,7 @@ export const ACHIEVEMENTS: readonly Achievement[] = [
   },
   {
     id: 'first',
-    icon: '🏆',
+    icon: 'trophy',
     title: '아레나의 왕',
     goal: '길이 순위 1위 찍기',
     reward: { hat: 'crown' },
@@ -125,7 +130,7 @@ export const ACHIEVEMENTS: readonly Achievement[] = [
   },
   {
     id: 'len1000',
-    icon: '🐉',
+    icon: 'dragon',
     title: '전설의 지렁이',
     goal: '한 판에 길이 1000',
     reward: { hat: 'dragon' },
@@ -133,15 +138,23 @@ export const ACHIEVEMENTS: readonly Achievement[] = [
   },
   {
     id: 'kills100',
-    icon: '⚔️',
+    icon: 'swords',
     title: '백전노장',
     goal: '누적 100마리 쓰러뜨리기',
     reward: { hat: 'helmet' },
     progress: (l) => [l.kills, 100],
   },
   {
+    id: 'bounty5',
+    icon: 'crown',
+    title: '현상금 사냥꾼',
+    goal: '현상금 지렁이 누적 5마리',
+    reward: { hat: 'cowboy' },
+    progress: (l) => [l.bounties, 5],
+  },
+  {
     id: 'days3',
-    icon: '📅',
+    icon: 'calendar',
     title: '성실한 지렁이',
     goal: '오늘의 미션 3일 완료',
     reward: { hat: 'halo' },
@@ -157,23 +170,26 @@ const FREE_SKINS = ['pink', 'lime'];
 export interface Hat {
   id: string;
   label: string;
-  /** 머리 위에 그릴 이모지 (없음은 빈 문자열) */
-  icon: string;
+  /** 머리 위에 그릴 아이콘 (없음은 빈 문자열) */
+  icon: IconId | '';
   /** 이 레벨이 되면 열린다 (업적 보상 모자는 없음) */
   level?: number;
+  /** 업적 모자 — 머리 위에서 이 색으로 은은하게 빛나고 반짝인다 */
+  glow?: string;
 }
 
 export const HATS: readonly Hat[] = [
   { id: 'none', label: '없음', icon: '', level: 1 },
-  { id: 'ribbon', label: '리본', icon: '🎀', level: 2 },
-  { id: 'cap', label: '야구모자', icon: '🧢', level: 4 },
-  { id: 'flower', label: '꽃', icon: '🌸', level: 6 },
-  { id: 'tophat', label: '신사 모자', icon: '🎩', level: 8 },
-  { id: 'party', label: '고깔', icon: '🥳', level: 10 },
-  { id: 'crown', label: '왕관', icon: '👑' },
-  { id: 'dragon', label: '용', icon: '🐲' },
-  { id: 'helmet', label: '투구', icon: '⛑️' },
-  { id: 'halo', label: '천사 고리', icon: '😇' },
+  { id: 'ribbon', label: '리본', icon: 'ribbon', level: 2 },
+  { id: 'cap', label: '야구모자', icon: 'cap', level: 4 },
+  { id: 'flower', label: '꽃', icon: 'flower', level: 6 },
+  { id: 'tophat', label: '신사 모자', icon: 'tophat', level: 8 },
+  { id: 'party', label: '고깔', icon: 'partyHat', level: 10 },
+  { id: 'crown', label: '왕관', icon: 'crown', glow: '#ffd84a' },
+  { id: 'dragon', label: '용의 뿔', icon: 'dragonHorns', glow: '#7ee081' },
+  { id: 'helmet', label: '기사 투구', icon: 'knightHelmet', glow: '#9ad0ff' },
+  { id: 'halo', label: '천사 고리', icon: 'halo', glow: '#fff3b0' },
+  { id: 'cowboy', label: '카우보이 모자', icon: 'cowboy', glow: '#ffb02e' },
 ];
 
 /* ---------- 레벨 ---------- */
@@ -195,7 +211,7 @@ export function levelOf(xp: number): { level: number; into: number; need: number
 
 /** 한 판 경험치 — 길이 · 킬 · 버틴 시간 */
 function runXp(r: Run): number {
-  return Math.floor(r.length / 5) + r.kills * 15 + Math.floor(r.seconds / 3);
+  return Math.floor(r.length / 5) + r.kills * 15 + r.bounties * 40 + Math.floor(r.seconds / 3);
 }
 
 /* ---------- 오늘의 미션 ---------- */
@@ -230,6 +246,13 @@ const MISSION_POOL: readonly MissionTemplate[] = [
     target: 1,
     mode: 'best',
     value: (r) => (r.maxStreak >= 2 ? 1 : 0),
+  },
+  {
+    id: 'bounty',
+    text: '현상금 지렁이 {n}마리 잡기',
+    target: 1,
+    mode: 'sum',
+    value: (r) => r.bounties,
   },
   { id: 'games', text: '{n}판 하기', target: 3, mode: 'sum', value: () => 1 },
   {
@@ -305,6 +328,7 @@ function emptyProfile(): Profile {
       bestStreak: 0,
       missionDays: 0,
       firstPlaces: 0,
+      bounties: 0,
     },
     achievements: [],
     daily: { date: today(), missions: missionsFor(today()), allDone: false },
@@ -412,6 +436,7 @@ export function applyRun(prev: Profile, summary: Summary): { profile: Profile; r
   l.bestKills = Math.max(l.bestKills, run.kills);
   l.bestStreak = Math.max(l.bestStreak, run.maxStreak);
   if (run.rank1) l.firstPlaces += 1;
+  l.bounties += run.bounties;
 
   // 오늘의 미션
   let xp = runXp(run);

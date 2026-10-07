@@ -2,6 +2,7 @@
  * 지렁이 아레나 규칙 상수.
  * 월드 좌표 단위는 픽셀과 비슷하다 (카메라 배율 1일 때 1 = 1px). 원형 경기장의 중심이 (0, 0).
  */
+import type { IconId } from './icons';
 
 /** 경기장 반지름 — 테두리에 머리가 닿으면 끝 */
 export const ARENA_RADIUS = 2600;
@@ -95,25 +96,128 @@ export type PowerKind = 'magnet' | 'turbo' | 'shield' | 'double' | 'ghost';
 export interface PowerDef {
   kind: PowerKind;
   label: string;
-  icon: string;
+  icon: IconId;
   color: string;
   /** 지속 시간(초) — 방패는 한 번 막아 주면 바로 사라진다 */
   seconds: number;
   /** 나오는 비율 */
   weight: number;
+  /** 알아두기 탭에 보여 줄 효과 설명 */
+  desc: string;
+  /** 먹었을 때 알림에 붙는 한 줄 */
+  tip: string;
 }
 
 export const POWERS: readonly PowerDef[] = [
-  { kind: 'magnet', label: '자석', icon: '🧲', color: '#ff5f6d', seconds: 10, weight: 3 },
-  { kind: 'turbo', label: '터보', icon: '⚡', color: '#ffc93c', seconds: 7, weight: 3 },
-  { kind: 'shield', label: '방패', icon: '🛡️', color: '#4fc3f7', seconds: 15, weight: 2 },
-  { kind: 'double', label: '먹이 ×2', icon: '✖️', color: '#7ee081', seconds: 12, weight: 2 },
-  { kind: 'ghost', label: '유령', icon: '👻', color: '#c9b6ff', seconds: 5, weight: 1.5 },
+  {
+    kind: 'magnet',
+    label: '자석',
+    icon: 'magnet',
+    color: '#ff5f6d',
+    seconds: 10,
+    weight: 3,
+    desc: '먹이를 끌어당기는 범위가 4배로 넓어져요. 먹이 밭을 지나가기만 해도 쑥쑥 길어져요.',
+    tip: '먹이가 멀리서도 끌려와요',
+  },
+  {
+    kind: 'turbo',
+    label: '터보',
+    icon: 'bolt',
+    color: '#ffc93c',
+    seconds: 7,
+    weight: 3,
+    desc: '저절로 계속 가속해요. 대시 게이지와 길이를 쓰지 않아서, 앞을 막으러 가기 딱 좋아요.',
+    tip: '게이지 걱정 없이 계속 가속!',
+  },
+  {
+    kind: 'shield',
+    label: '방패',
+    icon: 'shield',
+    color: '#4fc3f7',
+    seconds: 15,
+    weight: 2,
+    desc: '몸통이나 벽에 부딪혀도 한 번 막아 줘요. 막은 뒤 1.5초 동안 무적이니 그 사이 빠져나가세요.',
+    tip: '한 번은 부딪혀도 괜찮아요',
+  },
+  {
+    kind: 'double',
+    label: '먹이 ×2',
+    icon: 'double',
+    color: '#7ee081',
+    seconds: 12,
+    weight: 2,
+    desc: '먹는 먹이의 길이가 2배가 돼요. 황금 먹이 잔치나 쓰러진 지렁이 자리에서 쓰면 효과 최고!',
+    tip: '먹이 길이가 2배예요',
+  },
+  {
+    kind: 'ghost',
+    label: '유령',
+    icon: 'ghost',
+    color: '#c9b6ff',
+    seconds: 5,
+    weight: 1.5,
+    desc: '다른 지렁이 몸을 그대로 통과해요. 단, 경기장 벽은 통과하지 못해요.',
+    tip: '몸통을 통과해요 (벽은 조심!)',
+  },
 ];
 
 export function findPower(kind: PowerKind): PowerDef {
   return POWERS.find((p) => p.kind === kind)!;
 }
+
+/* ---------- AI 성격 ---------- */
+
+export type TraitKind = 'normal' | 'hunter' | 'glutton' | 'coward';
+
+export interface TraitDef {
+  kind: TraitKind;
+  label: string;
+  /** 이름 앞에 붙는 아이콘 — 보통은 없음 */
+  icon: IconId | '';
+  desc: string;
+  /** 새로 들어올 때 뽑히는 비율 */
+  weight: number;
+}
+
+export const TRAITS: readonly TraitDef[] = [
+  {
+    kind: 'normal',
+    label: '보통',
+    icon: '',
+    desc: '먹이를 찾아 다니다가, 나보다 꽤 크면 가끔 앞을 막으러 와요.',
+    weight: 4,
+  },
+  {
+    kind: 'hunter',
+    label: '사냥꾼',
+    icon: 'sword',
+    desc: '나를 노려요. 멀리서도 쫓아와 가속해서 앞을 막아요. 작아도 덤비니 옆으로 피하세요.',
+    weight: 2,
+  },
+  {
+    kind: 'glutton',
+    label: '먹보',
+    icon: 'drumstick',
+    desc: '나한테는 관심 없고 먹을 것만 봐요. 파워업과 황금 먹이 잔치에 멀리서도 달려가요.',
+    weight: 2,
+  },
+  {
+    kind: 'coward',
+    label: '겁쟁이',
+    icon: 'drop',
+    desc: '자기보다 큰 지렁이가 다가오면 가속해서 도망가요. 쫓아가서 앞을 막으면 잡기 좋아요.',
+    weight: 2,
+  },
+];
+
+export function findTrait(kind: TraitKind): TraitDef {
+  return TRAITS.find((t) => t.kind === kind)!;
+}
+
+/** 사냥꾼이 플레이어를 알아채는 거리 · 겁쟁이가 큰 지렁이를 피해 도망가는 거리 · 먹보가 파워업을 보는 거리 */
+export const HUNTER_SIGHT = 560;
+export const COWARD_SIGHT = 300;
+export const GLUTTON_SIGHT = 650;
 
 /** 경기장에 동시에 떠 있는 파워업 수 · 새로 생기는 간격(초) · 안 먹으면 사라지는 시간(초) */
 export const POWER_MAX = 6;
@@ -131,6 +235,21 @@ export const STREAK_WINDOW = 5;
 /** 연속 킬 보너스 길이 = (연속 수 - 1) × STREAK_BONUS */
 export const STREAK_BONUS = 15;
 export const STREAK_NAMES = ['', '', '더블 킬!', '트리플 킬!', '쿼드라 킬!', '펜타 킬!'] as const;
+
+/* ---------- 현상금 지렁이 ---------- */
+
+/** 가장 긴 AI 지렁이가 이 길이 이상이면 현상금이 걸린다 */
+export const BOUNTY_MIN_MASS = 120;
+/** 다른 AI 가 현상금 지렁이보다 이 배율 넘게 길어지면 현상금이 옮겨 간다 (자주 바뀌지 않게) */
+export const BOUNTY_SWITCH_RATIO = 1.15;
+/** 현상금 = BOUNTY_BONUS + 그 지렁이 길이 × BOUNTY_BONUS_RATIO — 클수록 많이 준다 */
+export const BOUNTY_BONUS = 50;
+export const BOUNTY_BONUS_RATIO = 0.2;
+export const BOUNTY_COLOR = '#ffb02e';
+
+export function bountyReward(mass: number): number {
+  return Math.round(BOUNTY_BONUS + mass * BOUNTY_BONUS_RATIO);
+}
 
 /* ---------- 황금 먹이 잔치 ---------- */
 
@@ -208,11 +327,13 @@ export const LEADERBOARD_SIZE = 5;
  */
 export const MAX_SCORE = 100_000;
 
+/** `:아이콘id:` 는 화면에서 아이콘으로 바뀐다 */
 export const HOW_TO_PLAY = [
-  '먹이를 먹고 길어지세요. 가장 길었을 때 길이가 점수예요.',
-  '머리가 다른 지렁이 몸에 닿거나 경기장 벽에 닿으면 끝!',
-  '가속해서 다른 지렁이 앞을 막으면, 부딪힌 지렁이가 먹이로 변해요.',
-  '🧲⚡🛡️✖️👻 파워업을 먹고, ★ 황금 먹이 잔치를 노려 보세요!',
+  ':food: 먹이를 먹고 길어지세요. 가장 길었을 때 길이가 점수예요.',
+  ':burst: 머리가 다른 지렁이 몸에 닿거나 경기장 벽에 닿으면 끝!',
+  ':bolt: 가속해서 다른 지렁이 앞을 막으면, 부딪힌 지렁이가 먹이로 변해요.',
+  ':magnet::bolt::shield::double::ghost: 파워업을 먹고, :star: 황금 먹이 잔치와 :crown: 현상금 지렁이를 노려 보세요!',
+  ':sword::drumstick::drop: 이름 앞 아이콘은 지렁이 성격이에요. 자세한 건 「알아두기」 탭에서!',
 ] as const;
 
 export const CONTROLS = [
@@ -220,5 +341,5 @@ export const CONTROLS = [
   { keys: '클릭 (꾹) · 스페이스', action: '가속' },
   { keys: '← → / A D', action: '키보드로 돌기' },
   { keys: 'Esc · P', action: '일시정지' },
-  { keys: 'F · ⛶', action: '전체 화면' },
+  { keys: 'F · :fullscreen:', action: '전체 화면' },
 ] as const;
