@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from 'react';
 import type { GameProps } from '@simsim/shared';
 import {
+  BOUNTY_MIN_MASS,
   CONTROLS,
   FEAST_INTERVAL,
   HOW_TO_PLAY,
@@ -197,6 +198,8 @@ export default function WormArena({ onFinish }: GameProps) {
           if (kind === 'streak' && text) showBanner(text);
           if (kind === 'shield') notify('🛡️ 방패가 막아 줬어요! 얼른 빠져나가요');
           if (kind === 'feast') notify('✨ 황금 먹이 잔치! ★ 쪽으로 가 보세요');
+          if (kind === 'bounty' && text) notify(`👑 「${text}」에게 현상금이 걸렸어요!`);
+          if (kind === 'bountyClaim' && text) showBanner(`👑 현상금 획득! ${text}`);
           if (kind === 'power' && text) {
             const def = findPower(text as PowerKind);
             notify(`${def.icon} ${def.label} ${def.seconds}초! ${def.tip}`);
@@ -440,12 +443,18 @@ export default function WormArena({ onFinish }: GameProps) {
                 </span>
               )}
               {hud.feast && <span className={styles.feast}>★ 황금 먹이 잔치 중</span>}
+              {hud.bounty && (
+                <span className={styles.bounty}>
+                  👑 현상금 {hud.bounty.name} · +{hud.bounty.reward}
+                </span>
+              )}
             </div>
             <ol className={styles.leaders} aria-label="길이 순위">
               {hud.leaders.map((l, i) => (
                 <li key={`${l.name}-${i}`} className={l.me ? styles.me : ''}>
                   <span>
-                    {i + 1}. {l.name}
+                    {i + 1}. {l.bounty && '👑 '}
+                    {l.name}
                   </span>
                   <b>{l.length.toLocaleString()}</b>
                 </li>
@@ -708,6 +717,22 @@ export default function WormArena({ onFinish }: GameProps) {
                         <small>
                           경기장 한 곳에 큰 황금 먹이가 쏟아져요. 미니맵의 ★ 를 보고 먼저 가세요. AI
                           도 몰려와요!
+                        </small>
+                      </span>
+                    </li>
+                  </ul>
+                  <p className={styles.pickLabel}>현상금 지렁이</p>
+                  <ul className={styles.list}>
+                    <li>
+                      <span className={styles.listIcon}>👑</span>
+                      <span className={styles.listBody}>
+                        <strong>
+                          가장 긴 AI 에게 현상금 <small>· 길이 {BOUNTY_MIN_MASS} 이상</small>
+                        </strong>
+                        <small>
+                          머리 위 왕관과 금빛 고리, 화면 끝 👑 화살표로 찾아요. 내가 쓰러뜨리면
+                          떨어지는 먹이와 따로 보너스 길이를 받고, 클수록 현상금이 커져요. 다른
+                          지렁이가 확실히 더 길어지면 현상금이 옮겨 가요.
                         </small>
                       </span>
                     </li>

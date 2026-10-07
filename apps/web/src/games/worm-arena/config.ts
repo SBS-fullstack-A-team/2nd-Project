@@ -235,6 +235,21 @@ export const STREAK_WINDOW = 5;
 export const STREAK_BONUS = 15;
 export const STREAK_NAMES = ['', '', '더블 킬!', '트리플 킬!', '쿼드라 킬!', '펜타 킬!'] as const;
 
+/* ---------- 현상금 지렁이 ---------- */
+
+/** 가장 긴 AI 지렁이가 이 길이 이상이면 현상금이 걸린다 */
+export const BOUNTY_MIN_MASS = 120;
+/** 다른 AI 가 현상금 지렁이보다 이 배율 넘게 길어지면 현상금이 옮겨 간다 (자주 바뀌지 않게) */
+export const BOUNTY_SWITCH_RATIO = 1.15;
+/** 현상금 = BOUNTY_BONUS + 그 지렁이 길이 × BOUNTY_BONUS_RATIO — 클수록 많이 준다 */
+export const BOUNTY_BONUS = 50;
+export const BOUNTY_BONUS_RATIO = 0.2;
+export const BOUNTY_COLOR = '#ffb02e';
+
+export function bountyReward(mass: number): number {
+  return Math.round(BOUNTY_BONUS + mass * BOUNTY_BONUS_RATIO);
+}
+
 /* ---------- 황금 먹이 잔치 ---------- */
 
 /** 처음 잔치 · 다음 잔치까지 간격(초) */
@@ -315,7 +330,7 @@ export const HOW_TO_PLAY = [
   '먹이를 먹고 길어지세요. 가장 길었을 때 길이가 점수예요.',
   '머리가 다른 지렁이 몸에 닿거나 경기장 벽에 닿으면 끝!',
   '가속해서 다른 지렁이 앞을 막으면, 부딪힌 지렁이가 먹이로 변해요.',
-  '🧲⚡🛡️✖️👻 파워업을 먹고, ★ 황금 먹이 잔치를 노려 보세요!',
+  '🧲⚡🛡️✖️👻 파워업을 먹고, ★ 황금 먹이 잔치와 👑 현상금 지렁이를 노려 보세요!',
   '이름 앞 🗡️🍖💧 는 지렁이 성격이에요. 자세한 건 「💡 알아두기」 탭에서!',
 ] as const;
 

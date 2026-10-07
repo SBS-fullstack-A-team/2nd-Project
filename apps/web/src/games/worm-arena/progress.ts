@@ -23,6 +23,8 @@ export interface Lifetime {
   missionDays: number;
   /** 1위를 찍어 본 판 수 */
   firstPlaces: number;
+  /** 잡은 현상금 지렁이 수 */
+  bounties: number;
 }
 
 /** 한 판 기록 — 업적·미션 조건이 보는 값 */
@@ -36,6 +38,7 @@ interface Run {
   dashKills: number;
   maxStreak: number;
   rank1: boolean;
+  bounties: number;
 }
 
 function toRun(s: Summary): Run {
@@ -49,6 +52,7 @@ function toRun(s: Summary): Run {
     dashKills: s.run.dashKills,
     maxStreak: s.run.maxStreak,
     rank1: s.bestRank === 1,
+    bounties: s.run.bounties,
   };
 }
 
@@ -140,6 +144,14 @@ export const ACHIEVEMENTS: readonly Achievement[] = [
     progress: (l) => [l.kills, 100],
   },
   {
+    id: 'bounty5',
+    icon: '👑',
+    title: '현상금 사냥꾼',
+    goal: '현상금 지렁이 누적 5마리',
+    reward: { hat: 'cowboy' },
+    progress: (l) => [l.bounties, 5],
+  },
+  {
     id: 'days3',
     icon: '📅',
     title: '성실한 지렁이',
@@ -174,6 +186,7 @@ export const HATS: readonly Hat[] = [
   { id: 'dragon', label: '용', icon: '🐲' },
   { id: 'helmet', label: '투구', icon: '⛑️' },
   { id: 'halo', label: '천사 고리', icon: '😇' },
+  { id: 'cowboy', label: '카우보이 모자', icon: '🤠' },
 ];
 
 /* ---------- 레벨 ---------- */
@@ -195,7 +208,7 @@ export function levelOf(xp: number): { level: number; into: number; need: number
 
 /** 한 판 경험치 — 길이 · 킬 · 버틴 시간 */
 function runXp(r: Run): number {
-  return Math.floor(r.length / 5) + r.kills * 15 + Math.floor(r.seconds / 3);
+  return Math.floor(r.length / 5) + r.kills * 15 + r.bounties * 40 + Math.floor(r.seconds / 3);
 }
 
 /* ---------- 오늘의 미션 ---------- */
@@ -230,6 +243,13 @@ const MISSION_POOL: readonly MissionTemplate[] = [
     target: 1,
     mode: 'best',
     value: (r) => (r.maxStreak >= 2 ? 1 : 0),
+  },
+  {
+    id: 'bounty',
+    text: '현상금 지렁이 {n}마리 잡기',
+    target: 1,
+    mode: 'sum',
+    value: (r) => r.bounties,
   },
   { id: 'games', text: '{n}판 하기', target: 3, mode: 'sum', value: () => 1 },
   {
@@ -305,6 +325,7 @@ function emptyProfile(): Profile {
       bestStreak: 0,
       missionDays: 0,
       firstPlaces: 0,
+      bounties: 0,
     },
     achievements: [],
     daily: { date: today(), missions: missionsFor(today()), allDone: false },
@@ -412,6 +433,7 @@ export function applyRun(prev: Profile, summary: Summary): { profile: Profile; r
   l.bestKills = Math.max(l.bestKills, run.kills);
   l.bestStreak = Math.max(l.bestStreak, run.maxStreak);
   if (run.rank1) l.firstPlaces += 1;
+  l.bounties += run.bounties;
 
   // 오늘의 미션
   let xp = runXp(run);

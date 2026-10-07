@@ -5,6 +5,7 @@
 import {
   ARENA_RADIUS,
   BOOST_STAMINA,
+  BOUNTY_COLOR,
   FEAST_COLOR,
   LEADERBOARD_SIZE,
   MAGNET_RANGE,
@@ -15,6 +16,7 @@ import {
   TICK,
   ZOOM_MAX,
   ZOOM_MIN,
+  bountyReward,
   findPower,
   type PowerKind,
 } from './config';
@@ -26,7 +28,9 @@ export interface Hud {
   kills: number;
   rank: number;
   total: number;
-  leaders: { name: string; length: number; me: boolean }[];
+  leaders: { name: string; length: number; me: boolean; bounty: boolean }[];
+  /** 지금 현상금이 걸린 지렁이와 보상 (없으면 null) */
+  bounty: { name: string; reward: number } | null;
   boosting: boolean;
   canBoost: boolean;
   /** 지금 걸려 있는 파워업 (남은 시간 · 전체 시간) */
@@ -38,7 +42,8 @@ export interface Hud {
   exhausted: boolean;
 }
 
-export type EngineEvent = 'eat' | 'kill' | 'die' | 'power' | 'streak' | 'shield' | 'feast';
+export type EngineEvent =
+  'eat' | 'kill' | 'die' | 'power' | 'streak' | 'shield' | 'feast' | 'bounty' | 'bountyClaim';
 
 export interface Summary {
   score: number;
@@ -228,6 +233,11 @@ export class WormEngine {
         this.shake = Math.max(this.shake, 0.3);
       }
       if (ev.feast) this.cb.onEvent('feast');
+      if (ev.bounty && player.alive) this.cb.onEvent('bounty', ev.bounty);
+      if (ev.bountyClaimed) {
+        this.cb.onEvent('bountyClaim', `${ev.bountyClaimed.name} +${ev.bountyClaimed.bonus}`);
+        this.shake = Math.max(this.shake, 0.6);
+      }
       if (ev.died) {
         this.deathBy = ev.died.by;
         this.killerId = ev.died.byId;
@@ -257,6 +267,7 @@ export class WormEngine {
       this.hudTimer = 0.2;
       const ranking = world.ranking();
       const rank = ranking.indexOf(player) + 1;
+      const bounty = world.bounty();
       if (rank > 0) this.bestRank = Math.min(this.bestRank, rank);
       this.cb.onHud({
         length: Math.floor(player.mass),
@@ -268,7 +279,9 @@ export class WormEngine {
           name: displayName(w),
           length: Math.floor(w.mass),
           me: w.isPlayer,
+          bounty: w === bounty,
         })),
+        bounty: bounty ? { name: displayName(bounty), reward: bountyReward(bounty.mass) } : null,
         boosting: player.dashing,
         canBoost: player.effects.turbo > 0 || (player.mass > MIN_BOOST_MASS && !player.exhausted),
         stamina: player.effects.turbo > 0 ? 1 : player.stamina / BOOST_STAMINA,
@@ -501,6 +514,28 @@ export class WormEngine {
     const worms = world.worms.filter((w) => w.alive).sort((a, b) => a.mass - b.mass);
     for (const w of worms) this.drawWorm(w, visible, t);
 
+    // 현상금 지렁이 — 금빛 고리와 머리 위 왕관
+    const bounty = world.bounty();
+    if (bounty && bounty !== killer) {
+      const h = bounty.segments[0]!;
+      const r = radiusOf(bounty.mass);
+      if (visible(h.x, h.y, r * 4)) {
+        ctx.strokeStyle = BOUNTY_COLOR;
+        ctx.globalAlpha = 0.55 + Math.sin(t * 5) * 0.25;
+        ctx.lineWidth = 3;
+        ctx.setLineDash([10, 8]);
+        ctx.beginPath();
+        ctx.arc(h.x, h.y, r * 2.2, -t, -t + Math.PI * 2);
+        ctx.stroke();
+        ctx.setLineDash([]);
+        ctx.globalAlpha = 1;
+        ctx.font = `${Math.round(Math.max(20, r * 1.6))}px sans-serif`;
+        ctx.textAlign = 'center';
+        ctx.textBaseline = 'middle';
+        ctx.fillText('👑', h.x, h.y - r * 1.1 + Math.sin(t * 4) * 2);
+      }
+    }
+
     // 나를 잡은 지렁이 표시
     if (killer) {
       const h = killer.segments[0]!;
@@ -542,9 +577,10 @@ export class WormEngine {
       const r = radiusOf(w.mass);
       if (!visible(head.x, head.y, 200)) continue;
       ctx.font = `700 ${Math.max(12, 13 / this.cam.zoom)}px sans-serif`;
-      ctx.fillStyle = w.isPlayer ? '#fff' : 'rgb(255 255 255 / 0.75)';
-      // 모자를 쓴 내 지렁이는 이름을 모자 위로
-      const lift = w.isPlayer && this.hat ? r * 1.9 : 0;
+      const isBounty = w === bounty;
+      ctx.fillStyle = w.isPlayer ? '#fff' : isBounty ? BOUNTY_COLOR : 'rgb(255 255 255 / 0.75)';
+      // 모자 · 왕관을 쓴 지렁이는 이름을 그 위로
+      const lift = (w.isPlayer && this.hat) || isBounty ? r * 1.9 : 0;
       ctx.fillText(displayName(w), head.x, head.y - r - 8 - lift);
     }
 
@@ -573,7 +609,15 @@ export class WormEngine {
     if (this.running && world.feast && player.alive) {
       const fx = (world.feast.x - this.cam.x) * scale + W / 2;
       const fy = (world.feast.y - this.cam.y) * scale + H / 2;
-      if (fx < 0 || fx > W || fy < 0 || fy > H) this.drawFeastArrow(fx, fy, W, H, t);
+      if (fx < 0 || fx > W || fy < 0 || fy > H)
+        this.drawEdgeArrow(fx, fy, W, H, t, '★', FEAST_COLOR);
+    }
+    if (this.running && bounty && player.alive) {
+      const h = bounty.segments[0]!;
+      const bx = (h.x - this.cam.x) * scale + W / 2;
+      const by = (h.y - this.cam.y) * scale + H / 2;
+      if (bx < 0 || bx > W || by < 0 || by > H)
+        this.drawEdgeArrow(bx, by, W, H, t, '👑', BOUNTY_COLOR);
     }
     this.drawMinimap(world, W, H);
   }
@@ -687,8 +731,16 @@ export class WormEngine {
     }
   }
 
-  /** 화면 밖 황금 먹이 잔치 쪽을 가리키는 화살표 */
-  private drawFeastArrow(fx: number, fy: number, W: number, H: number, t: number) {
+  /** 화면 밖 목표(황금 먹이 잔치 · 현상금 지렁이) 쪽을 가리키는 화살표 */
+  private drawEdgeArrow(
+    fx: number,
+    fy: number,
+    W: number,
+    H: number,
+    t: number,
+    icon: string,
+    color: string,
+  ) {
     const ctx = this.ctx;
     const a = Math.atan2(fy - H / 2, fx - W / 2);
     const m = 34 * this.dpr;
@@ -707,11 +759,11 @@ export class WormEngine {
     ctx.beginPath();
     ctx.arc(0, 0, 18, 0, Math.PI * 2);
     ctx.fill();
-    ctx.fillStyle = FEAST_COLOR;
+    ctx.fillStyle = color;
     ctx.font = '700 18px sans-serif';
     ctx.textAlign = 'center';
     ctx.textBaseline = 'middle';
-    ctx.fillText('★', 0, 1);
+    ctx.fillText(icon, 0, 1);
     ctx.rotate(a);
     ctx.beginPath();
     ctx.moveTo(30, 0);
@@ -760,6 +812,13 @@ export class WormEngine {
       ctx.beginPath();
       ctx.arc(cx + h.x * s, cy + h.y * s, w.isPlayer ? 3.5 * this.dpr : big, 0, Math.PI * 2);
       ctx.fill();
+      if (w.id === world.bountyId) {
+        ctx.strokeStyle = BOUNTY_COLOR;
+        ctx.lineWidth = 2 * this.dpr;
+        ctx.beginPath();
+        ctx.arc(cx + h.x * s, cy + h.y * s, big + 3 * this.dpr, 0, Math.PI * 2);
+        ctx.stroke();
+      }
     }
     ctx.globalAlpha = 1;
   }

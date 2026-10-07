@@ -8,6 +8,8 @@ import {
   BOOST_COST_RATIO,
   BOOST_SPEED,
   BOOST_STAMINA,
+  BOUNTY_MIN_MASS,
+  BOUNTY_SWITCH_RATIO,
   BOT_COLORS,
   BOT_COUNT,
   BOT_LOOKAHEAD,
@@ -56,6 +58,7 @@ import {
   TURN_RATE,
   TRAITS,
   TURN_RATE_MIN,
+  bountyReward,
   findPower,
   findTrait,
   type PowerKind,
@@ -99,6 +102,8 @@ export interface RunStats {
   maxStreak: number;
   /** 방패가 막아 준 횟수 */
   shieldSaves: number;
+  /** 잡은 현상금 지렁이 수 */
+  bounties: number;
 }
 
 export interface PowerUp {
@@ -161,6 +166,10 @@ export interface WorldEvents {
   shieldSaved?: boolean;
   /** 황금 먹이 잔치가 열렸다 */
   feast?: Point;
+  /** 새 현상금 지렁이 (표시 이름) */
+  bounty?: string;
+  /** 플레이어가 현상금 지렁이를 잡았다 */
+  bountyClaimed?: { name: string; bonus: number };
 }
 
 /** 화면에 보여 줄 이름 — 성격 아이콘을 앞에 붙인다 */
@@ -279,6 +288,8 @@ export class World {
   /** 황금 먹이 잔치 자리 — 잔치 먹이가 남아 있는 동안만 */
   feast: Point | null = null;
   private feastTimer = FEAST_FIRST;
+  /** 현상금이 걸린 AI 지렁이 id */
+  bountyId: number | null = null;
   /** 플레이어 연속 킬 */
   streak = 0;
   private lastKillAt = -99;
@@ -289,6 +300,7 @@ export class World {
     dashKills: 0,
     maxStreak: 0,
     shieldSaves: 0,
+    bounties: 0,
   };
 
   constructor(playerColors: readonly string[]) {
@@ -498,6 +510,16 @@ export class World {
         color: worm.colors[0]!,
         byPlayer: !!by?.isPlayer,
       });
+      // 현상금 지렁이 — 플레이어가 잡으면 보너스 길이, 누가 잡든 현상금은 다음 지렁이로
+      if (worm.id === this.bountyId) {
+        if (by?.isPlayer) {
+          const bonus = bountyReward(worm.mass);
+          by.mass += bonus;
+          this.runStats.bounties += 1;
+          ev.bountyClaimed = { name: displayName(worm), bonus };
+        }
+        this.bountyId = null;
+      }
       this.kill(worm);
       if (by) by.kills += 1;
       if (worm.isPlayer) ev.died = { by: by ? displayName(by) : null, byId: by ? by.id : null };
@@ -605,10 +627,33 @@ export class World {
         return false;
       });
 
+    this.updateBounty(ev);
+
     if (this.player.alive) {
       this.bestMass = Math.min(MAX_SCORE, Math.max(this.bestMass, this.player.mass));
     }
     return ev;
+  }
+
+  /** 가장 긴 AI 에게 현상금 — 지금 대상보다 꽤 길어져야 옮겨 간다 */
+  private updateBounty(ev: WorldEvents) {
+    let top: Worm | null = null;
+    for (const w of this.worms) {
+      if (w.isPlayer || !w.alive) continue;
+      if (!top || w.mass > top.mass) top = w;
+    }
+    const cur = this.bounty();
+    if (cur && (!top || top === cur || top.mass < cur.mass * BOUNTY_SWITCH_RATIO)) return;
+    const next = top && top.mass >= BOUNTY_MIN_MASS ? top : null;
+    if (next?.id === this.bountyId) return;
+    this.bountyId = next ? next.id : null;
+    if (next) ev.bounty = displayName(next);
+  }
+
+  /** 현상금이 걸린 지렁이 (없으면 null) */
+  bounty(): Worm | null {
+    if (this.bountyId === null) return null;
+    return this.worms.find((w) => w.id === this.bountyId && w.alive) ?? null;
   }
 
   /** 방패가 있으면 한 번 막아 주고 잠깐 무적 — 막았으면 true */

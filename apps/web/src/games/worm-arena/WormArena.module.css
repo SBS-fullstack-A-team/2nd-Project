@@ -205,6 +205,12 @@
   display: block;
   height: 100%;
 }
+.bounty {
+  margin-top: 4px;
+  color: #ffb02e;
+  font-size: 0.72rem;
+  font-weight: 800;
+}
 .feast {
   margin-top: 4px;
   color: #ffd84a;
@@ -494,7 +500,7 @@
 
 .hats {
   display: grid;
-  grid-template-columns: repeat(10, 1fr);
+  grid-template-columns: repeat(11, 1fr);
   gap: 4px;
 }
 .hat {
