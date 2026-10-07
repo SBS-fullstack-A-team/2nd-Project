@@ -444,10 +444,10 @@ export const ICONS = {
     { d: circle(12, 12, 3.2), fill: '#ffd84a' },
   ]),
   tophat: icon([
-    { d: rect(7, 3.2, 10, 13, 1), fill: '#353545' },
+    { d: rect(7, 3.2, 10, 13, 1), fill: '#2e3f7a' },
     { d: rect(7, 11.8, 10, 2.6), fill: '#e8232e' },
-    { d: rect(2.8, 15.8, 18.4, 3.4, 1.6), fill: '#353545' },
-    { d: 'M9.2 5.2v5', stroke: '#6a6a80', sw: 1.4 },
+    { d: rect(2.8, 15.8, 18.4, 3.4, 1.6), fill: '#2e3f7a' },
+    { d: 'M9.2 5.2v5', stroke: '#8ea2e0', sw: 1.4 },
   ]),
   partyHat: icon([
     { d: 'M12 3.6 5.4 20.4h13.2z', fill: '#b07cff' },

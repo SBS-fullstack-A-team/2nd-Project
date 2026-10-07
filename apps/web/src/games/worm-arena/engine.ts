@@ -802,6 +802,9 @@ export class WormEngine {
         sx = sy = 1 + Math.sin(t * 5.2) * 0.04;
         break;
       case 'knightHelmet': {
+        // 머리를 덮지 않게 조금 작게, 조금 위에 얹는다
+        sx = sy = 0.8;
+        hop += r * 0.15;
         // 2.5초마다 강철이 번쩍
         const c = t % 2.5;
         glowPower = 0.45 + (c < 0.35 ? Math.sin((c / 0.35) * Math.PI) * 0.5 : 0);
