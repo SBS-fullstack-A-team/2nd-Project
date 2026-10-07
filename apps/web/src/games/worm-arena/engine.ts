@@ -583,7 +583,8 @@ export class WormEngine {
       ctx.font = `700 ${fontSize}px sans-serif`;
       const isBounty = w === bounty;
       // 모자 · 왕관을 쓴 지렁이는 이름을 그 위로
-      const lift = w.isPlayer && this.hat ? r * 2.5 : isBounty ? r * 1.9 : 0;
+      const lift =
+        w.isPlayer && this.hat ? r * (this.hat === 'halo' ? 3.4 : 2.5) : isBounty ? r * 1.9 : 0;
       const y = head.y - r - 8 - lift;
       const icon = findTrait(w.trait).icon;
       const iconSize = icon ? fontSize * 1.5 : 0;
@@ -747,7 +748,11 @@ export class WormEngine {
     // 오른쪽으로 가면 모자 끝이 왼쪽(뒤)으로 — 바람을 받는 느낌
     const targetTilt = -Math.cos(angle) * (boosting ? 0.42 : 0.28);
     this.hatTilt += (targetTilt - this.hatTilt) * 0.12;
-    const hop = Math.abs(Math.sin(t * (boosting ? 18 : 10))) * r * 0.14;
+    // 천사 고리는 머리 위에 떠서 둥실둥실, 나머지는 머리에 얹혀 통통
+    const floating = hat === 'halo';
+    const hop = floating
+      ? r * 0.9 + Math.sin(t * 2.5) * r * 0.12
+      : Math.abs(Math.sin(t * (boosting ? 18 : 10))) * r * 0.14;
     const x = head.x - Math.cos(angle) * r * 0.15;
     const y = head.y - r * 1.25 - hop;
 
