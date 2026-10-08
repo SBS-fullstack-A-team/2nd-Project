@@ -8,7 +8,7 @@ import {
 } from 'react';
 import { createPortal } from 'react-dom';
 import type { GameProps } from '@simsim/shared';
-import { CONTROLS, FORMS, TIPS, type FormDef } from './config';
+import { CONTROLS, FORMS, TIPS, type FormDef, type FormId } from './config';
 import { CatBladeEngine, type GameSummary } from './engine';
 import type { Action } from './player';
 import { drawCat } from './renderCat';
@@ -57,6 +57,8 @@ export default function CatBlade({ onFinish }: GameProps) {
   const [engineError, setEngineError] = useState<string | null>(null);
   const [touch, setTouch] = useState(detectTouch);
   const [infoForm, setInfoForm] = useState<FormDef>(FORMS[0] as FormDef);
+  /** 마지막으로 누른 고양이 카드 — 같은 카드를 빠르게 두 번 누르면 각성 폼으로 시작 (이스터에그) */
+  const lastTapRef = useRef<{ id: FormId; at: number } | null>(null);
   /** 크게 보기 — 게임 중에는 브라우저 화면 전체를 무대로 쓴다 */
   const [big, setBig] = useState(loadBig);
 
@@ -99,11 +101,12 @@ export default function CatBlade({ onFinish }: GameProps) {
     };
   }, [sound]);
 
-  function start() {
+  /** upgrade 를 주면 그 고양이가 각성한 채로 시작한다 */
+  function start(upgrade: FormId | null = null) {
     if (finishedRef.current) return; // 다시 하기는 GamePage 가 새로 마운트해서 처리
     sound.unlock(); // 브라우저 자동재생 정책 — 클릭 안에서 오디오를 깨운다
     sound.play('meow');
-    engineRef.current?.start();
+    engineRef.current?.start(upgrade);
     setPaused(false);
     setScreen({ name: 'playing' });
   }
@@ -275,6 +278,15 @@ export default function CatBlade({ onFinish }: GameProps) {
                   className={`${styles.formCard} ${infoForm.id === f.id ? styles.formCardOn : ''}`}
                   style={{ ['--form-color' as string]: f.color }}
                   onClick={() => {
+                    // 같은 카드를 빠르게 두 번 (더블클릭 · 더블탭) → 각성 폼으로 바로 시작
+                    const now = performance.now();
+                    const last = lastTapRef.current;
+                    if (last && last.id === f.id && now - last.at < 400) {
+                      lastTapRef.current = null;
+                      start(f.id);
+                      return;
+                    }
+                    lastTapRef.current = { id: f.id, at: now };
                     sound.unlock();
                     sound.play('select');
                     setInfoForm(f);
@@ -299,7 +311,7 @@ export default function CatBlade({ onFinish }: GameProps) {
               <dd>{infoForm.desc}</dd>
             </dl>
 
-            <button type="button" className={styles.startBtn} onClick={start}>
+            <button type="button" className={styles.startBtn} onClick={() => start()}>
               ⚔ 모험 시작
             </button>
 
@@ -318,6 +330,7 @@ export default function CatBlade({ onFinish }: GameProps) {
                 ))}
               </ul>
             </div>
+            <p className={styles.secretHint}>🐾 마음에 드는 고양이를 두 번 연달아 쓰다듬으면…?</p>
             <p className={styles.rotateHint}>📱 휴대폰은 가로로 돌리면 화면이 더 커져요</p>
             <label className={styles.touchToggle}>
               <input type="checkbox" checked={touch} onChange={(e) => setTouch(e.target.checked)} />
@@ -385,6 +398,9 @@ export default function CatBlade({ onFinish }: GameProps) {
               {screen.summary.victory ? '🏆 VICTORY!' : '💀 GAME OVER'}
             </h2>
             <p className={styles.bigScore}>{screen.summary.score.toLocaleString()}점</p>
+            {screen.summary.awakened && (
+              <p className={styles.awakened}>★ {screen.summary.awakened} 각성 모드 ★</p>
+            )}
             <dl className={styles.summary}>
               <dt>도달 스테이지</dt>
               <dd>

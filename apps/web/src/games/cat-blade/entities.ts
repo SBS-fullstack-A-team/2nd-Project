@@ -561,6 +561,9 @@ export class EffectManager {
  * 투사체
  * ========================================================= */
 
+/** 파이어 캣 기본 검기 색 — 이 색이면 원래의 주황 불꽃으로 그린다 */
+export const FIRE_WAVE_COLOR = '#ff7a2a';
+
 export type ProjKind =
   | 'fireWave'
   | 'neon'
@@ -656,7 +659,14 @@ export class Projectile {
     }
     if (this.kind === 'fireWave' && Math.random() < 0.7) {
       const p = world.fx.add(
-        new Particle('dot', this.x + rand(-8, 8), this.y + rand(-12, 12), 0.3, 8, '#ff8a2a'),
+        new Particle(
+          'dot',
+          this.x + rand(-8, 8),
+          this.y + rand(-12, 12),
+          0.3,
+          8,
+          this.color === FIRE_WAVE_COLOR ? '#ff8a2a' : this.color,
+        ),
       );
       p.vx = -this.vx * 0.1;
       p.vy = -40;
@@ -742,8 +752,10 @@ export class Projectile {
         ctx.translate(this.x, this.y);
         ctx.rotate(ang);
         ctx.globalCompositeOperation = 'lighter';
-        drawGlow(ctx, 0, 0, this.r * 2.2, '#ff5a1a', 0.8);
-        ctx.fillStyle = 'rgba(255,200,80,0.95)';
+        // 기본은 주황 불꽃, 다른 색이면 그 색의 불꽃 (플레임 캣의 청염)
+        const orange = this.color === FIRE_WAVE_COLOR;
+        drawGlow(ctx, 0, 0, this.r * 2.2, orange ? '#ff5a1a' : this.color, 0.8);
+        ctx.fillStyle = orange ? 'rgba(255,200,80,0.95)' : 'rgba(210,248,255,0.95)';
         ctx.beginPath();
         ctx.arc(-this.r * 0.6, 0, this.r * 1.3, -1.2, 1.2);
         ctx.arc(-this.r * 1.1, 0, this.r * 1.05, 1.1, -1.1, true);

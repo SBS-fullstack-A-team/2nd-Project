@@ -102,6 +102,9 @@
 }
 
 .formCard {
+  /* 더블탭(각성 이스터에그) 때 확대·텍스트 선택이 되지 않게 */
+  touch-action: manipulation;
+  user-select: none;
   display: flex;
   flex-direction: column;
   align-items: center;
@@ -468,6 +471,22 @@
 }
 .padForm {
   background: radial-gradient(circle at 35% 30%, #ffb07a, #d8641a);
+}
+
+.secretHint {
+  margin: 10px 0 0;
+  color: #b8a8e8;
+  font-size: 0.8rem;
+  font-style: italic;
+  opacity: 0.75;
+}
+
+.awakened {
+  margin: -4px 0 10px;
+  color: #ffd34a;
+  font-weight: 900;
+  letter-spacing: 0.04em;
+  text-shadow: 0 0 12px rgba(255, 211, 74, 0.55);
 }
 
 .rotateHint {
