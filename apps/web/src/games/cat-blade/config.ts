@@ -89,6 +89,10 @@ export interface FormDef {
   damageTaken: number;
   /** 메뉴 설명 */
   desc: string;
+  /** 업그레이드(각성) 폼인지 — 이스터에그로만 고를 수 있다 */
+  upgraded?: boolean;
+  /** 주는 피해 배율 (기본 1) */
+  power?: number;
 }
 
 export const FORMS: readonly FormDef[] = [
@@ -174,7 +178,110 @@ export const FORMS: readonly FormDef[] = [
   },
 ];
 
-export function getForm(id: FormId): FormDef {
+/**
+ * 업그레이드(각성) 폼 — 메뉴에서 고양이 카드를 더블클릭하면 그 고양이가 각성한 채로 시작한다.
+ * 닌자→사무라이, 나이트→킹, 파이어→플레임, 치즈→참치, 사이버→슈프림.
+ * 이동·점프·패링·피해 감소·스킬 대기·주는 피해(power)가 모두 오르고 스킬도 강화된다.
+ */
+export const UPGRADES: Record<FormId, FormDef> = {
+  ninja: {
+    id: 'ninja',
+    name: '사무라이 캣',
+    type: '각성 · 신속 발도형',
+    color: '#ff3a5c',
+    glow: '#ffc2d6',
+    speed: 365,
+    jump: 800,
+    attack: '벚꽃 4연속 발도',
+    skill: '천본벚꽃 일섬',
+    skillCooldown: 3.4,
+    parryWindow: 0.22,
+    parryCounter: 42,
+    damageTaken: 0.82,
+    desc: '닌자 캣의 각성. 분신 다섯이 벚꽃처럼 흩날리며 베고, 일섬이 화면을 가른다',
+    upgraded: true,
+    power: 1.5,
+  },
+  knight: {
+    id: 'knight',
+    name: '킹 캣',
+    type: '각성 · 왕의 수호형',
+    color: '#ffd34a',
+    glow: '#fff4c8',
+    speed: 280,
+    jump: 735,
+    attack: '왕검 내려치기',
+    skill: '왕의 성검 심판',
+    skillCooldown: 3.8,
+    parryWindow: 0.34,
+    parryCounter: 60,
+    damageTaken: 0.6,
+    desc: '나이트 캣의 각성. 하늘에서 성검 비가 내리고, 패링 충격파가 더 넓고 강해진다',
+    upgraded: true,
+    power: 1.5,
+  },
+  fire: {
+    id: 'fire',
+    name: '플레임 캣',
+    type: '각성 · 청염 폭발형',
+    color: '#3a8aff',
+    glow: '#9af0ff',
+    speed: 325,
+    jump: 765,
+    attack: '청염 검기 관통 사격',
+    skill: '청염 대폭발',
+    skillCooldown: 3.8,
+    parryWindow: 0.21,
+    parryCounter: 42,
+    damageTaken: 0.82,
+    desc: '파이어 캣의 각성. 더 뜨거운 푸른 불꽃으로, 양옆 땅을 한꺼번에 폭발시킨다',
+    upgraded: true,
+    power: 1.5,
+  },
+  cheese: {
+    id: 'cheese',
+    name: '참치 냥이',
+    type: '각성 · 해일 파쇄형',
+    color: '#3ab4ff',
+    glow: '#b4f0ff',
+    speed: 248,
+    jump: 715,
+    attack: '냉동 참치 망치',
+    skill: '참치 대해일',
+    skillCooldown: 4.6,
+    parryWindow: 0.22,
+    parryCounter: 52,
+    damageTaken: 0.7,
+    desc: '치즈 냥이의 각성. 거대 참치로 내려치면 양옆으로 가시와 해일이 몰아친다',
+    upgraded: true,
+    power: 1.5,
+  },
+  cyber: {
+    id: 'cyber',
+    name: '슈프림 캣',
+    type: '각성 · 프리즘 광선형',
+    color: '#c07aff',
+    glow: '#7afff0',
+    speed: 345,
+    jump: 775,
+    attack: '프리즘 3갈래 레이저',
+    skill: '슈프림 오버드라이브',
+    skillCooldown: 3.8,
+    parryWindow: 0.22,
+    parryCounter: 42,
+    damageTaken: 0.82,
+    desc: '사이버 캣의 각성. 모든 레이저가 3갈래로 퍼지고, 프리즘 광선 세 줄기로 관통한다',
+    upgraded: true,
+    power: 1.5,
+  },
+};
+
+/** 각성 폼으로 시작하면 늘어나는 최대 체력 */
+export const UPGRADE_HP_BONUS = 50;
+
+/** 폼 정의 — upgraded 면 각성 폼 */
+export function getForm(id: FormId, upgraded = false): FormDef {
+  if (upgraded) return UPGRADES[id];
   return FORMS.find((f) => f.id === id) ?? (FORMS[0] as FormDef);
 }
 

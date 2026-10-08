@@ -20,6 +20,8 @@ import {
   PLAYER_MAX_HP,
   PLAYER_W,
   HURT_IFRAME,
+  UPGRADE_HP_BONUS,
+  getForm,
   ROLL_COOLDOWN,
   ROLL_IFRAME,
   ROLL_SEC,
@@ -27,7 +29,7 @@ import {
   type FormDef,
   type FormId,
 } from './config';
-import { Beam, Projectile, type World } from './entities';
+import { Beam, FIRE_WAVE_COLOR, Projectile, type World } from './entities';
 import type { CatPose, CatPoseName } from './renderCat';
 import type { SfxName } from './sound';
 import { TAU, approach, clamp, lerp, rand, type Rect } from './util';
@@ -62,13 +64,21 @@ export interface InputSource {
 
 export class CatFormManager {
   index = 0;
+  /** 각성한 폼 (이스터에그로 시작했을 때만) */
+  upgraded: FormId | null = null;
   /** 변신 재사용 대기 */
   cooldown = 0;
   /** 스킬 재사용 대기 — 폼마다 따로 돈다 */
   skillCd: Record<FormId, number> = { ninja: 0, knight: 0, fire: 0, cheese: 0, cyber: 0 };
 
   get def(): FormDef {
-    return FORMS[this.index] as FormDef;
+    return this.defAt(this.index);
+  }
+
+  /** 슬롯 i 의 폼 정의 — 각성한 폼이면 각성 버전 */
+  defAt(i: number): FormDef {
+    const base = FORMS[i] as FormDef;
+    return getForm(base.id, base.id === this.upgraded);
   }
 
   get id(): FormId {
@@ -224,6 +234,27 @@ const ATTACKS: Record<FormId, AttackStep[]> = {
   ],
 };
 
+/** 각성 폼 전용 기본 공격 (없으면 기본 표를 쓰고 피해만 배율로 오른다) */
+const UP_ATTACKS: Partial<Record<FormId, AttackStep[]>> = {
+  // 사무라이 — 4연속 발도, 마지막은 길게 뻗는 일섬
+  ninja: [
+    melee({ dur: 0.2, hitAt: 0.045, dmg: 9, w: 80 }),
+    melee({ dur: 0.2, hitAt: 0.045, dmg: 9, w: 80 }),
+    melee({ dur: 0.22, hitAt: 0.05, dmg: 11, w: 86, knock: 180 }),
+    melee({
+      dur: 0.38,
+      hitAt: 0.08,
+      dmg: 20,
+      w: 132,
+      h: 64,
+      knock: 380,
+      hitstop: 0.08,
+      shake: 6,
+      lunge: 340,
+    }),
+  ],
+};
+
 /** 스킬 동작 전체 시간 */
 const SKILL_DUR: Record<FormId, number> = {
   ninja: 0.45,
@@ -252,6 +283,19 @@ export class Player {
   /** HUD 의 붉은 잔상 체력바 */
   hpLag = PLAYER_MAX_HP;
   forms = new CatFormManager();
+
+  /** upgrade 를 주면 그 폼이 각성한 채로, 그 폼으로 시작한다 (최대 체력도 늘어난다) */
+  constructor(upgrade: FormId | null = null) {
+    if (!upgrade) return;
+    this.forms.upgraded = upgrade;
+    this.forms.index = Math.max(
+      0,
+      FORMS.findIndex((f) => f.id === upgrade),
+    );
+    this.maxHp = PLAYER_MAX_HP + UPGRADE_HP_BONUS;
+    this.hp = this.maxHp;
+    this.hpLag = this.maxHp;
+  }
 
   state: PState = 'normal';
   stateT = 0;
@@ -283,6 +327,16 @@ export class Player {
 
   get dead() {
     return this.state === 'dead';
+  }
+
+  /** 지금 폼이 각성 폼인지 */
+  get awakened() {
+    return this.form.upgraded === true;
+  }
+
+  /** 폼의 공격력 배율을 곱한 피해 */
+  private dmg(n: number) {
+    return Math.round(n * (this.form.power ?? 1));
   }
 
   hurtbox(): Rect {
@@ -439,6 +493,12 @@ export class Player {
     this.ambient(world);
   }
 
+  /** 지금 폼의 기본 공격 표 */
+  private attacks(): AttackStep[] {
+    const f = this.form;
+    return (f.upgraded && UP_ATTACKS[f.id]) || ATTACKS[f.id];
+  }
+
   private toNormal() {
     this.state = 'normal';
     this.stateT = 0;
@@ -510,11 +570,11 @@ export class Player {
     if (input.pressed('attack')) {
       if (free || afterParry) {
         input.consume('attack');
-        const steps = ATTACKS[this.form.id];
+        const steps = this.attacks();
         const next = this.chainT > 0 && this.lastStep + 1 < steps.length ? this.lastStep + 1 : 0;
         this.startAttack(next, input);
       } else if (this.state === 'attack') {
-        const steps = ATTACKS[this.form.id];
+        const steps = this.attacks();
         const cur = steps[this.attackStep];
         if (cur && this.stateT >= cur.hitAt * 0.5 && this.attackStep + 1 < steps.length) {
           input.consume('attack');
@@ -589,7 +649,7 @@ export class Player {
   }
 
   private updateAttack(dt: number, input: InputSource, world: World) {
-    const steps = ATTACKS[this.form.id];
+    const steps = this.attacks();
     const a = steps[this.attackStep];
     if (!a) {
       this.toNormal();
@@ -615,13 +675,14 @@ export class Player {
     const f = this.form;
     const fx = world.fx;
     const step = this.attackStep;
+    const up = this.awakened;
     world.sfx(a.sfx);
     if (a.kind === 'melee') {
       const x = this.facing > 0 ? this.x + a.ox : this.x - a.ox - a.w;
       world.addHitbox({
         team: 'player',
         shape: { kind: 'rect', x, y: this.y + a.oy, w: a.w, h: a.h },
-        damage: a.dmg,
+        damage: this.dmg(a.dmg),
         dir: this.facing,
         knock: a.knock,
         launch: a.launch,
@@ -634,12 +695,15 @@ export class Player {
       this.vx = this.facing * a.lunge;
       const cx = this.x + this.facing * 10;
       const cy = this.y - 28;
+      const steps = this.attacks();
+      const last = step === steps.length - 1;
       switch (f.id) {
         case 'ninja':
-          if (step === 2) {
-            fx.line(this.x, cy, this.x + this.facing * 100, cy, f.glow, 10, 0.18);
+          if (last) {
+            const len = up ? 140 : 100;
+            fx.line(this.x, cy, this.x + this.facing * len, cy, f.glow, up ? 12 : 10, 0.18);
             fx.sparks(
-              this.x + this.facing * 90,
+              this.x + this.facing * (len - 10),
               cy,
               this.facing > 0 ? 0 : Math.PI,
               0.3,
@@ -647,29 +711,92 @@ export class Player {
               6,
               500,
             );
+            if (up) {
+              // 일섬 끝에서 벚꽃 초승달 검기가 날아간다
+              const p = new Projectile(
+                'crescent',
+                'player',
+                this.x + this.facing * 40,
+                cy,
+                this.facing * 760,
+                0,
+                { r: 18, damage: this.dmg(10), color: '#ff7aa8', life: 0.55 },
+              );
+              p.pierce = Infinity;
+              p.knock = 160;
+              world.addProjectile(p);
+              this.petals(world, this.x + this.facing * 60, cy, 10);
+            }
           } else {
-            const [a0, a1] = step === 0 ? [-2.1, 1.0] : [1.1, -1.9];
-            fx.slash(cx, cy, this.facing, 50, a0, a1, f.color, 12, 0.2);
+            const [a0, a1] = step % 2 === 0 ? [-2.1, 1.0] : [1.1, -1.9];
+            fx.slash(cx, cy, this.facing, up ? 60 : 50, a0, a1, f.color, up ? 14 : 12, 0.2);
+            if (up) this.petals(world, cx + this.facing * 30, cy, 3);
           }
           break;
         case 'knight':
-          fx.slash(cx, this.y - 34, this.facing, 66, -2.5, 1.3, '#ffe9a8', 18, 0.26);
+          fx.slash(
+            cx,
+            this.y - 34,
+            this.facing,
+            up ? 76 : 66,
+            -2.5,
+            1.3,
+            f.glow,
+            up ? 22 : 18,
+            0.26,
+          );
           if (this.onGround) {
             const gx = this.x + this.facing * 70;
             fx.shards(gx, GROUND_Y, '#c8b8a0', 6, 280);
-            fx.ring(gx, this.y, 6, 60, '#ffe9a8', 0.3, 4);
+            fx.ring(gx, this.y, 6, up ? 80 : 60, f.glow, 0.3, 4);
+            if (up && last) {
+              // 왕검 두 번째 타격은 앞으로 황금 충격파를 보낸다
+              const p = new Projectile(
+                'shockwave',
+                'player',
+                this.x + this.facing * 40,
+                GROUND_Y - 16,
+                this.facing * 620,
+                0,
+                { r: 18, damage: this.dmg(14), color: '#ffd34a', life: 0.6 },
+              );
+              p.grounded = true;
+              p.pierce = Infinity;
+              p.knock = 200;
+              world.addProjectile(p);
+            }
           }
           break;
-        case 'cheese':
-          fx.slash(cx, this.y - 34, this.facing, 72, -2.8, 1.3, '#ffd84a', 22, 0.28);
+        case 'cheese': {
+          const col = up ? '#9ae8ff' : '#ffd84a';
+          fx.slash(cx, this.y - 34, this.facing, up ? 80 : 72, -2.8, 1.3, col, 22, 0.28);
           if (this.onGround) {
             const gx = this.x + this.facing * 76;
-            fx.shards(gx, GROUND_Y, '#ffd84a', 8, 340);
+            fx.shards(gx, GROUND_Y, col, 8, 340);
             fx.dust(gx, GROUND_Y, this.facing, 8);
-            fx.ring(gx, this.y, 8, 80, '#ffe066', 0.35, 6);
+            fx.ring(gx, this.y, 8, up ? 100 : 80, up ? '#b4f0ff' : '#ffe066', 0.35, 6);
+            if (up) {
+              // 참치 망치 — 땅을 치면 물결이 앞으로 밀려 나간다
+              const p = new Projectile(
+                'groundWave',
+                'player',
+                gx,
+                GROUND_Y - 18,
+                this.facing * 520,
+                0,
+                { r: 18, damage: this.dmg(16), color: '#3ab4ff', life: 0.7 },
+              );
+              p.grounded = true;
+              p.pierce = Infinity;
+              p.knock = 260;
+              p.launch = 240;
+              world.addProjectile(p);
+              this.splash(world, gx, GROUND_Y, 10);
+            }
           }
-          world.shake(4);
+          world.shake(up ? 6 : 4);
           break;
+        }
         default:
           break;
       }
@@ -684,35 +811,58 @@ export class Player {
         'player',
         mx,
         my + (step === 0 ? 4 : -6),
-        this.facing * 640,
+        this.facing * (up ? 760 : 640),
         0,
         {
-          r: 14,
-          damage: a.dmg,
-          color: '#ff7a2a',
-          life: 0.8,
+          r: up ? 18 : 14,
+          damage: this.dmg(a.dmg),
+          color: up ? '#3a8aff' : FIRE_WAVE_COLOR,
+          life: up ? 0.9 : 0.8,
         },
       );
-      p.pierce = 2;
+      p.pierce = up ? Infinity : 2;
       p.knock = a.knock;
       world.addProjectile(p);
-      fx.flare(mx, my, 26, '#ff8a2a', 0.18);
+      fx.flare(mx, my, up ? 32 : 26, up ? '#5aa8ff' : '#ff8a2a', 0.18);
     } else {
-      const spreads = step === 2 ? [-110, 0, 110] : [0];
-      for (const vy of spreads) {
-        const p = new Projectile('neon', 'player', mx, my, this.facing * 1150, vy, {
-          r: 7,
-          damage: a.dmg,
-          color: '#28f0ff',
+      // 슈프림 캣은 모든 사격이 3갈래, 마지막 타격은 5갈래
+      const spreads = up
+        ? step === 2
+          ? [-220, -110, 0, 110, 220]
+          : [-90, 0, 90]
+        : step === 2
+          ? [-110, 0, 110]
+          : [0];
+      const colors = ['#ff4adf', '#28f0ff', '#ffe14a', '#7afff0', '#c07aff'];
+      spreads.forEach((vy, i) => {
+        const p = new Projectile('neon', 'player', mx, my, this.facing * (up ? 1300 : 1150), vy, {
+          r: up ? 8 : 7,
+          damage: this.dmg(a.dmg),
+          color: up ? (colors[i % colors.length] as string) : '#28f0ff',
           life: 0.6,
         });
         p.knock = a.knock;
         world.addProjectile(p);
-      }
-      fx.flare(mx, my, 20, '#28f0ff', 0.12);
-      fx.sparks(mx, my, this.facing > 0 ? 0 : Math.PI, 0.5, '#ff4adf', 3, 300);
+      });
+      fx.flare(mx, my, up ? 26 : 20, up ? f.color : '#28f0ff', 0.12);
+      fx.sparks(mx, my, this.facing > 0 ? 0 : Math.PI, 0.5, f.glow, up ? 5 : 3, 300);
       this.vx = -this.facing * 40;
     }
+  }
+
+  /** 벚꽃잎 흩날림 (사무라이 캣) */
+  private petals(world: World, x: number, y: number, n: number) {
+    for (let i = 0; i < n; i++) {
+      const p = world.fx.flare(x + rand(-24, 24), y + rand(-20, 16), rand(4, 7), '#ffb4cf', 0.6);
+      p.vx = rand(-90, 90);
+      p.vy = rand(-110, 20);
+    }
+  }
+
+  /** 물보라 (참치 냥이) */
+  private splash(world: World, x: number, y: number, n: number) {
+    world.fx.burst(x, y - 10, '#9ae8ff', n, 320, 7);
+    world.fx.burst(x, y - 10, '#ffffff', Math.ceil(n / 2), 220, 5);
   }
 
   /* ---------------- 폼 스킬 ---------------- */
@@ -724,8 +874,19 @@ export class Player {
     this.skillStage = 0;
     this.vx = 0;
     world.sfx('skill');
-    world.fx.flare(this.x, this.y - 24, 40, this.form.color, 0.3);
-    world.fx.text(this.x, this.y - 72, this.form.skill, this.form.glow, 15, 0.8);
+    world.fx.flare(this.x, this.y - 24, this.awakened ? 56 : 40, this.form.color, 0.3);
+    world.fx.text(
+      this.x,
+      this.y - 72,
+      this.form.skill,
+      this.form.glow,
+      this.awakened ? 17 : 15,
+      0.8,
+    );
+    if (this.awakened) {
+      world.fx.ring(this.x, this.y - 24, 10, 90, this.form.glow, 0.4, 5);
+      world.flash(this.form.color, 0.18);
+    }
   }
 
   /** 스킬 진행 — 중력을 적용할지 돌려준다 */
@@ -749,13 +910,14 @@ export class Player {
           }
         }
         if (this.skillStage === 1) {
-          this.vx = this.facing * 1350;
+          this.vx = this.facing * (this.awakened ? 1600 : 1350);
           this.vy = 0;
           gravity = false;
           this.ghostT -= dt;
           if (this.ghostT <= 0) {
             this.ghostT = 0.02;
-            fx.ghost(this.pose(), '#5b6cff', 0.3);
+            fx.ghost(this.pose(), f.color, 0.3);
+            if (this.awakened) this.petals(world, this.x, this.y - 26, 1);
           }
           const hitWall = this.x <= ARENA_L + 16 || this.x >= ARENA_R - 16;
           if (t >= 0.23 || hitWall) {
@@ -771,7 +933,7 @@ export class Player {
         this.vx = approach(this.vx, 0, 2000 * dt);
         if (this.skillStage === 0) {
           if (Math.random() < 0.6) {
-            const p = fx.flare(this.x + rand(-20, 20), this.y - rand(20, 70), 10, '#ffe9a8', 0.3);
+            const p = fx.flare(this.x + rand(-20, 20), this.y - rand(20, 70), 10, f.glow, 0.3);
             p.vy = -80;
           }
           if (t >= 0.3) {
@@ -802,7 +964,7 @@ export class Player {
         if (this.skillStage === 0) {
           this.vy = Math.min(this.vy, 0);
           gravity = false;
-          fx.flare(this.x + this.facing * 18, this.y - 26, 16 + t * 120, '#28f0ff', 0.08);
+          fx.flare(this.x + this.facing * 18, this.y - 26, 16 + t * 120, f.glow, 0.08);
           if (t >= 0.14) {
             this.skillStage = 1;
             this.cyberLancer(world);
@@ -823,45 +985,77 @@ export class Player {
     const lo = Math.min(sx, ex);
     const hi = Math.max(sx, ex);
     const base = this.pose();
-    for (let i = 0; i < 3; i++) {
-      world.schedule(0.05 + i * 0.08, () => {
-        const cx = lerp(sx, ex, (i + 0.5) / 3);
+    const up = this.awakened;
+    const f = this.form;
+    // 사무라이는 분신 다섯 + 마지막 일섬
+    const n = up ? 5 : 3;
+    const dmg = this.dmg(20);
+    for (let i = 0; i < n; i++) {
+      world.schedule(0.05 + i * (up ? 0.06 : 0.08), () => {
+        const cx = lerp(sx, ex, (i + 0.5) / n);
         world.fx.ghost(
           { ...base, x: cx, y: gy, pose: 'attack', attackP: 0.6, attackStep: i % 2 },
-          '#6a7aff',
+          up ? '#ff6a8a' : '#6a7aff',
           0.4,
         );
         const [a0, a1] = i % 2 === 0 ? [-2.2, 1.2] : [1.2, -2.2];
-        world.fx.slash(cx, gy - 28, facing, 56, a0, a1, '#9ad8ff', 14, 0.24);
+        world.fx.slash(cx, gy - 28, facing, up ? 64 : 56, a0, a1, f.glow, 14, 0.24);
+        if (up) this.petals(world, cx, gy - 30, 4);
         world.addHitbox({
           team: 'player',
           shape: { kind: 'rect', x: lo - 40, y: gy - 84, w: hi - lo + 80, h: 88 },
-          damage: 20,
+          damage: dmg,
           dir: facing,
           knock: 150,
           hitstop: 0.04,
           shake: 4,
-          color: '#9ad8ff',
+          color: f.glow,
           kind: 'skill',
           life: 0.05,
         });
         world.sfx('slash');
       });
     }
+    if (up) {
+      // 천본벚꽃 일섬 — 지나온 길 전체를 한 줄로 가른다
+      world.schedule(0.05 + n * 0.06 + 0.06, () => {
+        const y = gy - 30;
+        world.fx.line(lo - 50, y, hi + 50, y, '#ffffff', 14, 0.3);
+        world.fx.line(lo - 50, y, hi + 50, y, '#ff3a5c', 6, 0.4);
+        this.petals(world, (lo + hi) / 2, y, 18);
+        world.addHitbox({
+          team: 'player',
+          shape: { kind: 'rect', x: lo - 60, y: gy - 90, w: hi - lo + 120, h: 94 },
+          damage: this.dmg(30),
+          dir: facing,
+          knock: 320,
+          launch: 200,
+          hitstop: 0.09,
+          shake: 9,
+          color: '#ffc2d6',
+          kind: 'skill',
+          life: 0.06,
+        });
+        world.flash('#ffc2d6', 0.25);
+        world.sfx('heavy');
+      });
+    }
   }
 
   private knightSlam(world: World) {
     const fx = world.fx;
+    const f = this.form;
+    const up = this.awakened;
     world.addHitbox({
       team: 'player',
       shape: { kind: 'rect', x: this.x - 150, y: this.y - 112, w: 300, h: 116 },
-      damage: 46,
+      damage: this.dmg(46),
       dir: this.facing,
       knock: 380,
       launch: 320,
       hitstop: 0.09,
       shake: 12,
-      color: '#ffe9a8',
+      color: f.glow,
       kind: 'skill',
       life: 0.08,
     });
@@ -875,9 +1069,9 @@ export class Player {
           dir * 560,
           0,
           {
-            r: 16,
-            damage: 22,
-            color: '#ffe9a8',
+            r: up ? 20 : 16,
+            damage: this.dmg(22),
+            color: up ? '#ffd34a' : '#ffe9a8',
             life: 0.75,
           },
         );
@@ -887,9 +1081,40 @@ export class Player {
         world.addProjectile(p);
       }
     }
+    if (up) {
+      // 왕의 성검 심판 — 주변 하늘에서 빛의 성검 다섯 자루가 차례로 꽂힌다
+      const x0 = this.x;
+      const dmg = this.dmg(26);
+      const offsets = [-260, 260, -150, 150, 0];
+      offsets.forEach((ox, i) => {
+        const sx = clamp(x0 + ox, ARENA_L + 30, ARENA_R - 30);
+        world.schedule(0.12 + i * 0.09, () => {
+          world.fx.line(sx, GROUND_Y - 300, sx, GROUND_Y, '#fff4c8', 16, 0.25);
+          world.fx.line(sx, GROUND_Y - 300, sx, GROUND_Y, '#ffd34a', 6, 0.35);
+          world.fx.ring(sx, GROUND_Y - 6, 8, 70, '#ffd34a', 0.35, 5);
+          world.fx.flare(sx, GROUND_Y - 30, 60, '#ffe9a8', 0.3);
+          world.fx.shards(sx, GROUND_Y, '#ffe9a8', 6, 300);
+          world.addHitbox({
+            team: 'player',
+            shape: { kind: 'rect', x: sx - 34, y: GROUND_Y - 240, w: 68, h: 240 },
+            damage: dmg,
+            dir: sx >= x0 ? 1 : -1,
+            knock: 180,
+            launch: 380,
+            hitstop: 0.05,
+            shake: 6,
+            color: '#ffd34a',
+            kind: 'skill',
+            life: 0.08,
+          });
+          world.shake(5);
+          world.sfx('heavy');
+        });
+      });
+    }
     fx.slash(this.x + this.facing * 8, this.y - 40, this.facing, 74, -2.8, 1.4, '#fff4c8', 22, 0.3);
-    fx.ring(this.x, this.y, 10, 160, '#ffe9a8', 0.45, 8);
-    fx.flare(this.x, this.y - 10, 90, '#ffe9a8', 0.3);
+    fx.ring(this.x, this.y, 10, up ? 200 : 160, f.glow, 0.45, 8);
+    fx.flare(this.x, this.y - 10, 90, f.glow, 0.3);
     fx.shards(this.x, GROUND_Y, '#c8b8a0', 12, 420);
     world.shake(10);
     world.sfx('heavy');
@@ -899,27 +1124,37 @@ export class Player {
   private fireChain(world: World) {
     const x0 = this.x;
     const facing = this.facing;
-    world.fx.flare(x0 + facing * 20, this.y - 26, 40, '#ff8a2a', 0.25);
-    for (let i = 0; i < 6; i++) {
-      world.schedule(i * 0.08, () => {
-        const ex = x0 + facing * (70 + i * 70);
-        if (ex < ARENA_L - 20 || ex > ARENA_R + 20) return;
-        world.addHitbox({
-          team: 'player',
-          shape: { kind: 'circle', x: ex, y: GROUND_Y - 40, r: 60 },
-          damage: 18,
-          dir: facing,
-          knock: 200,
-          launch: 260,
-          hitstop: 0.03,
-          shake: 5,
-          color: '#ff8a2a',
-          kind: 'skill',
-          life: 0.08,
-        });
-        world.fx.explosion(ex, GROUND_Y - 34, 70, '#ff5a1a');
-        world.fx.burst(ex, GROUND_Y - 30, '#ffc04a', 10, 280, 10);
-        world.fx.ring(ex, GROUND_Y - 30, 8, 64, '#ff8a2a', 0.3, 5);
+    const up = this.awakened;
+    const dmg = this.dmg(18);
+    const [core, hot, rim] = up
+      ? ['#2a6aff', '#9af0ff', '#5aa8ff']
+      : ['#ff5a1a', '#ffc04a', '#ff8a2a'];
+    world.fx.flare(x0 + facing * 20, this.y - 26, up ? 56 : 40, rim, 0.25);
+    // 플레임 캣은 앞뒤 양쪽으로 8칸씩 동시에 폭발한다
+    const dirs = up ? [facing, -facing] : [facing];
+    const n = up ? 8 : 6;
+    for (let i = 0; i < n; i++) {
+      world.schedule(i * (up ? 0.065 : 0.08), () => {
+        for (const d of dirs) {
+          const ex = x0 + d * (70 + i * 70);
+          if (ex < ARENA_L - 20 || ex > ARENA_R + 20) continue;
+          world.addHitbox({
+            team: 'player',
+            shape: { kind: 'circle', x: ex, y: GROUND_Y - 40, r: up ? 70 : 60 },
+            damage: dmg,
+            dir: d,
+            knock: 200,
+            launch: 260,
+            hitstop: 0.03,
+            shake: 5,
+            color: rim,
+            kind: 'skill',
+            life: 0.08,
+          });
+          world.fx.explosion(ex, GROUND_Y - 34, up ? 84 : 70, core);
+          world.fx.burst(ex, GROUND_Y - 30, hot, 10, 280, 10);
+          world.fx.ring(ex, GROUND_Y - 30, 8, up ? 78 : 64, rim, 0.3, 5);
+        }
         world.shake(3);
         world.sfx('fire');
       });
@@ -930,44 +1165,67 @@ export class Player {
     const x0 = this.x;
     const facing = this.facing;
     const fx = world.fx;
+    const up = this.awakened;
+    const col = up ? '#9ae8ff' : '#ffd84a';
     world.addHitbox({
       team: 'player',
       shape: { kind: 'rect', x: facing > 0 ? x0 : x0 - 110, y: this.y - 90, w: 110, h: 94 },
-      damage: 34,
+      damage: this.dmg(34),
       dir: facing,
       knock: 300,
       launch: 300,
       hitstop: 0.08,
       shake: 10,
-      color: '#ffd84a',
+      color: col,
       kind: 'skill',
       life: 0.08,
     });
-    fx.slash(x0 + facing * 10, this.y - 34, facing, 72, -2.8, 1.3, '#ffd84a', 22, 0.28);
-    fx.ring(x0 + facing * 60, this.y, 8, 120, '#ffe066', 0.4, 8);
+    fx.slash(x0 + facing * 10, this.y - 34, facing, 72, -2.8, 1.3, col, 22, 0.28);
+    fx.ring(x0 + facing * 60, this.y, 8, up ? 150 : 120, up ? '#b4f0ff' : '#ffe066', 0.4, 8);
     world.shake(9);
     world.sfx('heavy');
+    const dmg = this.dmg(26);
+    // 참치 냥이는 앞뒤로 가시가 솟고, 양옆으로 해일이 밀려간다
+    const dirs = up ? [facing, -facing] : [facing];
     for (let i = 0; i < 7; i++) {
       world.schedule(0.06 + i * 0.07, () => {
-        const sx = x0 + facing * (70 + i * 58);
-        if (sx < ARENA_L || sx > ARENA_R) return;
-        world.addHitbox({
-          team: 'player',
-          shape: { kind: 'rect', x: sx - 24, y: GROUND_Y - 120, w: 48, h: 120 },
-          damage: 26,
-          dir: facing,
-          knock: 120,
-          launch: 560,
-          hitstop: 0.04,
-          shake: 5,
-          color: '#ffd84a',
-          kind: 'skill',
-          life: 0.1,
-        });
-        world.fx.spike(sx, '#e8b84a', 96 + i * 6, 42);
+        for (const d of dirs) {
+          const sx = x0 + d * (70 + i * 58);
+          if (sx < ARENA_L || sx > ARENA_R) continue;
+          world.addHitbox({
+            team: 'player',
+            shape: { kind: 'rect', x: sx - 24, y: GROUND_Y - 120, w: 48, h: 120 },
+            damage: dmg,
+            dir: d,
+            knock: 120,
+            launch: 560,
+            hitstop: 0.04,
+            shake: 5,
+            color: col,
+            kind: 'skill',
+            life: 0.1,
+          });
+          world.fx.spike(sx, up ? '#7ad0f0' : '#e8b84a', 96 + i * 6, 42);
+          if (up) this.splash(world, sx, GROUND_Y, 4);
+        }
         world.shake(3);
         world.sfx('heavy');
       });
+    }
+    if (up && this.onGround) {
+      for (const d of [-1, 1]) {
+        const p = new Projectile('groundWave', 'player', x0 + d * 40, GROUND_Y - 30, d * 480, 0, {
+          r: 30,
+          damage: this.dmg(24),
+          color: '#3ab4ff',
+          life: 1.1,
+        });
+        p.grounded = true;
+        p.pierce = Infinity;
+        p.knock = 320;
+        p.launch = 360;
+        world.addProjectile(p);
+      }
     }
   }
 
@@ -975,29 +1233,45 @@ export class Player {
     const fx = world.fx;
     const sx = this.x;
     const y = this.y - 26;
+    const up = this.awakened;
     const wallDist = this.facing > 0 ? ARENA_R - sx : sx - ARENA_L;
-    const beam = new Beam(sx, y, this.facing > 0 ? 0 : Math.PI, {
-      length: wallDist + 60,
-      width: 26,
-      warn: 0,
-      active: 0.2,
-      team: 'player',
-      damage: 48,
-      color: '#28f0ff',
-    });
-    beam.once = true;
-    world.addBeam(beam);
-    const ex = clamp(sx + this.facing * 280, ARENA_L + 16, ARENA_R - 16);
+    const base0 = this.facing > 0 ? 0 : Math.PI;
+    // 슈프림 캣은 정면 + 위아래로 비스듬한 프리즘 광선 세 줄기
+    const rays = up
+      ? [
+          { a: 0, c: '#ffffff', w: 40 },
+          { a: -0.2, c: '#ff4adf', w: 22 },
+          { a: 0.2, c: '#7afff0', w: 22 },
+        ]
+      : [{ a: 0, c: '#28f0ff', w: 26 }];
+    for (const r of rays) {
+      const beam = new Beam(sx, y, base0 + r.a * this.facing, {
+        length: (r.a === 0 ? wallDist : 900) + 60,
+        width: r.w,
+        warn: 0,
+        active: up ? 0.26 : 0.2,
+        team: 'player',
+        damage: this.dmg(r.a === 0 ? 48 : 28),
+        color: r.c,
+      });
+      beam.once = true;
+      world.addBeam(beam);
+    }
+    const ex = clamp(sx + this.facing * (up ? 340 : 280), ARENA_L + 16, ARENA_R - 16);
     const base = this.pose();
     for (let i = 1; i <= 5; i++) {
-      fx.ghost({ ...base, x: lerp(sx, ex, i / 6) }, '#ff4adf', 0.25 + i * 0.03);
+      fx.ghost(
+        { ...base, x: lerp(sx, ex, i / 6) },
+        up ? this.form.color : '#ff4adf',
+        0.25 + i * 0.03,
+      );
     }
     this.x = ex;
-    this.iframe = Math.max(this.iframe, 0.3);
+    this.iframe = Math.max(this.iframe, up ? 0.4 : 0.3);
     fx.line(sx, y, ex, y, '#ffffff', 10, 0.2);
-    fx.sparks(ex, y, this.facing > 0 ? 0 : Math.PI, 0.6, '#28f0ff', 14, 700);
-    fx.ring(sx, y, 6, 50, '#ff4adf', 0.3, 4);
-    world.shake(6);
+    fx.sparks(ex, y, this.facing > 0 ? 0 : Math.PI, 0.6, this.form.glow, 14, 700);
+    fx.ring(sx, y, 6, up ? 80 : 50, up ? this.form.color : '#ff4adf', 0.3, 4);
+    world.shake(up ? 9 : 6);
     world.sfx('laser');
   }
 
@@ -1040,12 +1314,24 @@ export class Player {
   /** 폼별 주변 파티클 (불티, 네온 스파크) */
   private ambient(world: World) {
     const id = this.form.id;
+    if (this.awakened && Math.random() < 0.3) {
+      // 각성 오라 — 몸 주위로 폼 색 불티가 피어오른다
+      const p = world.fx.flare(
+        this.x + rand(-16, 16),
+        this.y - rand(4, 44),
+        rand(3, 6),
+        Math.random() < 0.5 ? this.form.color : this.form.glow,
+        0.5,
+      );
+      p.vy = -rand(50, 110);
+      p.vx = rand(-15, 15);
+    }
     if (id === 'fire' && Math.random() < 0.2) {
       const p = world.fx.flare(
         this.x - this.facing * 20 + rand(-4, 4),
         this.y - 46,
         rand(4, 7),
-        '#ff8a2a',
+        this.awakened ? '#5aa8ff' : '#ff8a2a',
         0.4,
       );
       p.vy = -rand(40, 90);
@@ -1056,12 +1342,12 @@ export class Player {
         this.y - rand(10, 40),
         rand(0, TAU),
         0.3,
-        '#28f0ff',
+        this.awakened ? this.form.glow : '#28f0ff',
         1,
         120,
       );
     } else if (id === 'knight' && this.state === 'parry' && this.stateT < this.form.parryWindow) {
-      world.fx.flare(this.x + this.facing * 18, this.y - 30, 16, '#ffe9a8', 0.08);
+      world.fx.flare(this.x + this.facing * 18, this.y - 30, 16, this.form.glow, 0.08);
     }
   }
 
@@ -1077,7 +1363,7 @@ export class Player {
         break;
       case 'attack': {
         pose = 'attack';
-        const a = ATTACKS[this.form.id][this.attackStep];
+        const a = this.attacks()[this.attackStep];
         attackP = a ? this.stateT / a.dur : 0;
         break;
       }
@@ -1109,6 +1395,7 @@ export class Player {
       y: this.y,
       facing: this.facing,
       form: this.form.id,
+      upgraded: this.awakened,
       pose,
       t: this.t,
       runPhase: this.runPhase,

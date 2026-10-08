@@ -1,1 +1,194 @@
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 320 180"><defs><linearGradient id="sky" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#07020f"/><stop offset=".65" stop-color="#2a0b44"/><stop offset="1" stop-color="#5a1240"/></linearGradient><radialGradient id="moon" cx="0" cy="0" r="1" gradientUnits="userSpaceOnUse" gradientTransform="translate(238 58) scale(70)"><stop offset="0" stop-color="#ff7a8a" stop-opacity=".6"/><stop offset="1" stop-color="#ff2a5a" stop-opacity="0"/></radialGradient><linearGradient id="slash" x1="0" y1="0" x2="1" y2="0"><stop offset="0" stop-color="#9ad8ff" stop-opacity="0"/><stop offset=".7" stop-color="#bff0ff"/><stop offset="1" stop-color="#fff"/></linearGradient><linearGradient id="blade" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#fff"/><stop offset="1" stop-color="#8ab4ff"/></linearGradient><radialGradient id="glow" cx="0" cy="0" r="1" gradientUnits="userSpaceOnUse" gradientTransform="translate(196 92) scale(30)"><stop offset="0" stop-color="#fff27a"/><stop offset="1" stop-color="#fff27a" stop-opacity="0"/></radialGradient></defs><rect width="320" height="180" fill="url(#sky)"/><circle cx="238" cy="58" r="70" fill="url(#moon)"/><circle cx="238" cy="58" r="30" fill="#ff5a6a"/><g fill="#12051c"><rect x="20" y="70" width="26" height="80"/><path d="M16 70 33 40 50 70z"/><rect x="270" y="80" width="30" height="70"/><path d="M266 80 285 46 304 80z"/><rect x="0" y="118" width="320" height="34"/></g><rect y="150" width="320" height="30" fill="#2a1a3a"/><rect y="150" width="320" height="3" fill="#6a4a8a"/><path d="M60 120 Q150 30 250 70" fill="none" stroke="url(#slash)" stroke-width="7" stroke-linecap="round"/><path d="M70 132 Q160 52 260 92" fill="none" stroke="#5b6cff" stroke-opacity=".5" stroke-width="3" stroke-linecap="round"/><circle cx="196" cy="92" r="30" fill="url(#glow)"/><path d="M196 74 199 89 214 92 199 95 196 110 193 95 178 92 193 89z" fill="#fff"/><g transform="translate(110 150)"><path d="M-14 -22C-34 -22 -38 -44 -26 -58" fill="none" stroke="#2e3248" stroke-width="8" stroke-linecap="round"/><path d="M-14 -22C-34 -22 -38 -44 -26 -58" fill="none" stroke="#4a5070" stroke-width="5" stroke-linecap="round"/><ellipse cx="-8" cy="-5" rx="6" ry="7" fill="#2e3248"/><ellipse cx="9" cy="-5" rx="6" ry="7" fill="#4a5070"/><path d="M-2 -38 Q-34 -44 -44 -30 L-40 -24 Q-30 -36 -2 -32z" fill="#e8344a"/><ellipse cx="0" cy="-24" rx="18" ry="16" fill="#4a5070"/><ellipse cx="6" cy="-20" rx="9" ry="10" fill="#d9dcef"/><path d="M-4 -60 0 -78 8 -62z M12 -62 20 -78 24 -58z" fill="#4a5070"/><path d="M0 -62 2 -72 6 -63z M15 -62 19 -72 21 -61z" fill="#ff9fb8"/><circle cx="9" cy="-48" r="17" fill="#4a5070"/><rect x="-8" y="-58" width="34" height="6" fill="#1c1f2e"/><rect x="11" y="-60" width="10" height="8" fill="#9aa4c8"/><ellipse cx="18" cy="-42" rx="9" ry="7" fill="#d9dcef"/><ellipse cx="13" cy="-49" rx="4" ry="4.4" fill="#fff"/><ellipse cx="22" cy="-49" rx="4" ry="4.4" fill="#fff"/><ellipse cx="14" cy="-49" rx="2.8" ry="3.6" fill="#7ae0ff"/><ellipse cx="23" cy="-49" rx="2.8" ry="3.6" fill="#7ae0ff"/><circle cx="14.4" cy="-49" r="1.3" fill="#111"/><circle cx="23.4" cy="-49" r="1.3" fill="#111"/><path d="M24 -43h4l-2 2.4z" fill="#ff7f9a"/><ellipse cx="-12" cy="-35" rx="14" ry="5" fill="#e8344a"/><g transform="translate(16 -30) rotate(-38)"><rect x="-8" y="-2" width="10" height="4" fill="#2a1a1a"/><rect x="2" y="-5" width="3" height="10" fill="#d8b04a"/><path d="M5 -2.4 64 -1.6 70 .8 5 2.4z" fill="url(#blade)"/></g><circle cx="16" cy="-30" r="4.5" fill="#d9dcef"/></g><text x="16" y="34" fill="#fff" stroke="#3a1a6a" stroke-width="4" paint-order="stroke" font-family="sans-serif" font-style="italic" font-weight="900" font-size="26">CAT <tspan fill="#ffd84a">BLADE</tspan></text><text x="18" y="52" fill="#d8c8ff" font-family="sans-serif" font-weight="700" font-size="11">구르고 · 받아치고 · 변신하라</text><text x="226" y="172" fill="#fff27a" stroke="#1a0f08" stroke-width="3" paint-order="stroke" font-family="sans-serif" font-weight="900" font-size="15">PARRY!</text></svg>
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 320 180">
+  <defs>
+    <linearGradient id="sky" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#05010d"/>
+      <stop offset=".55" stop-color="#2a0a48"/>
+      <stop offset="1" stop-color="#6a1442"/>
+    </linearGradient>
+    <radialGradient id="moonGlow" cx="0" cy="0" r="1" gradientUnits="userSpaceOnUse" gradientTransform="translate(250 52) scale(84)">
+      <stop offset="0" stop-color="#ff8a9a" stop-opacity=".75"/>
+      <stop offset=".45" stop-color="#ff3a6a" stop-opacity=".25"/>
+      <stop offset="1" stop-color="#ff2a5a" stop-opacity="0"/>
+    </radialGradient>
+    <radialGradient id="moon" cx=".38" cy=".35" r=".75">
+      <stop offset="0" stop-color="#ffe0e4"/>
+      <stop offset=".55" stop-color="#ff7a8c"/>
+      <stop offset="1" stop-color="#d8325a"/>
+    </radialGradient>
+    <linearGradient id="ground" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#3a2050"/>
+      <stop offset="1" stop-color="#150a22"/>
+    </linearGradient>
+    <linearGradient id="slash" x1="0" y1="0" x2="1" y2="0">
+      <stop offset="0" stop-color="#ff3a5c" stop-opacity="0"/>
+      <stop offset=".55" stop-color="#ffc2d6" stop-opacity=".9"/>
+      <stop offset="1" stop-color="#fff"/>
+    </linearGradient>
+    <linearGradient id="blade" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#fff"/>
+      <stop offset=".5" stop-color="#d8e0f0"/>
+      <stop offset="1" stop-color="#6a7290"/>
+    </linearGradient>
+    <radialGradient id="fur" cx=".35" cy=".3" r=".8">
+      <stop offset="0" stop-color="#6a7090"/>
+      <stop offset=".55" stop-color="#363a50"/>
+      <stop offset="1" stop-color="#16182a"/>
+    </radialGradient>
+    <linearGradient id="armor" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#ff6a7a"/>
+      <stop offset=".5" stop-color="#d81e3c"/>
+      <stop offset="1" stop-color="#6a0a1c"/>
+    </linearGradient>
+    <linearGradient id="gold" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#fff4b0"/>
+      <stop offset=".5" stop-color="#e8b43a"/>
+      <stop offset="1" stop-color="#8a5a10"/>
+    </linearGradient>
+    <radialGradient id="aura" cx="0" cy="0" r="1" gradientUnits="userSpaceOnUse" gradientTransform="translate(112 118) scale(56)">
+      <stop offset="0" stop-color="#ff3a5c" stop-opacity=".55"/>
+      <stop offset="1" stop-color="#ff3a5c" stop-opacity="0"/>
+    </radialGradient>
+    <radialGradient id="spark" cx="0" cy="0" r="1" gradientUnits="userSpaceOnUse" gradientTransform="translate(196 96) scale(34)">
+      <stop offset="0" stop-color="#fff"/>
+      <stop offset=".3" stop-color="#fff27a"/>
+      <stop offset="1" stop-color="#fff27a" stop-opacity="0"/>
+    </radialGradient>
+    <radialGradient id="kingEye" cx="0" cy="0" r="1">
+      <stop offset="0" stop-color="#fff"/>
+      <stop offset=".35" stop-color="#ff4adf"/>
+      <stop offset="1" stop-color="#ff4adf" stop-opacity="0"/>
+    </radialGradient>
+    <linearGradient id="kingBody" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#2a1640"/>
+      <stop offset="1" stop-color="#0c0614"/>
+    </linearGradient>
+    <filter id="soft" x="-20%" y="-20%" width="140%" height="140%">
+      <feGaussianBlur stdDeviation="1.6"/>
+    </filter>
+  </defs>
+
+  <!-- 밤하늘 · 붉은 달 · 별 -->
+  <rect width="320" height="180" fill="url(#sky)"/>
+  <circle cx="250" cy="52" r="84" fill="url(#moonGlow)"/>
+  <circle cx="250" cy="52" r="27" fill="url(#moon)"/>
+  <path d="M240 44c4-2 8 0 9 3M256 60c3 1 5 0 6-2" stroke="#c02a50" stroke-opacity=".5" stroke-width="2" fill="none" stroke-linecap="round"/>
+  <g fill="#fff">
+    <circle cx="30" cy="70" r=".8" opacity=".7"/><circle cx="160" cy="18" r="1" opacity=".8"/>
+    <circle cx="196" cy="40" r=".7" opacity=".6"/><circle cx="300" cy="110" r=".8" opacity=".6"/>
+    <circle cx="134" cy="56" r=".6" opacity=".5"/><circle cx="214" cy="14" r=".9" opacity=".7"/>
+  </g>
+
+  <!-- 그림자 왕궁 실루엣 -->
+  <g fill="#12051e">
+    <rect x="8" y="78" width="24" height="80"/><path d="M4 78 20 44 36 78z"/>
+    <rect x="44" y="98" width="18" height="60"/><path d="M41 98 53 76 65 98z"/>
+    <rect x="276" y="86" width="30" height="72"/><path d="M272 86 291 50 310 86z"/>
+    <rect x="0" y="122" width="320" height="36"/>
+  </g>
+  <g fill="#ff4a7a" opacity=".55">
+    <rect x="17" y="92" width="5" height="8" rx="2"/><rect x="287" y="100" width="6" height="9" rx="2"/>
+    <rect x="50" y="110" width="4" height="7" rx="1.5"/>
+  </g>
+
+  <!-- 타락한 고양이 왕 (뒤에서 노려보는 거대한 그림자) -->
+  <g opacity=".95">
+    <path d="M222 158 C214 120 220 92 236 78 L230 52 L246 70 C252 66 262 66 268 70 L284 52 L278 80 C292 94 298 124 290 158z" fill="url(#kingBody)"/>
+    <path d="M236 70 240 56 246 66 252 52 258 66 264 56 268 70z" fill="url(#gold)" stroke="#5a3a10" stroke-width=".8"/>
+    <circle cx="248" cy="88" r="8" fill="url(#kingEye)"/><circle cx="266" cy="88" r="8" fill="url(#kingEye)"/>
+    <path d="M244 88q4-3 8 0q-4 2-8 0zM262 88q4-3 8 0q-4 2-8 0z" fill="#fff"/>
+    <path d="M226 158 C226 132 214 114 196 106" stroke="#ff2a6a" stroke-opacity=".35" stroke-width="2" fill="none"/>
+  </g>
+
+  <!-- 바닥 -->
+  <rect y="152" width="320" height="28" fill="url(#ground)"/>
+  <rect y="152" width="320" height="2.5" fill="#8a5aa8" opacity=".8"/>
+  <ellipse cx="114" cy="155" rx="34" ry="4" fill="#000" opacity=".45"/>
+
+  <!-- 일섬 검기 -->
+  <path d="M46 128 Q140 30 268 78" fill="none" stroke="url(#slash)" stroke-width="9" stroke-linecap="round"/>
+  <path d="M46 128 Q140 30 268 78" fill="none" stroke="#fff" stroke-width="2" stroke-linecap="round" opacity=".9"/>
+  <path d="M60 140 Q150 56 270 96" fill="none" stroke="#ff3a5c" stroke-opacity=".45" stroke-width="3" stroke-linecap="round"/>
+
+  <!-- 패링 불꽃 -->
+  <circle cx="196" cy="96" r="34" fill="url(#spark)"/>
+  <path d="M196 72 199.5 92 220 96 199.5 100 196 120 192.5 100 172 96 192.5 92z" fill="#fff"/>
+  <g stroke="#fff27a" stroke-width="1.6" stroke-linecap="round">
+    <path d="M210 82l8-7M182 110l-8 7M212 110l9 6M180 82l-8-6"/>
+  </g>
+
+  <!-- 각성 오라 -->
+  <circle cx="112" cy="118" r="56" fill="url(#aura)"/>
+
+  <!-- 사무라이 캣 -->
+  <g transform="translate(110 152)">
+    <!-- 등 깃발 -->
+    <path d="M-10 -40 -20 -104" stroke="#2a1a10" stroke-width="2.4"/>
+    <path d="M-20 -104 Q-30 -102 -40 -106 L-42 -76 Q-31 -73 -20 -76z" fill="#d81e3c" stroke="#0c0d16" stroke-width="1.4"/>
+    <g transform="translate(-30 -90)" fill="#e8b43a">
+      <ellipse cx="0" cy="-3.6" rx="2.2" ry="3.4"/><ellipse cx="0" cy="-3.6" rx="2.2" ry="3.4" transform="rotate(72)"/>
+      <ellipse cx="0" cy="-3.6" rx="2.2" ry="3.4" transform="rotate(144)"/><ellipse cx="0" cy="-3.6" rx="2.2" ry="3.4" transform="rotate(216)"/>
+      <ellipse cx="0" cy="-3.6" rx="2.2" ry="3.4" transform="rotate(288)"/><circle r="1.4" fill="#d81e3c"/>
+    </g>
+    <!-- 꼬리 -->
+    <path d="M-16 -24C-38 -24 -44 -48 -30 -64" fill="none" stroke="#0c0d16" stroke-width="10" stroke-linecap="round"/>
+    <path d="M-16 -24C-38 -24 -44 -48 -30 -64" fill="none" stroke="#363a50" stroke-width="7" stroke-linecap="round"/>
+    <ellipse cx="-36" cy="-44" rx="5" ry="3" fill="#d81e3c" transform="rotate(40 -36 -44)"/>
+    <!-- 다리 -->
+    <ellipse cx="-10" cy="-6" rx="7" ry="8" fill="#1c1e2c" stroke="#0c0d16" stroke-width="1.6"/>
+    <ellipse cx="11" cy="-6" rx="7" ry="8" fill="#4a4e68" stroke="#0c0d16" stroke-width="1.6"/>
+    <!-- 몸 + 진홍 갑옷 -->
+    <ellipse cx="0" cy="-26" rx="20" ry="18" fill="url(#fur)" stroke="#0c0d16" stroke-width="2"/>
+    <path d="M-19 -34 Q0 -38 19 -34 L19 -18 Q0 -14 -19 -18z" fill="url(#armor)"/>
+    <path d="M-19 -30 Q0 -26 19 -30M-19 -24 Q0 -20 19 -24" stroke="#e8b43a" stroke-width="1.1" fill="none"/>
+    <path d="M-19 -17 Q0 -13 19 -17 L19 -13 Q0 -9 -19 -13z" fill="#1a1420"/>
+    <ellipse cx="7" cy="-22" rx="8" ry="9" fill="#e8e4f2" opacity=".0"/>
+    <!-- 머리 -->
+    <path d="M-6 -66 -1 -88 9 -70z M14 -70 24 -88 28 -65z" fill="#363a50" stroke="#0c0d16" stroke-width="1.6"/>
+    <path d="M-1 -70 1 -82 6 -71z M17 -71 22 -82 24 -69z" fill="#ff9fb8"/>
+    <circle cx="10" cy="-55" r="19" fill="url(#fur)" stroke="#0c0d16" stroke-width="2"/>
+    <ellipse cx="20" cy="-47" rx="10" ry="7.5" fill="#e8e4f2"/>
+    <ellipse cx="11" cy="-48" rx="4.4" ry="2.6" fill="#ff8fb0" opacity=".45"/>
+    <!-- 투구 -->
+    <path d="M-10 -60 A20 20 0 0 1 30 -60z" fill="#1c1e2c" stroke="#0c0d16" stroke-width="1.6"/>
+    <path d="M-12 -62 L34 -62 L37 -58 L-12 -58z" fill="#d81e3c" stroke="#0c0d16" stroke-width="1.2"/>
+    <path d="M-10 -60 -20 -54 -17 -48 -8 -54z M-12 -55 -21 -47 -18 -42 -9 -49z" fill="#1c1e2c" stroke="#d81e3c" stroke-width="1"/>
+    <path d="M-6 -88 Q12 -60 30 -88 Q12 -72 -6 -88z" fill="url(#gold)" stroke="#6a4010" stroke-width="1"/>
+    <circle cx="12" cy="-74" r="2.6" fill="#d81e3c"/>
+    <!-- 눈 -->
+    <ellipse cx="12" cy="-53" rx="4.4" ry="4.8" fill="#fff" stroke="#0c0d16" stroke-width="1"/>
+    <ellipse cx="22" cy="-53" rx="4.8" ry="5.2" fill="#fff" stroke="#0c0d16" stroke-width="1"/>
+    <ellipse cx="13" cy="-52.6" rx="3.2" ry="4" fill="#ffd23a"/><ellipse cx="23" cy="-52.6" rx="3.5" ry="4.3" fill="#ffd23a"/>
+    <ellipse cx="13.5" cy="-52.6" rx="1.2" ry="3" fill="#0a0a12"/><ellipse cx="23.6" cy="-52.6" rx="1.3" ry="3.2" fill="#0a0a12"/>
+    <circle cx="11.6" cy="-54.6" r="1.3" fill="#fff"/><circle cx="21.6" cy="-54.8" r="1.4" fill="#fff"/>
+    <path d="M9 -60 16 -57.5M27 -60 20 -57.5" stroke="#0c0d16" stroke-width="1.8" stroke-linecap="round"/>
+    <path d="M26 -47h4l-2 2.4z" fill="#ff7f9a"/>
+    <path d="M28 -44.6q-2 3-4 2M28 -44.6q2 3 4 2" stroke="#3a2a2a" stroke-width="1" fill="none"/>
+    <path d="M31 -46q8-2 15-1M31 -44q8 0 15 2" stroke="#fff" stroke-opacity=".75" stroke-width=".8" fill="none"/>
+    <!-- 어깨 소데 + 팔 + 대태도 -->
+    <path d="M2 -40 Q10 -42 16 -40 L15 -34 Q9 -35 3 -34z" fill="#ff4a5e" stroke="#0c0d16" stroke-width="1"/>
+    <g transform="translate(20 -32) rotate(-36)">
+      <rect x="-12" y="-2.5" width="15" height="5" fill="#1a0c10"/>
+      <path d="M-10 -2.5l2 5M-7 -2.5l2 5M-4 -2.5l2 5M-1 -2.5l2 5" stroke="#d81e3c" stroke-width="1"/>
+      <ellipse cx="4.5" cy="0" rx="2.4" ry="6.5" fill="url(#gold)" stroke="#6a4010" stroke-width=".8"/>
+      <path d="M7 -2.6 Q40 -4.4 70 -3.6 L80 -.4 Q40 2 7 2.4z" fill="url(#blade)" stroke="#5a6280" stroke-width=".6"/>
+      <path d="M10 -.6 L18 -1.2 L26 -.4 L34 -1.2 L42 -.4 L50 -1.2 L58 -.4 L66 -1" stroke="#fff" stroke-width=".7" fill="none"/>
+    </g>
+    <circle cx="20" cy="-32" r="5" fill="#e8e4f2" stroke="#0c0d16" stroke-width="1.4"/>
+  </g>
+
+  <!-- 벚꽃잎 -->
+  <g fill="#ffb4cf">
+    <ellipse cx="150" cy="70" rx="3" ry="1.8" transform="rotate(30 150 70)"/>
+    <ellipse cx="172" cy="128" rx="2.6" ry="1.6" transform="rotate(-20 172 128)"/>
+    <ellipse cx="76" cy="84" rx="2.8" ry="1.7" transform="rotate(60 76 84)"/>
+    <ellipse cx="222" cy="126" rx="2.4" ry="1.5" transform="rotate(10 222 126)"/>
+    <ellipse cx="138" cy="104" rx="2.2" ry="1.4" transform="rotate(-50 138 104)"/>
+    <ellipse cx="60" cy="112" rx="2.4" ry="1.5" transform="rotate(20 60 112)" opacity=".8"/>
+    <ellipse cx="246" cy="150" rx="2.6" ry="1.6" transform="rotate(-30 246 150)" opacity=".8"/>
+  </g>
+
+  <!-- 로고 -->
+  <text x="14" y="36" fill="#fff" stroke="#3a0a4a" stroke-width="5" paint-order="stroke" stroke-linejoin="round" font-family="sans-serif" font-style="italic" font-weight="900" font-size="28" letter-spacing="1">CAT <tspan fill="#ffd34a">BLADE</tspan></text>
+  <text x="16" y="53" fill="#ffc2d6" stroke="#2a0a3a" stroke-width="3" paint-order="stroke" font-family="sans-serif" font-weight="800" font-size="11">구르고 · 받아치고 · 각성하라</text>
+  <text x="212" y="78" fill="#fff27a" stroke="#1a0f08" stroke-width="3.5" paint-order="stroke" stroke-linejoin="round" font-family="sans-serif" font-style="italic" font-weight="900" font-size="15" transform="rotate(-8 212 78)">PARRY!</text>
+</svg>

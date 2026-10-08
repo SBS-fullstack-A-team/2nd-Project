@@ -7,6 +7,150 @@ import { drawGlow, pawPath, roundRect } from './render';
 import { drawGlint, drawStunStars, tinter, withOutline, type BossView } from './renderEnemies';
 import { TAU, clamp } from './util';
 
+/* =========================================================
+ * 공통 조명 패스 — 보스 몸을 오프스크린에 그린 뒤
+ * 역광 테두리(림 라이트) · 아래쪽 그늘(AO) · 위쪽 윤기를 덧입혀 입체감을 키운다.
+ * ========================================================= */
+
+interface LightOpts {
+  /** 역광 색 (스테이지 분위기) */
+  rim: string;
+  /** 역광 세기 0~1 */
+  rimAlpha: number;
+  /** 몸이 차지하는 대략적인 크기 (보스 배율 1 기준) */
+  w: number;
+  h: number;
+}
+
+let litCanvas: HTMLCanvasElement | null = null;
+let edgeCanvas: HTMLCanvasElement | null = null;
+
+function scratch(c: HTMLCanvasElement | null, w: number, h: number): HTMLCanvasElement | null {
+  const out = c ?? (typeof document !== 'undefined' ? document.createElement('canvas') : null);
+  if (!out) return null;
+  if (out.width < w) out.width = w;
+  if (out.height < h) out.height = h;
+  return out;
+}
+
+function drawLit(
+  ctx: CanvasRenderingContext2D,
+  v: BossView,
+  o: LightOpts,
+  draw: (c: CanvasRenderingContext2D, local: BossView) => void,
+) {
+  const m = ctx.getTransform();
+  const s = Math.min(4, Math.hypot(m.a, m.b) || 1);
+  const W = o.w * v.scale;
+  const H = o.h * v.scale;
+  const ox = W / 2;
+  const oy = H - 30 * v.scale;
+  const pw = Math.ceil(W * s);
+  const ph = Math.ceil(H * s);
+  litCanvas = scratch(litCanvas, pw, ph);
+  edgeCanvas = scratch(edgeCanvas, pw, ph);
+  const lc = litCanvas?.getContext('2d');
+  const ec = edgeCanvas?.getContext('2d');
+  if (!litCanvas || !edgeCanvas || !lc || !ec) {
+    draw(ctx, v);
+    return;
+  }
+  // 1) 몸을 오프스크린에
+  lc.setTransform(1, 0, 0, 1, 0, 0);
+  lc.globalCompositeOperation = 'source-over';
+  lc.globalAlpha = 1;
+  lc.clearRect(0, 0, pw, ph);
+  lc.setTransform(s, 0, 0, s, 0, 0);
+  draw(lc, { ...v, x: ox, y: oy });
+  lc.setTransform(1, 0, 0, 1, 0, 0);
+
+  // 2) 역광 테두리 — 실루엣에서 아래·안쪽으로 민 실루엣을 빼면 위·바깥쪽 가장자리만 남는다
+  const back = -v.facing; // 보스 등 쪽에서 빛이 든다
+  ec.setTransform(1, 0, 0, 1, 0, 0);
+  ec.globalAlpha = 1;
+  ec.globalCompositeOperation = 'copy';
+  ec.drawImage(litCanvas, 0, 0, pw, ph, 0, 0, pw, ph);
+  ec.globalCompositeOperation = 'source-in';
+  ec.fillStyle = o.rim;
+  ec.fillRect(0, 0, pw, ph);
+  ec.globalCompositeOperation = 'destination-out';
+  ec.drawImage(litCanvas, 0, 0, pw, ph, -back * 3.2 * s, 2.6 * s, pw, ph);
+
+  // 3) 아래쪽 그늘 + 위쪽 윤기 (몸 안에만)
+  lc.globalCompositeOperation = 'source-atop';
+  const g = lc.createLinearGradient(0, 0, 0, ph);
+  g.addColorStop(0, 'rgba(255,255,255,0.10)');
+  g.addColorStop(0.38, 'rgba(255,255,255,0)');
+  g.addColorStop(0.72, 'rgba(0,0,0,0)');
+  g.addColorStop(1, 'rgba(0,0,0,0.32)');
+  lc.fillStyle = g;
+  lc.fillRect(0, 0, pw, ph);
+  lc.globalCompositeOperation = 'lighter';
+  lc.globalAlpha = o.rimAlpha;
+  lc.drawImage(edgeCanvas, 0, 0, pw, ph, 0, 0, pw, ph);
+  lc.globalAlpha = 1;
+  lc.globalCompositeOperation = 'source-over';
+
+  ctx.drawImage(litCanvas, 0, 0, pw, ph, v.x - ox, v.y - oy, W, H);
+}
+
+/** 발밑 접지 그림자 + 스테이지 분위기 입자 (보스 몸 뒤) */
+function drawGroundAndAmbience(
+  ctx: CanvasRenderingContext2D,
+  v: BossView,
+  shadowW: number,
+  ambient: 'embers' | 'sparks' | 'wisps' | null,
+  color: string,
+) {
+  ctx.save();
+  ctx.translate(v.x, v.y);
+  ctx.globalAlpha *= v.alpha;
+  ctx.scale(v.scale, v.scale);
+  const sg = ctx.createRadialGradient(0, 0, 4, 0, 0, shadowW);
+  sg.addColorStop(0, 'rgba(0,0,0,0.45)');
+  sg.addColorStop(1, 'rgba(0,0,0,0)');
+  ctx.fillStyle = sg;
+  ctx.save();
+  ctx.scale(1, 0.16);
+  ctx.beginPath();
+  ctx.arc(0, 0, shadowW, 0, TAU);
+  ctx.fill();
+  ctx.restore();
+  if (ambient) {
+    ctx.globalCompositeOperation = 'lighter';
+    const n = ambient === 'wisps' ? 7 : 9;
+    for (let i = 0; i < n; i++) {
+      // 위상만으로 움직이는 결정적 입자 — 상태 없이 매 프레임 같은 규칙으로 그린다
+      const seed = i * 97.13;
+      const k = (v.t * (0.35 + (i % 3) * 0.12) + i / n) % 1;
+      const x = Math.sin(seed) * shadowW * 0.9 + Math.sin(v.t * 1.3 + seed) * 10;
+      const y = -k * (ambient === 'wisps' ? 210 : 180);
+      const a = Math.sin(k * Math.PI);
+      if (ambient === 'wisps') {
+        drawGlow(ctx, x, y, 22 - k * 8, color, a * 0.35);
+      } else if (ambient === 'embers') {
+        drawGlow(ctx, x, y, 7, color, a * 0.85);
+        drawGlow(ctx, x, y, 2.5, '#ffe6a0', a);
+      } else {
+        drawGlow(ctx, x, y, 5, color, a * 0.8);
+        if (i % 3 === 0) {
+          ctx.strokeStyle = color;
+          ctx.globalAlpha = a * 0.7;
+          ctx.lineWidth = 1.2;
+          ctx.beginPath();
+          ctx.moveTo(x, y);
+          ctx.lineTo(x + 5, y - 6);
+          ctx.lineTo(x + 1, y - 9);
+          ctx.lineTo(x + 6, y - 15);
+          ctx.stroke();
+          ctx.globalAlpha = 1;
+        }
+      }
+    }
+  }
+  ctx.restore();
+}
+
 /** 두 점을 잇는 끝이 둥근 사다리꼴 (팔다리) — 한 경로라 외곽선이 매끈하다 */
 function limbPath(
   ctx: CanvasRenderingContext2D,
@@ -72,7 +216,14 @@ const HOUND_P2: HoundPal = {
 };
 
 export function drawHound(ctx: CanvasRenderingContext2D, v: BossView) {
-  withOutline(ctx, '#120806', 2.2, () => houndBody(ctx, v));
+  const rage = v.phase === 2;
+  drawGroundAndAmbience(ctx, v, 150, rage ? 'embers' : null, '#ff6a2a');
+  drawLit(
+    ctx,
+    v,
+    { rim: rage ? '#ff6a3a' : '#ffd8a0', rimAlpha: rage ? 0.85 : 0.6, w: 560, h: 330 },
+    (c, lv) => withOutline(c, '#120806', 2.2, () => houndBody(c, lv)),
+  );
   if (v.stunned) drawStunStars(ctx, v.x + v.facing * 60, v.y - 160 * v.scale, v.t, 26);
 }
 
@@ -647,6 +798,40 @@ function houndHead(
   ctx.beginPath();
   ctx.ellipse(32, -13.3, 1.2, 3.2, 0, 0, TAU);
   ctx.fill();
+  // 눈 반사광
+  ctx.fillStyle = 'rgba(255,255,255,0.9)';
+  ctx.beginPath();
+  ctx.arc(29.6, -14.8, 1.1, 0, TAU);
+  ctx.fill();
+  // 머리털 결 (이마 → 뒤통수로 흐르는 짧은 털)
+  ctx.strokeStyle = 'rgba(30,14,8,0.35)';
+  ctx.lineWidth = 1;
+  ctx.lineCap = 'round';
+  ctx.beginPath();
+  for (const [x0, y0] of [
+    [4, -24],
+    [10, -27],
+    [-4, -16],
+    [-8, -6],
+    [0, -9],
+    [50, -12],
+    [58, -10],
+  ] as const) {
+    ctx.moveTo(x0, y0);
+    ctx.quadraticCurveTo(x0 - 4, y0 + 1, x0 - 8, y0 + 4);
+  }
+  ctx.stroke();
+  ctx.strokeStyle = 'rgba(255,236,210,0.22)';
+  ctx.beginPath();
+  for (const [x0, y0] of [
+    [8, -22],
+    [16, -26],
+    [2, -18],
+  ] as const) {
+    ctx.moveTo(x0, y0);
+    ctx.quadraticCurveTo(x0 - 3, y0 + 1, x0 - 6, y0 + 3);
+  }
+  ctx.stroke();
   // 눈을 가로지르는 흉터
   ctx.strokeStyle = 'rgba(240,210,190,0.75)';
   ctx.lineWidth = 1.6;
@@ -659,6 +844,18 @@ function houndHead(
   // 가까운 쪽 귀 (한쪽이 찢어짐)
   houndEar(ctx, 2, -22, P.fur, 0.12 + (v.pose === 'bark' ? -0.25 : 0), true);
 
+  // 입김 (1페이즈는 차가운 김, 2페이즈는 불티)
+  if (open > 0.3) {
+    ctx.save();
+    ctx.globalCompositeOperation = 'lighter';
+    for (let i = 0; i < 3; i++) {
+      const k = (v.t * 1.6 + i / 3) % 1;
+      const bx = 74 + k * 26;
+      const by = 6 - k * 14 + Math.sin(v.t * 4 + i) * 2;
+      drawGlow(ctx, bx, by, 8 + k * 10, rage ? '#ff6a2a' : '#c8d8e8', (1 - k) * (rage ? 0.6 : 0.3));
+    }
+    ctx.restore();
+  }
   // 침
   if (open > 0.8) {
     ctx.strokeStyle = 'rgba(220,240,255,0.75)';
@@ -755,7 +952,10 @@ export function drawMechaRat(ctx: CanvasRenderingContext2D, v: BossView) {
   if (od) drawGlow(ctx, -6, -60, 120, '#ff3a1a', 0.22 + Math.sin(v.t * 6) * 0.07);
   ctx.restore();
 
-  withOutline(ctx, '#0a0e18', 2, () => ratBody(ctx, v));
+  drawGroundAndAmbience(ctx, v, 170, 'sparks', od ? '#ffa02a' : '#5ad8ff');
+  drawLit(ctx, v, { rim: od ? '#ffb05a' : '#9af0ff', rimAlpha: 0.75, w: 620, h: 330 }, (c, lv) =>
+    withOutline(c, '#0a0e18', 2, () => ratBody(c, lv)),
+  );
   if (v.stunned) drawStunStars(ctx, v.x, v.y - 160 * v.scale, v.t, 28);
 }
 
@@ -1350,7 +1550,10 @@ export function drawCatKing(ctx: CanvasRenderingContext2D, v: BossView) {
   if (fin) kingWings(ctx, v);
   ctx.restore();
 
-  withOutline(ctx, '#05020a', 1.8, () => kingBody(ctx, v));
+  drawGroundAndAmbience(ctx, v, 110, 'wisps', fin ? '#ff2a6a' : '#8a4aff');
+  drawLit(ctx, v, { rim: fin ? '#ff6aa8' : '#b08aff', rimAlpha: 0.9, w: 420, h: 340 }, (c, lv) =>
+    withOutline(c, '#05020a', 1.8, () => kingBody(c, lv)),
+  );
   if (v.stunned) drawStunStars(ctx, v.x + v.facing * 6, v.y - 168 * v.scale, v.t, 22);
 }
 
@@ -1848,6 +2051,10 @@ function kingHead(ctx: CanvasRenderingContext2D, P: KingPal, v: BossView, fin: b
   ctx.fillStyle = '#12020a';
   ctx.beginPath();
   ctx.ellipse(11, -8.4, 0.9, 2.4, 0, 0, TAU);
+  ctx.fill();
+  ctx.fillStyle = 'rgba(255,255,255,0.9)';
+  ctx.beginPath();
+  ctx.arc(9.2, -9.6, 0.8, 0, TAU);
   ctx.fill();
   // 눈썹
   ctx.strokeStyle = '#05020a';

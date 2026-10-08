@@ -22,6 +22,7 @@ import {
   VIEW_H,
   VIEW_W,
   type EnemyKind,
+  type FormId,
   type StageDef,
 } from './config';
 import { Enemy } from './enemy';
@@ -52,6 +53,8 @@ export interface GameSummary {
   kills: number;
   parries: number;
   maxCombo: number;
+  /** 각성 폼으로 시작했다면 그 이름 */
+  awakened: string | null;
   breakdown: { label: string; value: number }[];
 }
 
@@ -253,8 +256,9 @@ export class CatBladeEngine implements World {
 
   /* ---------------- 외부 제어 ---------------- */
 
-  start() {
-    this.player = new Player();
+  /** upgrade 를 주면 그 고양이가 각성한 채로 시작한다 (메뉴 더블클릭 이스터에그) */
+  start(upgrade: FormId | null = null) {
+    this.player = new Player(upgrade);
     this.fx.clear();
     this.enemies = [];
     this.boss = null;
@@ -281,7 +285,18 @@ export class CatBladeEngine implements World {
     this.paused = false;
     this.mode = 'playing';
     this.beginStage(0);
-    this.fx.transform(this.player.x, this.player.y, FORMS[0]!.color, FORMS[0]!.glow);
+    const f = this.player.form;
+    this.fx.transform(this.player.x, this.player.y, f.color, f.glow);
+    if (f.upgraded) {
+      // 각성 연출 — 링 · 섬광 · 이름
+      const { x, y } = this.player;
+      this.fx.ring(x, y - 26, 10, 150, f.glow, 0.7, 8);
+      this.fx.ring(x, y - 26, 6, 100, f.color, 0.55, 5);
+      this.fx.burst(x, y - 26, f.glow, 24, 360, 9);
+      this.fx.text(x, y - 96, `★ ${f.name} 각성! ★`, f.glow, 22, 1.8);
+      this.flash(f.color, 0.4);
+      this.sfx('form');
+    }
   }
 
   /** 게임을 멈추고 메뉴 뒤 배경 상태로 돌아간다 (게임 홈으로) */
@@ -596,6 +611,7 @@ export class CatBladeEngine implements World {
       kills: this.kills,
       parries: this.parries,
       maxCombo: this.maxCombo,
+      awakened: this.awakenedName(),
       breakdown: [
         { label: '타격·콤보', value: Math.round(this.pts.hit) },
         { label: '적 처치', value: Math.round(this.pts.kill) },
@@ -604,6 +620,13 @@ export class CatBladeEngine implements World {
         { label: '보너스 (최대 콤보·시간·체력)', value: Math.round(this.pts.bonus) },
       ],
     };
+  }
+
+  private awakenedName(): string | null {
+    const up = this.player.forms.upgraded;
+    if (!up) return null;
+    const i = FORMS.findIndex((f) => f.id === up);
+    return this.player.forms.defAt(i).name;
   }
 
   private get totalScore() {
@@ -1026,8 +1049,8 @@ export class CatBladeEngine implements World {
       // 나이트 캣 — 광범위 충격파 + 주변 탄 반사
       this.addHitbox({
         team: 'player',
-        shape: { kind: 'circle', x: p.x, y: p.y - 24, r: 210 },
-        damage: 30,
+        shape: { kind: 'circle', x: p.x, y: p.y - 24, r: form.upgraded ? 270 : 210 },
+        damage: Math.round(30 * (form.power ?? 1)),
         dir: p.facing,
         knock: 360,
         launch: 200,
@@ -1300,7 +1323,7 @@ export class CatBladeEngine implements World {
     ctx.fillStyle = 'rgba(8,6,20,0.55)';
     roundRect(ctx, 10, 10, 330, 112, 12);
     ctx.fill();
-    drawFormIcon(ctx, form.id, 46, 46, 28, form.color);
+    drawFormIcon(ctx, form.id, 46, 46, 28, form.color, form.upgraded);
     ctx.strokeStyle = form.glow;
     ctx.lineWidth = 2.5;
     ctx.beginPath();
@@ -1336,11 +1359,12 @@ export class CatBladeEngine implements World {
     ctx.fillText(`${form.name} · ${form.type}`, bx + bw, by - 8);
 
     // 폼 슬롯 5개
-    FORMS.forEach((f, i) => {
+    FORMS.forEach((_, i) => {
+      const f = p.forms.defAt(i);
       const sx = bx + 16 + i * 46;
       const sy = 62;
       const on = i === p.forms.index;
-      drawFormIcon(ctx, f.id, sx, sy, on ? 17 : 14, f.color);
+      drawFormIcon(ctx, f.id, sx, sy, on ? 17 : 14, f.color, f.upgraded);
       // 스킬 대기 (어두운 부채꼴)
       const cd = p.forms.skillCd[f.id];
       if (cd > 0) {
